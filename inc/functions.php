@@ -432,6 +432,45 @@ function setupBoard($array) {
 	if (!file_exists($board['dir'] . $config['dir']['res']))
 		@mkdir($board['dir'] . $config['dir']['res'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
+	// Create Archive Folders
+	if (!file_exists($board['dir'] . $config['dir']['archive']))
+		@mkdir($board['dir'] . $config['dir']['archive'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['img']))
+		@mkdir($board['dir'] . $config['dir']['archive'] . $config['dir']['img'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['thumb']))
+		@mkdir($board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['res']))
+		@mkdir($board['dir'] . $config['dir']['archive'] . $config['dir']['res'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
+	// Create Featured threads Folders
+	if (!file_exists($board['dir'] . $config['dir']['featured']))
+		@mkdir($board['dir'] . $config['dir']['featured'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['img']))
+		@mkdir($board['dir'] . $config['dir']['featured'] . $config['dir']['img'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['thumb']))
+		@mkdir($board['dir'] . $config['dir']['featured'] . $config['dir']['thumb'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
+	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['res']))
+		@mkdir($board['dir'] . $config['dir']['featured'] . $config['dir']['res'], 0777)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
+	// Create Mod Archive threads Folders
+	if (!file_exists($board['dir'] . $config['dir']['mod_archive']))
+		@mkdir($board['dir'] . $config['dir']['mod_archive'], 0777)
+			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . ". Check permissions.<br/>";
+	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['img']))
+		@mkdir($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['img'], 0777)
+			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['feamod_archivetured'] . $config['dir']['img'] . ". Check permissions.<br/>";
+	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb']))
+		@mkdir($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb'], 0777)
+			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb'] . ". Check permissions.<br/>";
+	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res']))
+		@mkdir($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'], 0777)
+			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'] . ". Check permissions.<br/>";
 }
 
 function openBoard($uri) {
@@ -1161,6 +1200,11 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
 
 function clean($pid = false) {
 	global $board, $config;
+
+	// If we are doing the archiving in cron leave cleaning of overflow for now
+	if($config['archive']['cron_job']['archiving'])
+		return;
+
 	$offset = round($config['max_pages']*$config['threads_per_page']);
 
 	// I too wish there was an easier way of doing this...
@@ -1169,8 +1213,14 @@ function clean($pid = false) {
 
 	$query->execute() or error(db_error($query));
 	while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-		deletePost($post['id'], false, false);
-		if ($pid) modLog("Automatically deleting thread #{$post['id']} due to new thread #{$pid}");
+		if($config['archive']['threads']) {
+			Archive::archiveThread($post['id']);
+			deletePostPermanent($post['id'], false, false);
+			if ($pid) modLog("Automatically archived thread #{$post['id']} due to new thread #{$pid}");
+		} else {
+			deletePostPermanent($post['id'], false, false);
+			if ($pid) modLog("Automatically deleting thread #{$post['id']} due to new thread #{$pid}");
+		}
 	}
 
 	// Bump off threads with X replies earlier, spam prevention method
@@ -1190,8 +1240,14 @@ function clean($pid = false) {
 
 		while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
 			if ($post['reply_count'] < $page*$config['early_404_replies']) {
-				deletePost($post['thread_id'], false, false);
-				if ($pid) modLog("Automatically deleting thread #{$post['thread_id']} due to new thread #{$pid} (early 404 is set, #{$post['thread_id']} had {$post['reply_count']} replies)");
+				if($config['archive']['threads']) {
+					Archive::archiveThread($post['thread_id']);
+					deletePostPermanent($post['thread_id'], false, false);
+					if ($pid) modLog("Automatically archived thread #{$post['thread_id']} due to new thread #{$pid} (early 404 is set, #{$post['thread_id']} had {$post['reply_count']} replies)");
+				} else {
+					deletePostPermanent($post['thread_id'], false, false);
+					if ($pid) modLog("Automatically deleting thread #{$post['thread_id']} due to new thread #{$pid} (early 404 is set, #{$post['thread_id']} had {$post['reply_count']} replies)");
+				}
 			}
 
 			if ($config['early_404_staged']) {
@@ -1689,6 +1745,8 @@ function buildIndex($global_api = "yes") {
 			file_write($jsonFilename, $json);
 		}
 	}
+	
+	Archive::RebuildArchiveIndexes();
 
 	if ($config['try_smarter'])
 		$build_pages = array();
@@ -2135,6 +2193,16 @@ function markup(&$body, $track_cites = false, $op = false) {
 	$body = str_replace("\t", '		', $body);
 
 	return $tracked_cites;
+}
+
+function archive_list_markup(&$body) {
+
+	$body = str_replace("\r", '', $body);
+	$body = utf8tohtml($body);
+
+	$body = preg_replace("/^\s*&gt;.*$/m", '<span class="quote">$0</span>', $body);
+	// replace tabs with 8 spaces
+	$body = str_replace("\t", '		', $body);
 }
 
 function escape_markup_modifiers($string) {
@@ -2878,4 +2946,23 @@ function get_urls($body) {
 	$result = preg_match_all("#$regex#i", $body, $match);
 
 	return $match[0];
+}
+
+// Returns hashed version of IP address
+function get_ip_hash($ip)
+{
+	global $config;
+	static $ip_hash;
+
+	if (!$config['bcrypt_ip_addresses'])
+		return $ip;
+	if (isset($ip_hash[$ip]))
+		return $ip_hash[$ip];
+
+	// Generate BCrypt Hash and remove $2a$[cost]$[salt_22_char]$ header info - leaving 31 char hash
+	$hash = crypt($ip, "$2y$" . $config['bcrypt_ip_cost'] . "$" . $config['bcrypt_ip_salt'] . "$");
+	$hash = str_replace("/", "_", substr($hash, 29));
+	$ip_hash[$ip] = $hash;
+
+	return $hash;
 }

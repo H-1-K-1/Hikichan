@@ -25,6 +25,9 @@
 	<a title="{% trans %}Make thread sticky{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'sticky/' ~ post.id) }}">{{ config.mod.link_sticky }}</a>&nbsp;
 	{% endif %}
 {% endif %}
+{% if mod|hasPermission(config.mod.send_threads_to_archive, board.uri) %}
+			{{ secure_link_confirm(config.mod.link_send_to_archive, 'Send thread to archive'|trans, 'Are you sure you want to send thread to archive and delete it from the catalog?'|trans, board.dir ~ 'archive_thread/' ~ post.id ) }}&nbsp;
+		{% endif %}
 {% if mod|hasPermission(config.mod.bumplock, board.uri) %}
 	{% if post.sage %}
 	<a title="{% trans %}Allow thread to be bumped{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'bumpunlock/' ~ post.id) }}">{{ config.mod.link_bumpunlock }}</a>&nbsp;

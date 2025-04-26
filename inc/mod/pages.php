@@ -406,6 +406,9 @@ function mod_edit_board(Context $ctx, $boardName) {
 
 			// Delete posting table
 			$query = query(sprintf('DROP TABLE IF EXISTS ``posts_%s``', $board['uri'])) or error(db_error());
+			
+			// Delete archive table
+			$query = query(sprintf('DROP TABLE IF EXISTS ``archive_%s``', $board['uri'])) or error(db_error());
 
 			// Clear reports
 			$query = prepare('DELETE FROM ``reports`` WHERE `board` = :id');
@@ -541,6 +544,12 @@ function mod_new_board(Context $ctx) {
 		if (mysql_version() < 50503)
 			$query = preg_replace('/(CHARSET=|CHARACTER SET )utf8mb4/', '$1utf8', $query);
 
+		query($query) or error(db_error());
+		
+		// Create Archive Table in DB
+		$query = Element('archive.sql', array('board' => $board['uri']));
+		if (mysql_version() < 50503)
+			$query = preg_replace('/(CHARSET=|CHARACTER SET )utf8mb4/', '$1utf8', $query);
 		query($query) or error(db_error());
 
 		$cache = $ctx->get(CacheDriver::class);
@@ -3247,3 +3256,130 @@ function mod_debug_sql(Context $ctx) {
 
 	mod_page(_('Debug: SQL'), $config['file_mod_debug_sql'], $args, $mod);
 }
+
+function mod_view_archive($boardName, $page_no = 1) {
+	global $board, $config;
+	
+	// If archiving is turned off return
+	if(!$config['archive']['threads'])
+		return;
+	
+	if (!openBoard($boardName))
+		error($config['error']['noboard']);
+
+	if(isset($_POST['feature'], $_POST['id'])) {
+		if(!hasPermission($config['mod']['feature_archived_threads'], $board['uri']))
+			error($config['error']['noaccess']);
+		
+		Archive::featureThread($_POST['id']);
+	}
+	else if(isset($_POST['mod_archive'], $_POST['id'])) {
+		if(!hasPermission($config['mod']['add_to_mod_archive'], $board['uri']))
+			error($config['error']['noaccess']);
+		
+		Archive::featureThread($_POST['id'], true);
+	}
+
+	// Pagination setup
+    $threads_per_page = 5;
+    $archive = Archive::getArchiveListPaginated($page_no, $threads_per_page);
+    $total_threads = Archive::getArchiveCount();
+    $total_pages = ceil($total_threads / $threads_per_page);
+
+	foreach($archive as &$thread)
+		$thread['archived_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+
+	mod_page(sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_list.html', array(
+		'archive' => $archive,
+		'thread_count' => count($archive),
+		'thread_count' => $total_threads,
+		'board' => $board,
+		'current_page' => $page_no,
+        'total_pages' => $total_pages,
+		'token' => make_secure_link_token($board['uri']. '/archive/')
+	));
+}
+
+function mod_view_archive_featured($boardName) {
+	global $board, $config;
+	
+	// If archiving is turned off return
+	if(!$config['feature']['threads'])
+		return;
+	
+	if (!openBoard($boardName))
+		error($config['error']['noboard']);
+
+	if(isset($_POST['delete'], $_POST['id'])) {
+		if(!hasPermission($config['mod']['delete_featured_archived_threads'], $board['uri']))
+			error($config['error']['noaccess']);
+		
+		Archive::deleteFeatured($_POST['id']);
+	}
+
+	$query = query(sprintf("SELECT `id`, `snippet`, `featured` FROM ``archive_%s`` WHERE `featured` = 1 ORDER BY `lifetime` DESC", $board['uri'])) or error(db_error());
+	$archive = $query->fetchAll(PDO::FETCH_ASSOC);
+
+	foreach($archive as &$thread)
+		$thread['featured_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['featured'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+
+	mod_page(sprintf(_('Featured') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_featured_list.html', array(
+		'archive' => $archive,
+		'board' => $board,
+		'token' => make_secure_link_token($board['uri']. '/featured/')
+	));
+}
+
+function mod_view_archive_mod_archive($boardName) {
+	global $board, $config;
+	
+	// If archiving is turned off return
+	if(!$config['mod_archive']['threads'])
+		return;
+	
+	if(!hasPermission($config['mod']['view_mod_archive'], $board['uri']))
+		error($config['error']['noaccess']);
+	
+	if (!openBoard($boardName))
+		error($config['error']['noboard']);
+
+	if(isset($_POST['delete'], $_POST['id'])) {
+		if(!hasPermission($config['mod']['remove_from_mod_archive'], $board['uri']))
+			error($config['error']['noaccess']);
+		
+		Archive::deleteFeatured($_POST['id'], true);
+	}
+
+	$query = query(sprintf("SELECT `id`, `snippet` FROM ``archive_%s`` WHERE `mod_archived` = 1 ORDER BY `lifetime` DESC", $board['uri'])) or error(db_error());
+	$archive = $query->fetchAll(PDO::FETCH_ASSOC);
+
+	foreach($archive as &$thread)
+		$thread['featured_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['mod_archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+
+	mod_page(sprintf(_('Mod Archive') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_featured_list.html', array(
+		'archive' => $archive,
+		'is_mod_archive' => true,
+		'board' => $board,
+		'token' => make_secure_link_token($board['uri']. '/mod_archive/')
+	));
+}
+function mod_archive_thread(Context $ctx, $board, $post) {
+    $config = $ctx->get('config');
+
+    // Pass the board name as a string, not the context object
+    if (!openBoard($board)) // <-- Use $board directly here
+        error($config['error']['noboard']);
+
+    if (!hasPermission($config['mod']['send_threads_to_archive'], $board))
+        error($config['error']['noaccess']);
+
+    Archive::archiveThread($post);
+
+    // Call mod_delete with the correct context
+    mod_delete($ctx, $board, $post);
+
+    header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+}
+
+
+

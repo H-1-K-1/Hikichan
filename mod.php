@@ -74,6 +74,10 @@ $pages = [
 	'/search'				=> 'search_redirect',		// search
 	'/search/(posts|IP_notes|bans|log)/(.+)/(\d+)'	=> 'search',		// search
 	'/search/(posts|IP_notes|bans|log)/(.+)'	=> 'search',		// search
+	
+	'/(\%b)/archive/'					=> 'secure_POST view_archive', 					// View Archive
+	'/(\%b)/featured/'					=> 'secure_POST view_archive_featured', 		// View Featured Archive
+	'/(\%b)/mod_archive/'				=> 'secure_POST view_archive_mod_archive', 		// View Mod Archive
 
 	'/(\%b)/ban(&delete)?/(\d+)'		=> 'secure_POST ban_post', 	// ban poster
 	'/(\%b)/move/(\d+)'			=> 'secure_POST move',		// move thread
@@ -87,6 +91,7 @@ $pages = [
 	'/(\%b)/(un)?sticky/(\d+)'		=> 'secure sticky',		// sticky thread
 	'/(\%b)/(un)?cycle/(\d+)'                         => 'secure cycle',          // cycle thread
 	'/(\%b)/bump(un)?lock/(\d+)'		=> 'secure bumplock',		// "bumplock" thread
+	'/(\%b)/archive_thread/(\d+)'		=> 'secure archive_thread',		// send thread to archive
 
 	'/themes'				=> 'themes_list',		// manage themes
 	'/themes/(\w+)'				=> 'secure_POST theme_configure',		// configure/reconfigure theme

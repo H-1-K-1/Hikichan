@@ -628,6 +628,18 @@ if (file_exists($config['has_installed'])) {
 				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 			') or error(db_error());
 		case '5.1.3':
+			foreach ($boards as &$_board) {
+				query(sprintf("CREATE TABLE IF NOT EXISTS ``archive_%s`` (
+					`id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+					`snippet` text NOT NULL,
+					`lifetime` int(11) NOT NULL,
+					`files` text NOT NULL,
+					`featured` int(1) NOT NULL,
+					UNIQUE KEY `id` (`id`),
+					KEY `lifetime` (`lifetime`)
+					) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+				", $_board['uri']) or error(db_error()));
+			}
 			query('CREATE TABLE IF NOT EXISTS ``captchas`` (
 			  	`cookie` varchar(50),
 			  	`extra` varchar(200),

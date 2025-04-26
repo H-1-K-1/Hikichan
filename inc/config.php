@@ -221,7 +221,7 @@
 	// use a proxy, CDN or load balancer via an unencrypted connection. Be sure to filter 'HTTP_X_FORWARDED_PROTO' in
 	// the remote server, since an attacker could inject the header from the client.
 	// 2 = on, do not trust HTTP headers. Secure default, allow logins only on HTTPS connections.
-	$config['cookies']['secure_login_only'] = 2;
+	$config['cookies']['secure_login_only'] = 0;
 
 	// Used to salt secure tripcodes ("##trip") and poster IDs (if enabled).
 	$config['secure_trip_salt'] = ')(*&^%$#@!98765432190zyxwvutsrqponmlkjihgfedcba';
@@ -1389,22 +1389,29 @@
 	// Board directory, followed by a forward-slash (/).
 	$config['board_path'] = '%s/';
 	// Misc directories.
-	$config['dir'] = [
-		'img' => 'src/',
-		'thumb' => 'thumb/',
-		'res' => 'res/',
-		// For load balancing, having a seperate server (and domain/subdomain) for serving static content is
-		// possible. This can either be a directory or a URL. Defaults to $config['root'] . 'static/'.
-		// $config['dir']['static'] = 'http://static.example.org/';
-		// Where to store the .html templates. This folder and the template files must exist.
-		'template' => getcwd() . '/templates',
-		// Location of vichan "themes".
-		'themes' => getcwd() . '/templates/themes',
-		// Same as above, but a URI (accessable by web interface).
-		'themes_uri' => 'templates/themes',
-		// Home directory. Used by themes.
-		'home' => ''
-	];
+	$config['dir']['img'] = 'src/';
+	$config['dir']['thumb'] = 'thumb/';
+	$config['dir']['res'] = 'res/';
+		
+	// Directory for archived threads
+	$config['dir']['archive'] = 'archive/';
+	// Directory for "Featured Threads" (threads makred for permanent storage)
+	$config['dir']['featured'] = 'featured/';
+	// Directory for "Featured Threads" (threads makred for permanent storage)
+	$config['dir']['mod_archive'] = 'mod_archive/';
+		
+	// For load balancing, having a seperate server (and domain/subdomain) for serving static content is
+	// possible. This can either be a directory or a URL. Defaults to $config['root'] . 'static/'.
+	// $config['dir']['static'] = 'http://static.example.org/';
+
+	// Where to store the .html templates. This folder and the template files must exist.
+	$config['dir']['template'] = getcwd() . '/templates';
+	// Location of Tinyboard "themes".
+	$config['dir']['themes'] = getcwd() . '/templates/themes';
+	// Same as above, but a URI (accessable by web interface).
+	$config['dir']['themes_uri'] = 'templates/themes';
+	// Home directory. Used by themes.
+	$config['dir']['home'] = '';
 
 	// Location of a blank 1x1 gif file. Only used when country_flags_condensed is enabled
 	// $config['image_blank'] = 'static/blank.gif';
@@ -1432,6 +1439,39 @@
 
 	// Try not to build pages when we shouldn't have to.
 	$config['try_smarter'] = true;
+	
+/*
+ * ====================
+ *  Archive settings
+ * ====================
+ */
+
+	// Indicate if threads should be archived
+	$config['archive']['threads'] = true;
+	// Indicate if it is possible to mark threads as featured (stored forever)
+	$config['feature']['threads'] = true;
+	// Indicate if link to featured archive should be shown on post and thread page
+	$config['feature']['link_post_page'] = false;
+
+	// Indicate if it is possible to mark threads as nostalgic (stored forever but will only be accessable to mods)
+	$config['mod_archive']['threads'] = true;
+
+	// Days to keep archived threads before deletion (ex. "60 minutes", "6 hours", "1 day", "1 week"), if set to false all archived threads are kept forever
+	$config['archive']['lifetime'] = "2 days";
+
+	// Number of chars in snippet
+	$config['archive']['snippet_len'] = 400;
+	
+	// If any is set to run in crom both will be run in cron regardless
+	// Archiving is run in cron job
+	$config['archive']['cron_job']['archiving'] = false;
+	// Purging of archive is run in cron job
+	$config['archive']['cron_job']['purge'] = false;
+
+
+	// Automatically send threads with thiese trips to Featured Archive
+	// $config['archive']['auto_feature_trips'] = array("!!securetrip", "!trip");
+	$config['archive']['auto_feature_trips'] = array();
 
 /*
  * ====================
@@ -1593,6 +1633,7 @@
 		'link_uncycle' => '[-Cycle]'
 	];
 
+	$config['mod']['link_send_to_archive'] = '[Archive]';
 	// Moderator capcodes.
 	$config['capcode'] = ' <span class="capcode">## %s</span>';
 
@@ -1714,6 +1755,23 @@
 	$config['mod']['report_dismiss_ip'] = JANITOR;
 	// Dismiss all abuse reports for a post
 	$config['mod']['report_dismiss_post'] = JANITOR;
+
+	// Send  Threads directly to Archive (need to be greater than or equal to ['mod']['delete'] permission)
+	$config['mod']['send_threads_to_archive'] = MOD;
+	if($config['mod']['send_threads_to_archive'] < $config['mod']['delete'])
+		$config['mod']['send_threads_to_archive'] = $config['mod']['delete'];
+	// Feature Archived Threads
+	$config['mod']['feature_archived_threads'] = JANITOR;
+	// Delete Featured Archived Threads
+	$config['mod']['delete_featured_archived_threads'] = ADMIN;
+
+	// View Mod Archive
+	$config['mod']['view_mod_archive'] = MOD;
+	// Archive Threads for Mods
+	$config['mod']['add_to_mod_archive'] = MOD;
+	// Archive Threads for Mods
+	$config['mod']['remove_from_mod_archive'] = ADMIN;
+
 	// View list of bans
 	$config['mod']['view_banlist'] = MOD;
 	// View the username of the mod who made a ban

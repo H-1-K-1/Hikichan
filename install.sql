@@ -36,6 +36,41 @@ CREATE TABLE IF NOT EXISTS `antispam` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `archive_b`
+--
+
+CREATE TABLE IF NOT EXISTS `archive_b` (
+  `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `snippet` text NOT NULL,
+  `lifetime` int(11) NOT NULL,
+  `files` mediumtext NOT NULL,
+  `featured` int(1) NOT NULL,
+  `mod_archived` int(1) NOT NULL,
+  `votes` int(10) UNSIGNED NOT NULL,
+  `path` varchar(255) NOT NULL,
+  UNIQUE KEY `id` (`id`),
+  KEY `lifetime` (`lifetime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `votes_archive`
+--
+
+CREATE TABLE IF NOT EXISTS `votes_archive` (
+  `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `board` varchar(58) NOT NULL,
+  `thread_id` int(10) NOT NULL,
+  `ip` varchar(61) CHARACTER SET ascii NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id`),
+  KEY `ip` (`ip`,`board`,`thread_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `bans`
 --
 
