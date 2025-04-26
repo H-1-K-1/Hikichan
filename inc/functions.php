@@ -1215,10 +1215,10 @@ function clean($pid = false) {
 	while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
 		if($config['archive']['threads']) {
 			Archive::archiveThread($post['id']);
-			deletePostPermanent($post['id'], false, false);
+			deletePost($post['id'], false, false);
 			if ($pid) modLog("Automatically archived thread #{$post['id']} due to new thread #{$pid}");
 		} else {
-			deletePostPermanent($post['id'], false, false);
+			deletePost($post['id'], false, false);
 			if ($pid) modLog("Automatically deleting thread #{$post['id']} due to new thread #{$pid}");
 		}
 	}
@@ -1242,10 +1242,10 @@ function clean($pid = false) {
 			if ($post['reply_count'] < $page*$config['early_404_replies']) {
 				if($config['archive']['threads']) {
 					Archive::archiveThread($post['thread_id']);
-					deletePostPermanent($post['thread_id'], false, false);
+					deletePost($post['thread_id'], false, false);
 					if ($pid) modLog("Automatically archived thread #{$post['thread_id']} due to new thread #{$pid} (early 404 is set, #{$post['thread_id']} had {$post['reply_count']} replies)");
 				} else {
-					deletePostPermanent($post['thread_id'], false, false);
+					deletePost($post['thread_id'], false, false);
 					if ($pid) modLog("Automatically deleting thread #{$post['thread_id']} due to new thread #{$pid} (early 404 is set, #{$post['thread_id']} had {$post['reply_count']} replies)");
 				}
 			}
