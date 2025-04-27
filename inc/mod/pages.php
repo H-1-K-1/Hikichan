@@ -3257,7 +3257,7 @@ function mod_debug_sql(Context $ctx) {
 	mod_page(_('Debug: SQL'), $config['file_mod_debug_sql'], $args, $mod);
 }
 
-function mod_view_archive($boardName, $page_no = 1) {
+function mod_view_archive($context, $boardName, $page_no = 1) {
 	global $board, $config;
 	
 	// If archiving is turned off return
@@ -3280,6 +3280,14 @@ function mod_view_archive($boardName, $page_no = 1) {
 		Archive::featureThread($_POST['id'], true);
 	}
 
+	// Handle delete request
+	else if(isset($_POST['delete'], $_POST['id'])) {
+		if(!hasPermission($config['mod']['delete_archived_threads'], $board['uri']))
+			error($config['error']['noaccess']);
+		
+		Archive::deleteArchived($_POST['id']);
+	}
+
 	// Pagination setup
     $threads_per_page = 5;
     $archive = Archive::getArchiveListPaginated($page_no, $threads_per_page);
@@ -3289,19 +3297,27 @@ function mod_view_archive($boardName, $page_no = 1) {
 	foreach($archive as &$thread)
 		$thread['archived_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
 
-	mod_page(sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_list.html', array(
-		'archive' => $archive,
-		'thread_count' => count($archive),
-		'thread_count' => $total_threads,
-		'board' => $board,
-		'current_page' => $page_no,
-        'total_pages' => $total_pages,
-		'token' => make_secure_link_token($board['uri']. '/archive/')
-	));
+		mod_page(
+			sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']),
+			'mod/archive_list.html',
+			array(
+				'archive' => $archive,
+				'thread_count' => $total_threads,
+				'board' => $board,
+				'current_page' => $page_no,
+				'total_pages' => $total_pages,
+				'token' => make_secure_link_token($board['uri']. '/archive/')
+			),
+			true
+		);
+		
+		
+
+
 }
 
-function mod_view_archive_featured($boardName) {
-	global $board, $config;
+function mod_view_archive_featured($context, $boardName) {
+    global $board, $config;
 	
 	// If archiving is turned off return
 	if(!$config['feature']['threads'])
@@ -3320,17 +3336,24 @@ function mod_view_archive_featured($boardName) {
 	$query = query(sprintf("SELECT `id`, `snippet`, `featured` FROM ``archive_%s`` WHERE `featured` = 1 ORDER BY `lifetime` DESC", $board['uri'])) or error(db_error());
 	$archive = $query->fetchAll(PDO::FETCH_ASSOC);
 
-	foreach($archive as &$thread)
+	foreach($archive as &$thread) {
 		$thread['featured_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['featured'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+	}
 
-	mod_page(sprintf(_('Featured') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_featured_list.html', array(
-		'archive' => $archive,
-		'board' => $board,
-		'token' => make_secure_link_token($board['uri']. '/featured/')
-	));
+	mod_page(
+		sprintf(_('Featured') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']),
+		'mod/archive_featured_list.html',
+		array(
+			'archive' => $archive,
+			'board' => $board,
+			'token' => make_secure_link_token($board['uri']. '/featured/')
+		),
+		true // <- important: this is a mod page
+	);
 }
 
-function mod_view_archive_mod_archive($boardName) {
+
+function mod_view_archive_mod_archive($context, $boardName) {
 	global $board, $config;
 	
 	// If archiving is turned off return
@@ -3353,15 +3376,21 @@ function mod_view_archive_mod_archive($boardName) {
 	$query = query(sprintf("SELECT `id`, `snippet` FROM ``archive_%s`` WHERE `mod_archived` = 1 ORDER BY `lifetime` DESC", $board['uri'])) or error(db_error());
 	$archive = $query->fetchAll(PDO::FETCH_ASSOC);
 
-	foreach($archive as &$thread)
+	foreach($archive as &$thread) {
 		$thread['featured_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['mod_archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+	}
 
-	mod_page(sprintf(_('Mod Archive') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']), 'mod/archive_featured_list.html', array(
-		'archive' => $archive,
-		'is_mod_archive' => true,
-		'board' => $board,
-		'token' => make_secure_link_token($board['uri']. '/mod_archive/')
-	));
+	mod_page(
+		sprintf(_('Mod Archive') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']),
+		'mod/archive_featured_list.html',
+		array(
+			'archive' => $archive,
+			'is_mod_archive' => true,
+			'board' => $board,
+			'token' => make_secure_link_token($board['uri']. '/mod_archive/')
+		),
+		true // <- again, it's a mod page
+	);
 }
 function mod_archive_thread(Context $ctx, $board, $post) {
     $config = $ctx->get('config');

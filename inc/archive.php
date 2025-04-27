@@ -299,6 +299,35 @@ class Archive {
         self::buildArchiveIndex();
     }
 
+    static public function deleteArchived($thread_id) {
+        global $config, $board, $mod;
+    
+        $query = query(sprintf("SELECT `id`, `files`, `path`, `lifetime` FROM ``archive_%s`` WHERE `id` = %d", $board['uri'], (int)$thread_id)) or error(db_error());
+        if(!$thread = $query->fetch(PDO::FETCH_ASSOC))
+            error($config['error']['invalidpost']);
+        
+        // Generate the archived path
+        $archived_path = $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/';
+    
+        // Delete Files
+        foreach (json_decode($thread['files']) as $f) {
+            @unlink($archived_path . $config['dir']['img'] . $f->file);
+            @unlink($archived_path . $config['dir']['thumb'] . $f->thumb);
+        }
+    
+        // Delete Thread HTML page
+        @unlink($archived_path . $config['dir']['res'] . sprintf($config['file_page'], $thread_id));
+    
+        // Delete Entry in DB
+        query(sprintf("DELETE FROM ``archive_%s`` WHERE `id` = %d", $board['uri'], (int)$thread_id)) or error(db_error());
+        
+        // Add mod log entry
+        modLog(sprintf("Deleted archived thread #%d", $thread_id));
+    
+        // Rebuild Archive Index
+        self::buildArchiveIndex();
+    }
+
 
 
     static public function RebuildArchiveIndexes() {

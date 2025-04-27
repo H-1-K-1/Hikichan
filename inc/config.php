@@ -1764,6 +1764,8 @@
 	$config['mod']['feature_archived_threads'] = JANITOR;
 	// Delete Featured Archived Threads
 	$config['mod']['delete_featured_archived_threads'] = ADMIN;
+	// Delete Archived Threads
+	$config['mod']['delete_archived_threads'] = ADMIN;
 
 	// View Mod Archive
 	$config['mod']['view_mod_archive'] = MOD;
