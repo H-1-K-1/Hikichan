@@ -301,17 +301,10 @@
 			'secret' => '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe',
 		],
 		'hcaptcha' => [
-			'sitekey' => '10000000-ffff-ffff-ffff-000000000001',
-			'secret' => '0x0000000000000000000000000000000000000000',
+			'sitekey' => '8bba9614-aa40-41ba-b868-a5d2058a2710',
+			'secret' => 'ES_99ca690913774fc3a6d76ca47ecacaee',
 		],
-		// To enable the native captcha you need to change a couple of settings. Read more at: /inc/captcha/readme.md
 		'native' => [
-			// Custom captcha get provider path (if not working get the absolute path aka your url).
-			'provider_get' => '/inc/captcha/entrypoint.php',
-			// Custom captcha check provider path
-			'provider_check' => '/inc/captcha/entrypoint.php',
-			// Custom captcha extra field (eg. charset)
-			'extra' => 'abcdefghijklmnopqrstuvwxyz',
 			// New thread captcha. Require solving a captcha to post a thread.
 			'new_thread_capt' => false
 		]
@@ -1341,6 +1334,7 @@
 	// Mod page file settings
 	$config['file_mod_dashboard'] = 'mod/dashboard.html';
 	$config['file_mod_login'] = 'mod/login.html';
+	$config['file_mod_register'] = 'mod/register.html';
 	$config['file_mod_confim'] = 'mod/confirm.html';
 	$config['file_mod_board'] = 'mod/board.html';
 	$config['file_mod_news'] = 'mod/news.html';
@@ -1667,6 +1661,7 @@
 	// decide to change it, remember that it is impossible to redefinite/overwrite groups; you may only add
 	// new ones.
 	$config['mod']['groups'] = [
+		1	=> 'User',
 		10	=> 'Janitor',
 		20	=> 'Mod',
 		30	=> 'Admin',
@@ -1817,18 +1812,18 @@
 	// pretty resource intensive if your mod logs are huge.
 	$config['mod']['modlog_ip'] = MOD;
 	// Create a PM (viewing mod usernames)
-	$config['mod']['create_pm'] = JANITOR;
+	$config['mod']['create_pm'] = USER;
 	// Read any PM, sent to or from anybody
 	$config['mod']['master_pm'] = ADMIN;
 	// Rebuild everything
 	$config['mod']['rebuild'] = ADMIN;
 	// Search through posts, IP address notes and bans
-	$config['mod']['search'] = JANITOR;
+	$config['mod']['search'] = USER;
 	// Allow searching posts (can be used with board configuration file to disallow searching through a
 	// certain board)
-	$config['mod']['search_posts'] = JANITOR;
+	$config['mod']['search_posts'] = USER;
 	// Read the moderator noticeboard
-	$config['mod']['noticeboard'] = JANITOR;
+	$config['mod']['noticeboard'] = USER;
 	// Post to the moderator noticeboard
 	$config['mod']['noticeboard_post'] = MOD;
 	// Delete entries from the noticeboard

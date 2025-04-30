@@ -7,7 +7,6 @@ require_once 'inc/bootstrap.php';
 
 use Vichan\{Context, WebDependencyFactory};
 use Vichan\Data\Driver\{LogDriver, HttpDriver};
-use Vichan\Service\{RemoteCaptchaQuery, NativeCaptchaQuery};
 use Vichan\Functions\Format;
 
 /**
@@ -371,11 +370,6 @@ elseif (isset($_GET['Newsgroups'])) {
 	error("NNTPChan: NNTPChan support is disabled");
 }
 
-session_start();
-if (!isset($_POST['captcha_cookie']) && isset($_SESSION['captcha_cookie'])) {
-	$_POST['captcha_cookie'] = $_SESSION['captcha_cookie'];
-}
-
 if (isset($_POST['delete'])) {
 	// Delete
 
@@ -628,57 +622,56 @@ if (isset($_POST['delete'])) {
 		checkBan($board['uri']);
 
 		// Check for CAPTCHA right after opening the board so the "return" link is in there.
-		try {
-			$provider = $config['captcha']['provider'];
-			$new_thread_capt = $config['captcha']['native']['new_thread_capt'];
-			$dynamic = $config['captcha']['dynamic'];
-
-			// With our custom captcha provider
-			if (($provider === 'native' && !$new_thread_capt)
-				|| ($provider === 'native' && $new_thread_capt && $post['op'])) {
-				$query = $context->get(NativeCaptchaQuery::class);
-				$success = $query->verify($_POST['captcha_text'], $_POST['captcha_cookie']);
-
-				if (!$success) {
-					error(
-						"{$config['error']['captcha']}
-						<script>
-							if (actually_load_captcha !== undefined)
-								actually_load_captcha(
-									\"{$config['captcha']['provider_get']}\",
-									\"{$config['captcha']['extra']}\"
-								);
-						</script>"
-					);
+		if ($config['captcha']['provider'] === 'hcaptcha') {
+			if (!$dropped_post) {
+				if (!isset($_POST['h-captcha-response'])) {
+					error($config['error']['captcha']);
 				}
-			}
-			// Remote 3rd party captchas.
-			elseif ($provider && (!$dynamic || $dynamic === $_SERVER['REMOTE_ADDR'])) {
-				$query = $content->get(RemoteCaptchaQuery::class);
-				$field = $query->responseField();
 
-				if (!isset($_POST[$field])) {
-					error($config['error']['bot']);
+				$hcaptcha_secret = $config['captcha']['hcaptcha_secret']; // Your hCaptcha secret key from config
+				$hcaptcha_response = $_POST['h-captcha-response'];
+
+				$verify_response = file_get_contents('https://hcaptcha.com/siteverify', false, stream_context_create([
+					'http' => [
+						'method' => 'POST',
+						'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+						'content' => http_build_query([
+							'secret' => $hcaptcha_secret,
+							'response' => $hcaptcha_response,
+							'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
+						])
+					]
+				]));
+
+				if ($verify_response === false) {
+					error($config['error']['remote_io_error']);
 				}
-				$response = $_POST[$field];
-				/*
-				 * Do not query with the IP if the mode is dynamic. This config is meant for proxies and internal
-				 * loopback addresses.
-				 */
-				$ip = $dynamic ? null : $_SERVER['REMOTE_ADDR'];
 
-				$success = $query->verify($response, $ip);
-				if (!$success) {
+				$response_data = json_decode($verify_response, true);
+
+				if (empty($response_data['success'])) {
 					error($config['error']['captcha']);
 				}
 			}
-		} catch (RuntimeException $e) {
-			$context->get(LogDriver::class)->log(LogDriver::ERROR, "Captcha IO exception: {$e->getMessage()}");
-			error($config['error']['remote_io_error']);
-		} catch (JsonException $e) {
-			$context->get(LogDriver::class)->log(LogDriver::ERROR, "Bad JSON reply to captcha: {$e->getMessage()}");
-			error($config['error']['remote_io_error']);
 		}
+
+	if ($config['captcha']['provider'] === 'native') {
+		if (!$dropped_post) {
+			session_start();
+	
+			if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
+				error($config['error']['captcha']);
+			}s
+	
+			// Case-insensitive comparison
+			if (!isset($_SESSION['captcha']) || strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0) {
+				error($config['error']['captcha']); // CAPTCHA failed
+			}
+	
+			// CAPTCHA matched – continue as normal
+		}
+	}
+		
 
 
 		if (!(($post['op'] && $_POST['post'] == $config['button_newtopic']) ||

@@ -113,6 +113,35 @@ function login(string $username, string $password) {
 	return false;
 }
 
+function register(string $username, string $password, int $type = 1, array $boards = []): bool {
+	global $config;
+
+	// Check if the username already exists
+	$query = prepare("SELECT 1 FROM ``mods`` WHERE `username` = :username");
+	$query->bindValue(':username', $username);
+	$query->execute() or error(db_error($query));
+	if ($query->fetch()) {
+		// Username already taken
+		return false;
+	}
+
+	// Hash the password
+	list($version, $password_crypt) = crypt_password($password);
+
+	// Insert new moderator
+	$query = prepare("INSERT INTO ``mods`` (`username`, `password`, `version`, `type`, `boards`) 
+		VALUES (:username, :password, :version, :type, :boards)");
+	$query->bindValue(':username', $username);
+	$query->bindValue(':password', $password_crypt);
+	$query->bindValue(':version', $version, PDO::PARAM_INT);
+	$query->bindValue(':type', $type, PDO::PARAM_INT);
+	$query->bindValue(':boards', implode(',', $boards));
+	$query->execute() or error(db_error($query));
+
+	return true;
+}
+
+
 function setCookies(): void {
 	global $mod, $config;
 	if (!$mod) {

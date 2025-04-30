@@ -113,7 +113,7 @@ function config_vars() {
 				}
 				
 				if ($var['type'] == 'integer' && $var['name'][0] == 'mod' &&
-					(in_array($var['default'], array('JANITOR', 'MOD', 'ADMIN', 'DISABLED')) || mb_strpos($var['default'], "\$config['mod']") === 0)) {
+					(in_array($var['default'], array('USER','JANITOR', 'MOD', 'ADMIN', 'DISABLED')) || mb_strpos($var['default'], "\$config['mod']") === 0)) {
 					// Permissions variable
 					$var['permissions'] = true;
 				}

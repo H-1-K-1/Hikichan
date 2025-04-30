@@ -55,34 +55,6 @@ function build_context(array $config): Context {
 			$config = $c->get('config');
 			return new HttpDriver($config['upload_by_url_timeout'], $config['max_filesize']);
 		},
-		RemoteCaptchaQuery::class => function($c) {
-			$config = $c->get('config');
-			$http = $c->get(HttpDriver::class);
-			switch ($config['captcha']['provider']) {
-				case 'recaptcha':
-					return new ReCaptchaQuery($http, $config['captcha']['recaptcha']['secret']);
-				case 'hcaptcha':
-					return new HCaptchaQuery(
-						$http,
-						$config['captcha']['hcaptcha']['secret'],
-						$config['captcha']['hcaptcha']['sitekey']
-					);
-				default:
-					throw new \RuntimeException('No remote captcha service available');
-			}
-		},
-		NativeCaptchaQuery::class => function($c) {
-			$config = $c->get('config');
-			if ($config['captcha']['provider'] !== 'native') {
-				throw new \RuntimeException('No native captcha service available');
-			}
-			return new NativeCaptchaQuery(
-				$c->get(HttpDriver::class),
-				$config['domain'],
-				$config['captcha']['native']['provider_check'],
-				$config['captcha']['native']['extra']
-			);
-		},
 		CacheDriver::class => function($c) {
 			// Use the global for backwards compatibility.
 			return \cache::getCache();

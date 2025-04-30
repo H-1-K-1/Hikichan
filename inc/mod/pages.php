@@ -45,41 +45,151 @@ function mod_page($title, $template, $args, $mod, $subtitle = false) {
 }
 
 function mod_login(Context $ctx, $redirect = false) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	$args = [];
+    $args = [];
 
-	$secure_login_mode = $config['cookies']['secure_login_only'];
-	if ($secure_login_mode !== 0 && !Net\is_connection_secure($secure_login_mode === 1)) {
-		$args['error'] = $config['error']['insecure'];
-	} elseif (isset($_POST['login'])) {
-		// Check if inputs are set and not empty
-		if (!isset($_POST['username'], $_POST['password']) || $_POST['username'] == '' || $_POST['password'] == '') {
-			$args['error'] = $config['error']['invalid'];
-		} elseif (!login($_POST['username'], $_POST['password'])) {
-			if ($config['syslog'])
-				_syslog(LOG_WARNING, 'Unauthorized login attempt!');
+    // Check if CAPTCHA is enabled in the config
+    if ($config['captcha']['provider'] === 'hcaptcha') {
+        $hcaptcha_secret = $config['captcha']['hcaptcha']['secret'];
+        $hcaptcha_sitekey = $config['captcha']['hcaptcha']['sitekey'];
+        $args['hcaptcha_sitekey'] = $hcaptcha_sitekey;
+    } elseif ($config['captcha']['provider'] === 'native') {
+        session_start(); // Start session for native CAPTCHA
+    }
 
-			$args['error'] = $config['error']['invalid'];
-		} else {
-			modLog('Logged in');
+    if (isset($_POST['login'])) {
+        // Check if inputs are set and not empty
+        if (!isset($_POST['username'], $_POST['password']) || $_POST['username'] == '' || $_POST['password'] == '') {
+            $args['error'] = $config['error']['invalid'];
+        }
+        // Check hCaptcha (if enabled)
+        elseif ($config['captcha']['provider'] === 'hcaptcha' && 
+                (!isset($_POST['h-captcha-response']) || !verify_hcaptcha($_POST['h-captcha-response'], $hcaptcha_secret))) {
+            $args['error'] = 'Captcha verification failed. Please try again.';
+        }
+        // Check native CAPTCHA (if enabled)
+        elseif ($config['captcha']['provider'] === 'native') {
+            if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
+                $args['error'] = $config['error']['captcha'];
+            } elseif (!isset($_SESSION['captcha']) || strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0) {
+                $args['error'] = $config['error']['captcha']; // CAPTCHA failed
+            }
+        }
+        // If username and password are valid, attempt login
+        if (!isset($args['error']) && !login($_POST['username'], $_POST['password'])) {
+            if ($config['syslog'])
+                _syslog(LOG_WARNING, 'Unauthorized login attempt!');
 
-			// Login successful
-			// Set cookies
-			setCookies();
+            $args['error'] = $config['error']['invalid'];
+        } elseif (!isset($args['error'])) {
+            modLog('Logged in');
 
-			if ($redirect)
-				header('Location: ?' . $redirect, true, $config['redirect_http']);
-			else
-				header('Location: ?/', true, $config['redirect_http']);
-		}
-	}
+            // Login successful
+            setCookies();
 
-	if (isset($_POST['username']))
-		$args['username'] = $_POST['username'];
+            // Redirect after login
+            if ($redirect)
+                header('Location: ?' . $redirect, true, $config['redirect_http']);
+            else
+                header('Location: ?/', true, $config['redirect_http']);
+            exit;
+        }
+    }
 
-	mod_page(_('Login'), $config['file_mod_login'], $args, $mod);
+    if (isset($_POST['username']))
+        $args['username'] = $_POST['username'];
+
+    mod_page(_('Login'), $config['file_mod_login'], $args, $mod);
+}
+
+
+function mod_register(Context $ctx, $redirect = false) {
+    global $mod;
+    $config = $ctx->get('config');
+    $args = [];
+
+    // Check if CAPTCHA is enabled in the config
+    if ($config['captcha']['provider'] === 'hcaptcha') {
+        $hcaptcha_secret = $config['captcha']['hcaptcha']['secret'];
+        $hcaptcha_sitekey = $config['captcha']['hcaptcha']['sitekey'];
+        $args['hcaptcha_sitekey'] = $hcaptcha_sitekey;
+    } elseif ($config['captcha']['provider'] === 'native') {
+        session_start(); // Start session for native CAPTCHA
+    }
+
+    if (isset($_POST['register'])) {
+        // Check if inputs are set and not empty
+        if (!isset($_POST['username'], $_POST['password']) || $_POST['username'] == '' || $_POST['password'] == '') {
+            $args['error'] = $config['error']['invalid'];
+        }
+        // Check hCaptcha (if enabled)
+        elseif ($config['captcha']['provider'] === 'hcaptcha' && 
+                (!isset($_POST['h-captcha-response']) || !verify_hcaptcha($_POST['h-captcha-response'], $hcaptcha_secret))) {
+            $args['error'] = 'Captcha verification failed. Please try again.';
+        }
+        // Check native CAPTCHA (if enabled)
+        elseif ($config['captcha']['provider'] === 'native') {
+            if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
+                $args['error'] = $config['error']['captcha'];
+            } elseif (!isset($_SESSION['captcha']) || strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0) {
+                $args['error'] = $config['error']['captcha']; // CAPTCHA failed
+            }
+        }
+        // If username and password are valid, attempt registration
+        if (!isset($args['error']) && !register($_POST['username'], $_POST['password'])) {
+            if ($config['syslog'])
+                _syslog(LOG_WARNING, 'Failed registration attempt!');
+
+            $args['error'] = $config['error']['invalid'];
+        } elseif (!isset($args['error'])) {
+            modLog('Registered new account');
+
+            // Registration successful
+            if ($redirect)
+                header('Location: ?' . $redirect, true, $config['redirect_http']);
+            else
+                header('Location: ?/', true, $config['redirect_http']);
+            exit;
+        }
+    }
+
+    if (isset($_POST['username']))
+        $args['username'] = $_POST['username'];
+
+    mod_page(_('Register'), $config['file_mod_register'], $args, $mod);
+}
+
+/**
+ * Verify hCaptcha response
+ */
+function verify_hcaptcha($token, $secret) {
+    // Prepare data to send to hCaptcha's verification endpoint
+    $data = [
+        'secret' => $secret,
+        'response' => $token
+    ];
+
+    // HTTP options for POST request
+    $options = [
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+            'content' => http_build_query($data)
+        ]
+    ];
+
+    // Make request to hCaptcha's verification endpoint
+    $context  = stream_context_create($options);
+    $result = file_get_contents('https://hcaptcha.com/siteverify', false, $context);
+    if ($result === false) {
+        return false;
+    }
+
+    // Decode the response
+    $resultJson = json_decode($result, true);
+    return isset($resultJson['success']) && $resultJson['success'] == true;
 }
 
 function mod_confirm(Context $ctx, $request) {
@@ -2166,20 +2276,69 @@ function mod_users(Context $ctx) {
 	if (!hasPermission($config['mod']['manageusers']))
 		error($config['error']['noaccess']);
 
-	$query = query("SELECT
-		*,
-		(SELECT `time` FROM ``modlogs`` WHERE `mod` = `id` ORDER BY `time` DESC LIMIT 1) AS `last`,
-		(SELECT `text` FROM ``modlogs`` WHERE `mod` = `id` ORDER BY `time` DESC LIMIT 1) AS `action`
-		FROM ``mods`` ORDER BY `type` DESC,`id`") or error(db_error());
+	// Pagination params
+	$limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 25;
+	$last_time = isset($_GET['last_time']) && is_numeric($_GET['last_time']) ? (int)$_GET['last_time'] : null;
+	$last_type = isset($_GET['last_type']) && is_numeric($_GET['last_type']) ? (int)$_GET['last_type'] : null;
+
+	// Total user count
+	$total_query = query("SELECT COUNT(*) FROM ``mods``") or error(db_error());
+	$total_users = (int)$total_query->fetchColumn();
+
+	// Main query
+	$sql = "
+		SELECT
+			m.*,
+			(SELECT ml.`time` FROM ``modlogs`` ml WHERE ml.`mod` = m.`id` ORDER BY ml.`time` DESC LIMIT 1) AS `last`,
+			(SELECT ml.`text` FROM ``modlogs`` ml WHERE ml.`mod` = m.`id` ORDER BY ml.`time` DESC LIMIT 1) AS `action`
+		FROM ``mods`` m
+		LEFT JOIN (
+			SELECT `mod`, MAX(`time`) AS last FROM ``modlogs`` GROUP BY `mod`
+		) ml ON ml.mod = m.id
+		WHERE (
+			(:last_time IS NULL AND :last_type IS NULL)
+			OR (m.`type` < :last_type OR (m.`type` = :last_type AND ml.last < :last_time))
+		)
+		ORDER BY m.`type` DESC, ml.last DESC
+		LIMIT :limit
+	";
+
+	$query = prepare($sql);
+	$query->bindValue(':last_time', $last_time, PDO::PARAM_INT);
+	$query->bindValue(':last_type', $last_type, PDO::PARAM_INT);
+	$query->bindValue(':limit', $limit, PDO::PARAM_INT);
+	$query->execute() or error(db_error($query));
 	$users = $query->fetchAll(PDO::FETCH_ASSOC);
 
+	// Add secure action tokens
 	foreach ($users as &$user) {
 		$user['promote_token'] = make_secure_link_token("users/{$user['id']}/promote");
 		$user['demote_token'] = make_secure_link_token("users/{$user['id']}/demote");
 	}
 
-	mod_page(sprintf('%s (%d)', _('Manage users'), count($users)), $config['file_mod_users'], [ 'users' => $users ], $mod);
+	// Update cursor for next page
+	$new_last_time = null;
+	$new_last_type = null;
+	if (!empty($users)) {
+		$last_user = end($users);
+		$new_last_time = $last_user['last'] ?? 0;
+		$new_last_type = $last_user['type'];
+	}
+
+	// Render page
+	mod_page(
+		sprintf('%s (%d)', _('Manage users'), $total_users),
+		$config['file_mod_users'],
+		[
+			'users' => $users,
+			'limit' => $limit,
+			'last_time' => $new_last_time,
+			'last_type' => $new_last_type
+		],
+		$mod
+	);
 }
+
 
 function mod_user_promote(Context $ctx, $uid, $action) {
 	$config = $ctx->get('config');
@@ -3289,7 +3448,7 @@ function mod_view_archive($context, $boardName, $page_no = 1) {
 	}
 
 	// Pagination setup
-    $threads_per_page = 5;
+    $threads_per_page = 100;
     $archive = Archive::getArchiveListPaginated($page_no, $threads_per_page);
     $total_threads = Archive::getArchiveCount();
     $total_pages = ceil($total_threads / $threads_per_page);

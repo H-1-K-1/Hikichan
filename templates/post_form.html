@@ -86,18 +86,17 @@
 		</tr>
 		{% endif %}
 		{% if config.captcha.provider == 'native' %}
-		<tr class='captcha'>
+		<tr class="captcha">
 			<th>
 				{% trans %}Verification{% endtrans %}
 			</th>
 			<td>
-				<script>load_captcha("{{ config.captcha.native.provider_get }}", "{{ config.captcha.native.extra }}");</script>
-				<noscript>
-					<input class='captcha_text' type='text' name='captcha_text' size='32' maxlength='6' autocomplete='off'>
-					<div class="captcha_html">
-						<img src="/{{ config.captcha.native.provider_get }}?mode=get&raw=1">
-					</div>
-				</noscript>
+				<input type="text" name="captcha" />
+				<p><br />
+				<img src="inc/captcha/captcha.php?{{ random() }}" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
+					 onclick="this.src = 'inc/captcha/captcha.php?' + Math.random();">
+				</p>
+				<p>Click the image to refresh.</p>
 			</td>
 		</tr>
 		{% elseif config.captcha.native.new_thread_capt %}

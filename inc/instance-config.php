@@ -23,10 +23,13 @@
 
 	$config['additional_javascript'][] = 'js/jquery.min.js';
 	$config['additional_javascript'][] = 'js/archive.js';
+	
+
 $config['additional_javascript'][] = 'js/mobile-style.js';
 $config['additional_javascript'][] = 'js/download-original.js';
 $config['additional_javascript'][] = 'js/expand-all-images.js';
 $config['additional_javascript'][] = 'js/expand-too-long.js';
+$config['additional_javascript'][]   = 'js/captcha.js';
 $config['additional_javascript'][] = 'js/ajax.js';
 $config['additional_javascript'][] = 'js/post-hover.js';
 $config['additional_javascript'][] = 'js/quick-reply.js';
@@ -47,4 +50,5 @@ $config['additional_javascript'][] = 'js/style-select.js';
 $config['additional_javascript'][] = 'js/options/general.js';
 $config['additional_javascript'][] = 'js/multi-image.js';
 $config['additional_javascript'][] = 'js/post-menu.js';
+
 ?>

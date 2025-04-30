@@ -124,7 +124,10 @@ $pages = [
 
 
 if (!$mod) {
-	$pages = [ '!^(.+)?$!' => 'login' ];
+	$pages = [
+		'!^register(?:&[^&=]+=[^&]*)*$!u' => 'register',
+		'!^(.+)?$!' => 'login'
+	];
 } elseif (isset($_GET['status'], $_GET['r'])) {
 	header('Location: ' . $_GET['r'], true, (int)$_GET['status']);
 	exit;
