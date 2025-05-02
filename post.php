@@ -661,7 +661,7 @@ if (isset($_POST['delete'])) {
 	
 			if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
 				error($config['error']['captcha']);
-			}s
+			}
 	
 			// Case-insensitive comparison
 			if (!isset($_SESSION['captcha']) || strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0) {
