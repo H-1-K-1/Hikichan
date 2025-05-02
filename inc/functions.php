@@ -474,34 +474,28 @@ function setupBoard($array) {
 }
 
 function openBoard($uri) {
-    global $config, $build_pages, $board;
+	global $config, $build_pages, $board;
 
-    // Normalize the URI by removing the board path prefix
-    $board_dir = dirname($config['board_path']);
-    if (str_starts_with($uri, $board_dir . '/')) {
-        $uri = substr($uri, strlen($board_dir) + 1); // +1 for the slash
-    }
+	if ($config['try_smarter'])
+		$build_pages = array();
 
-    if ($config['try_smarter']) {
-        $build_pages = array();
-    }
+	// And what if we don't really need to change a board we have opened?
+	if (isset ($board) && isset ($board['uri']) && $board['uri'] == $uri) {
+		return true;
+	}
 
-    if (isset($board) && isset($board['uri']) && $board['uri'] == $uri) {
-        return true;
-    }
+	$b = getBoardInfo($uri);
+	if ($b) {
+		setupBoard($b);
 
-    $b = getBoardInfo($uri);
-    if ($b) {
-        setupBoard($b);
-        if (function_exists('after_open_board')) {
-            after_open_board();
-        }
-        return true;
-    }
-    return false;
+		if (function_exists('after_open_board')) {
+			after_open_board();
+		}
+
+		return true;
+	}
+	return false;
 }
-
-
 
 function getBoardInfo($uri) {
 	global $config;
