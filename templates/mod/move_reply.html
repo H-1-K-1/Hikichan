@@ -1,4 +1,5 @@
-<form action="?/{{ board }}/move_reply/{{ post }}" method="post" onsubmit="btnSubmit.disabled = true; return true;">
+{% set board_path = config.board_path|replace({'%s': board})|trim('/') %}
+<form action="?/{{ board_path }}/move_reply/{{ post }}" method="post" onsubmit="btnSubmit.disabled = true; return true;">
 	<input type="hidden" name="token" value="{{ token }}">
 	<table>
 		<tr>
@@ -23,12 +24,11 @@
 					{% endfor %}
 				</ul>
 			</td>
-			<td>
 		</tr>
 		<tr>
 			<th>{% trans 'Target thread' %}</th>
 			<td>
-				<p>If you do not want to make the post into a new thread, please specify the thread you want to move the reply to:</p>
+				<p>{% trans %}If you do not want to make the post into a new thread, please specify the thread you want to move the reply to:{% endtrans %}</p>
 				<input type="text" name="target_thread"/>
 			</td>
 		</tr>
@@ -38,4 +38,3 @@
 		<li><input type="submit" name="btnSubmit" value="{% trans 'Move reply' %}"></li>
 	</ul>
 </form>
-

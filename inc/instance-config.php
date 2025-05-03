@@ -21,10 +21,8 @@
 	
 	@include('inc/secrets.php');
 
-	$config['additional_javascript'][] = 'js/jquery.min.js';
-	$config['additional_javascript'][] = 'js/archive.js';
-	
-
+$config['additional_javascript'][] = 'js/jquery.min.js';
+$config['additional_javascript'][] = 'js/archive.js';
 $config['additional_javascript'][] = 'js/mobile-style.js';
 $config['additional_javascript'][] = 'js/download-original.js';
 $config['additional_javascript'][] = 'js/expand-all-images.js';

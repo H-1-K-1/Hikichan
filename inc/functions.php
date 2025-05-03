@@ -474,28 +474,34 @@ function setupBoard($array) {
 }
 
 function openBoard($uri) {
-	global $config, $build_pages, $board;
+    global $config, $build_pages, $board;
 
-	if ($config['try_smarter'])
-		$build_pages = array();
+    // Normalize the URI by removing the board path prefix
+    $board_dir = dirname($config['board_path']);
+    if (str_starts_with($uri, $board_dir . '/')) {
+        $uri = substr($uri, strlen($board_dir) + 1); // +1 for the slash
+    }
 
-	// And what if we don't really need to change a board we have opened?
-	if (isset ($board) && isset ($board['uri']) && $board['uri'] == $uri) {
-		return true;
-	}
+    if ($config['try_smarter']) {
+        $build_pages = array();
+    }
 
-	$b = getBoardInfo($uri);
-	if ($b) {
-		setupBoard($b);
+    if (isset($board) && isset($board['uri']) && $board['uri'] == $uri) {
+        return true;
+    }
 
-		if (function_exists('after_open_board')) {
-			after_open_board();
-		}
-
-		return true;
-	}
-	return false;
+    $b = getBoardInfo($uri);
+    if ($b) {
+        setupBoard($b);
+        if (function_exists('after_open_board')) {
+            after_open_board();
+        }
+        return true;
+    }
+    return false;
 }
+
+
 
 function getBoardInfo($uri) {
 	global $config;
@@ -2308,7 +2314,7 @@ function buildThread($id, $return = false, $mod = false) {
 			'hasnoko50' => $hasnoko50,
 			'isnoko50' => false,
 			'boardlist' => createBoardlist($mod),
-			'return' => ($mod ? '?' . $board['url'] . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
+			'return' => ($mod ? '?/' . sprintf($config['board_path'], $board['uri']) . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
 		];
 		if ($mod) {
 			$options['pm'] = create_pm_header();
@@ -2416,7 +2422,7 @@ function buildThread50($id, $return = false, $mod = false, $thread = null) {
 		'hasnoko50' => $hasnoko50,
 		'isnoko50' => true,
 		'boardlist' => createBoardlist($mod),
-		'return' => ($mod ? '?' . $board['url'] . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
+		'return' => ($mod ? '?/' . sprintf($config['board_path'], $board['uri']) . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
 	];
 	if ($mod) {
 		$options['pm'] = create_pm_header();

@@ -1323,757 +1323,845 @@ function mod_ban_appeals(Context $ctx) {
 }
 
 function mod_lock(Context $ctx, $board, $unlock, $post) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['lock'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('UPDATE ``posts_%s`` SET `locked` = :locked WHERE `id` = :id AND `thread` IS NULL', $board));
-	$query->bindValue(':id', $post);
-	$query->bindValue(':locked', $unlock ? 0 : 1);
-	$query->execute() or error(db_error($query));
-	if ($query->rowCount()) {
-		modLog(($unlock ? 'Unlocked' : 'Locked') . " thread #{$post}");
-		buildThread($post);
-		buildIndex();
-	}
+    if (!hasPermission($config['mod']['lock'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	if ($config['mod']['dismiss_reports_on_lock']) {
-		$query = prepare('DELETE FROM ``reports`` WHERE `board` = :board AND `post` = :id');
-		$query->bindValue(':board', $board);
-		$query->bindValue(':id', $post);
-		$query->execute() or error(db_error($query));
-	}
+    // Use the board URI to construct the table name
+    $query = prepare(sprintf('UPDATE ``posts_%s`` SET `locked` = :locked WHERE `id` = :id AND `thread` IS NULL', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->bindValue(':locked', $unlock ? 0 : 1);
+    $query->execute() or error(db_error($query));
 
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    if ($query->rowCount()) {
+        modLog(($unlock ? 'Unlocked' : 'Locked') . " thread #{$post}");
+        buildThread($post);
+        buildIndex();
+    }
 
-	if ($unlock)
-		event('unlock', $post);
-	else
-		event('lock', $post);
+    if ($config['mod']['dismiss_reports_on_lock']) {
+        $query = prepare('DELETE FROM ``reports`` WHERE `board` = :board AND `post` = :id');
+        $query->bindValue(':board', $board_uri);
+        $query->bindValue(':id', $post);
+        $query->execute() or error(db_error($query));
+    }
+
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+
+    if ($unlock) {
+        event('unlock', $post);
+    } else {
+        event('lock', $post);
+    }
 }
 
 function mod_sticky(Context $ctx, $board, $unsticky, $post) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['sticky'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('UPDATE ``posts_%s`` SET `sticky` = :sticky WHERE `id` = :id AND `thread` IS NULL', $board));
-	$query->bindValue(':id', $post);
-	$query->bindValue(':sticky', $unsticky ? 0 : 1);
-	$query->execute() or error(db_error($query));
-	if ($query->rowCount()) {
-		modLog(($unsticky ? 'Unstickied' : 'Stickied') . " thread #{$post}");
-		buildThread($post);
-		buildIndex();
-	}
+    if (!hasPermission($config['mod']['sticky'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Use the board URI to construct the table name
+    $query = prepare(sprintf('UPDATE ``posts_%s`` SET `sticky` = :sticky WHERE `id` = :id AND `thread` IS NULL', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->bindValue(':sticky', $unsticky ? 0 : 1);
+    $query->execute() or error(db_error($query));
+
+    if ($query->rowCount()) {
+        modLog(($unsticky ? 'Unstickied' : 'Stickied') . " thread #{$post}");
+        buildThread($post);
+        buildIndex();
+    }
+
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_cycle(Context $ctx, $board, $uncycle, $post) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['cycle'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('UPDATE ``posts_%s`` SET `cycle` = :cycle WHERE `id` = :id AND `thread` IS NULL', $board));
-	$query->bindValue(':id', $post);
-	$query->bindValue(':cycle', $uncycle ? 0 : 1);
-	$query->execute() or error(db_error($query));
-	if ($query->rowCount()) {
-		modLog(($uncycle ? 'Made not cyclical' : 'Made cyclical') . " thread #{$post}");
-		buildThread($post);
-		buildIndex();
-	}
+    if (!hasPermission($config['mod']['cycle'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Use the board URI to construct the table name
+    $query = prepare(sprintf('UPDATE ``posts_%s`` SET `cycle` = :cycle WHERE `id` = :id AND `thread` IS NULL', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->bindValue(':cycle', $uncycle ? 0 : 1);
+    $query->execute() or error(db_error($query));
+
+    if ($query->rowCount()) {
+        modLog(($uncycle ? 'Made not cyclical' : 'Made cyclical') . " thread #{$post}");
+        buildThread($post);
+        buildIndex();
+    }
+
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_bumplock(Context $ctx, $board, $unbumplock, $post) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['bumplock'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('UPDATE ``posts_%s`` SET `sage` = :bumplock WHERE `id` = :id AND `thread` IS NULL', $board));
-	$query->bindValue(':id', $post);
-	$query->bindValue(':bumplock', $unbumplock ? 0 : 1);
-	$query->execute() or error(db_error($query));
-	if ($query->rowCount()) {
-		modLog(($unbumplock ? 'Unbumplocked' : 'Bumplocked') . " thread #{$post}");
-		buildThread($post);
-		buildIndex();
-	}
+    if (!hasPermission($config['mod']['bumplock'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Use the board URI to construct the table name
+    $query = prepare(sprintf('UPDATE ``posts_%s`` SET `sage` = :bumplock WHERE `id` = :id AND `thread` IS NULL', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->bindValue(':bumplock', $unbumplock ? 0 : 1);
+    $query->execute() or error(db_error($query));
+
+    if ($query->rowCount()) {
+        modLog(($unbumplock ? 'Unbumplocked' : 'Bumplocked') . " thread #{$post}");
+        buildThread($post);
+        buildIndex();
+    }
+
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_move_reply(Context $ctx, $originBoard, $postID) {
-	global $board, $config, $mod;
+    global $board, $config, $mod;
 
-	if (!openBoard($originBoard))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
+    $originBoardURI = basename($originBoard);
 
-	if (!hasPermission($config['mod']['move'], $originBoard))
-		error($config['error']['noaccess']);
+    if (!openBoard($originBoardURI)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $originBoard));
-	$query->bindValue(':id', $postID);
-	$query->execute() or error(db_error($query));
-	if (!$post = $query->fetch(PDO::FETCH_ASSOC))
-		error($config['error']['404']);
+    if (!hasPermission($config['mod']['move'], $originBoardURI)) {
+        error($config['error']['noaccess']);
+    }
 
-	if (isset($_POST['board'])) {
-		$targetBoard = $_POST['board'];
+    $query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $originBoardURI));
+    $query->bindValue(':id', $postID);
+    $query->execute() or error(db_error($query));
+    if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
+        error($config['error']['404']);
+    }
 
-		if ($_POST['target_thread']) {
-			$query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $targetBoard));
-			$query->bindValue(':id', $_POST['target_thread']);
-			$query->execute() or error(db_error($query)); // If it fails, thread probably does not exist
-			$post['op'] = false;
-			$post['thread'] = $_POST['target_thread'];
-		}
-		else {
-			$post['op'] = true;
-		}
+    if (isset($_POST['board'])) {
+        $targetBoard = basename($_POST['board']); // Extract the target board URI
 
-		if ($post['files']) {
-			$post['files'] = json_decode($post['files'], TRUE);
-			$post['has_file'] = true;
-			foreach ($post['files'] as $i => &$file) {
-				$file['file_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file'];
-				if (isset($file['thumb']))
-				$file['thumb_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb'];
-			}
-		} else {
-			$post['has_file'] = false;
-		}
+        if ($_POST['target_thread']) {
+            $query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $targetBoard));
+            $query->bindValue(':id', $_POST['target_thread']);
+            $query->execute() or error(db_error($query)); // If it fails, thread probably does not exist
+            $post['op'] = false;
+            $post['thread'] = $_POST['target_thread'];
+        } else {
+            $post['op'] = true;
+        }
 
-		// allow thread to keep its same traits (stickied, locked, etc.)
-		$post['mod'] = true;
+        if ($post['files']) {
+            $post['files'] = json_decode($post['files'], true);
+            $post['has_file'] = true;
+            foreach ($post['files'] as $i => &$file) {
+                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                if (isset($file['thumb'])) {
+                    $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                }
+            }
+        } else {
+            $post['has_file'] = false;
+        }
 
-		if (!openBoard($targetBoard))
-			error($config['error']['noboard']);
+        // Allow thread to keep its same traits (stickied, locked, etc.)
+        $post['mod'] = true;
 
-		// create the new post
-		$newID = post($post);
+        if (!openBoard($targetBoard)) {
+            error($config['error']['noboard']);
+        }
 
-		if ($post['has_file']) {
-			foreach ($post['files'] as $i => &$file) {
-				// move the image
-				if (isset($file['thumb']))
-				if ($file['thumb'] != 'spoiler' || $file['thumb'] != 'deleted') { //trying to move/copy the spoiler thumb raises an error
-				rename($file['file_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file']);
-				rename($file['thumb_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb']);
-				}
-			}
-		}
+        // Create the new post
+        $newID = post($post);
 
-		// build index
-		buildIndex();
-		// build new thread
-		buildThread($newID);
+        if ($post['has_file']) {
+            foreach ($post['files'] as $i => &$file) {
+                // Move the image
+                if (isset($file['thumb']) && $file['thumb'] != 'spoiler' && $file['thumb'] != 'deleted') {
+                    rename($file['file_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file']);
+                    rename($file['thumb_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb']);
+                }
+            }
+        }
 
-		// trigger themes
-		Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
-		// mod log
-		modLog("Moved post #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoard);
+        // Build index and thread
+        buildIndex();
+        buildThread($newID);
 
-		// return to original board
-		openBoard($originBoard);
+        // Trigger themes
+        Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
 
-		// delete original post
-		deletePost($postID);
-		buildIndex();
+        // Log the action
+        modLog("Moved post #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoardURI);
 
-		// open target board for redirect
-		openBoard($targetBoard);
+        // Return to the original board
+        openBoard($originBoardURI);
 
-		// Find new thread on our target board
-		$query = prepare(sprintf('SELECT thread FROM ``posts_%s`` WHERE `id` = :id', $targetBoard));
-		$query->bindValue(':id', $newID);
-		$query->execute() or error(db_error($query));
-		$post = $query->fetch(PDO::FETCH_ASSOC);
+        // Delete the original post
+        deletePost($postID);
+        buildIndex();
 
-		// redirect
-		header('Location: ?/' . sprintf($config['board_path'], $board['uri']) . $config['dir']['res'] . link_for($post) . '#' . $newID, true, $config['redirect_http']);
-	}
-	else {
-		$boards = listBoards();
+        // Open the target board for redirect
+        openBoard($targetBoard);
 
-		$security_token = make_secure_link_token($originBoard . '/move_reply/' . $postID);
+        // Find the new thread on the target board
+        $query = prepare(sprintf('SELECT thread FROM ``posts_%s`` WHERE `id` = :id', $targetBoard));
+        $query->bindValue(':id', $newID);
+        $query->execute() or error(db_error($query));
+        $post = $query->fetch(PDO::FETCH_ASSOC);
 
-		mod_page(
-			_('Move reply'),
-			$config['file_mod_move_reply'],
-			[
-				'post' => $postID,
-				'board' => $originBoard,
-				'boards' => $boards,
-				'token' => $security_token
-			],
-			$mod
-		);
-	}
+        // Redirect
+        header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . link_for($post) . '#' . $newID, true, $config['redirect_http']);
+    } else {
+        $boards = listBoards();
+
+        $board_path = rtrim(sprintf($config['board_path'], $originBoardURI), '/');
+		$security_token = make_secure_link_token("{$board_path}/move_reply/{$postID}");
+
+
+
+
+        mod_page(
+            _('Move reply'),
+            $config['file_mod_move_reply'],
+            [
+                'post' => $postID,
+                'board' => $originBoardURI,
+                'boards' => $boards,
+                'token' => $security_token
+            ],
+            $mod
+        );
+    }
 }
 
 function mod_move(Context $ctx, $originBoard, $postID) {
-	global $board, $config, $pdo, $mod;
+    global $board, $config, $pdo, $mod;
 
-	if (!openBoard($originBoard))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $originBoardURI = basename($originBoard);
 
-	if (!hasPermission($config['mod']['move'], $originBoard))
-		error($config['error']['noaccess']);
+    if (!openBoard($originBoardURI)) {
+        error($config['error']['noboard']);
+    }
 
-	$query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id AND `thread` IS NULL', $originBoard));
-	$query->bindValue(':id', $postID);
-	$query->execute() or error(db_error($query));
-	if (!$post = $query->fetch(PDO::FETCH_ASSOC))
-		error($config['error']['404']);
+    if (!hasPermission($config['mod']['move'], $originBoardURI)) {
+        error($config['error']['noaccess']);
+    }
 
-	if (isset($_POST['board'])) {
-		$targetBoard = $_POST['board'];
-		$shadow = isset($_POST['shadow']);
+    $query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id AND `thread` IS NULL', $originBoardURI));
+    $query->bindValue(':id', $postID);
+    $query->execute() or error(db_error($query));
+    if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
+        error($config['error']['404']);
+    }
 
-		if ($targetBoard === $originBoard)
-			error(_('Target and source board are the same.'));
+    if (isset($_POST['board'])) {
+        $targetBoard = basename($_POST['board']); // Extract the target board URI
+        $shadow = isset($_POST['shadow']);
 
-		// link() if leaving a shadow thread behind; else, rename().
-		$clone = $shadow ? '_link_or_copy' : 'rename';
+        if ($targetBoard === $originBoardURI) {
+            error(_('Target and source board are the same.'));
+        }
 
-		// indicate that the post is a thread
-		$post['op'] = true;
+        // link() if leaving a shadow thread behind; else, rename().
+        $clone = $shadow ? '_link_or_copy' : 'rename';
 
-		if ($post['files']) {
-			$post['files'] = json_decode($post['files'], TRUE);
-			$post['has_file'] = true;
-			foreach ($post['files'] as $i => &$file) {
-				if ($file['file'] === 'deleted')
-					continue;
-				$file['file_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file'];
-				$file['thumb_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb'];
-			}
-		} else {
-			$post['has_file'] = false;
-		}
+        // Indicate that the post is a thread
+        $post['op'] = true;
 
-		// allow thread to keep its same traits (stickied, locked, etc.)
-		$post['mod'] = true;
+        if ($post['files']) {
+            $post['files'] = json_decode($post['files'], true);
+            $post['has_file'] = true;
+            foreach ($post['files'] as $i => &$file) {
+                if ($file['file'] === 'deleted') {
+                    continue;
+                }
+                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+            }
+        } else {
+            $post['has_file'] = false;
+        }
 
-		if (!openBoard($targetBoard))
-			error($config['error']['noboard']);
+        // Allow thread to keep its same traits (stickied, locked, etc.)
+        $post['mod'] = true;
 
-		// create the new thread
-		$newID = post($post);
+        if (!openBoard($targetBoard)) {
+            error($config['error']['noboard']);
+        }
 
-		$op = $post;
-		$op['id'] = $newID;
+        // Create the new thread
+        $newID = post($post);
 
-		if ($post['has_file']) {
-			// copy image
-			foreach ($post['files'] as $i => &$file) {
-				if ($file['file'] !== 'deleted')
-					$clone($file['file_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file']);
-				if (isset($file['thumb']) && !in_array($file['thumb'], array('spoiler', 'deleted', 'file')))
-					$clone($file['thumb_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb']);
-			}
-		}
+        $op = $post;
+        $op['id'] = $newID;
 
-		// go back to the original board to fetch replies
-		openBoard($originBoard);
+        if ($post['has_file']) {
+            // Copy image
+            foreach ($post['files'] as $i => &$file) {
+                if ($file['file'] !== 'deleted') {
+                    $clone($file['file_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file']);
+                    if (isset($file['thumb']) && !in_array($file['thumb'], ['spoiler', 'deleted', 'file'])) {
+                        $clone($file['thumb_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb']);
+                    }
+                }
+            }
+        }
 
-		$query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `thread` = :id ORDER BY `id`', $originBoard));
-		$query->bindValue(':id', $postID, PDO::PARAM_INT);
-		$query->execute() or error(db_error($query));
+        // Go back to the original board to fetch replies
+        openBoard($originBoardURI);
 
-		$replies = [];
+        $query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `thread` = :id ORDER BY `id`', $originBoardURI));
+        $query->bindValue(':id', $postID, PDO::PARAM_INT);
+        $query->execute() or error(db_error($query));
 
-		while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-			$post['mod'] = true;
-			$post['thread'] = $newID;
+        $replies = [];
 
-			if ($post['files']) {
-				$post['files'] = json_decode($post['files'], TRUE);
-				$post['has_file'] = true;
-				foreach ($post['files'] as $i => &$file) {
-					$file['file_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file'];
+        while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+            $post['mod'] = true;
+            $post['thread'] = $newID;
 
-					if (isset($file['thumb']))
-						$file['thumb_path'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb'];
-				}
-			} else {
-				$post['has_file'] = false;
-			}
+            if ($post['files']) {
+                $post['files'] = json_decode($post['files'], true);
+                $post['has_file'] = true;
+                foreach ($post['files'] as $i => &$file) {
+                    $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                    if (isset($file['thumb'])) {
+                        $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                    }
+                }
+            } else {
+                $post['has_file'] = false;
+            }
 
-			$replies[] = $post;
-		}
+            $replies[] = $post;
+        }
 
-		$newIDs = array($postID => $newID);
+        $newIDs = [$postID => $newID];
 
-		openBoard($targetBoard);
+        openBoard($targetBoard);
 
-		foreach ($replies as &$post) {
-			$query = prepare('SELECT `target` FROM ``cites`` WHERE `target_board` = :board AND `board` = :board AND `post` = :post');
-			$query->bindValue(':board', $originBoard);
-			$query->bindValue(':post', $post['id'], PDO::PARAM_INT);
-			$query->execute() or error(db_error($query));
+        foreach ($replies as &$post) {
+            $query = prepare('SELECT `target` FROM ``cites`` WHERE `target_board` = :board AND `board` = :board AND `post` = :post');
+            $query->bindValue(':board', $originBoardURI);
+            $query->bindValue(':post', $post['id'], PDO::PARAM_INT);
+            $query->execute() or error(db_error($query));
 
-			// correct >>X links
-			while ($cite = $query->fetch(PDO::FETCH_ASSOC)) {
-				if (isset($newIDs[$cite['target']])) {
-					$post['body_nomarkup'] = preg_replace(
-							'/(>>(>\/' . preg_quote($originBoard, '/') . '\/)?)' . preg_quote($cite['target'], '/') . '/',
-							'>>' . $newIDs[$cite['target']],
-							$post['body_nomarkup']);
+            // Correct >>X links
+            while ($cite = $query->fetch(PDO::FETCH_ASSOC)) {
+                if (isset($newIDs[$cite['target']])) {
+                    $post['body_nomarkup'] = preg_replace(
+                        '/(>>(>\/' . preg_quote($originBoardURI, '/') . '\/)?)' . preg_quote($cite['target'], '/') . '/',
+                        '>>' . $newIDs[$cite['target']],
+                        $post['body_nomarkup']
+                    );
 
-					$post['body'] = $post['body_nomarkup'];
-				}
-			}
+                    $post['body'] = $post['body_nomarkup'];
+                }
+            }
 
-			$post['body'] = $post['body_nomarkup'];
+            $post['body'] = $post['body_nomarkup'];
 
-			$post['op'] = false;
-			$post['tracked_cites'] = markup($post['body'], true);
+            $post['op'] = false;
+            $post['tracked_cites'] = markup($post['body'], true);
 
-			if ($post['has_file']) {
-				// copy image
-				foreach ($post['files'] as $i => &$file) {
-					if (isset($file['thumb']))
-					if ($file['thumb'] != 'spoiler' || $file['thumb'] != 'deleted') { //trying to move/copy the spoiler thumb raises an error
-						$clone($file['file_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['img'] . $file['file']);
-						$clone($file['thumb_path'], sprintf($config['board_path'], $board['uri']) . $config['dir']['thumb'] . $file['thumb']);
-					}
-				}
-			}
-			// insert reply
-			$newIDs[$post['id']] = $newPostID = post($post);
+            if ($post['has_file']) {
+                // Copy image
+                foreach ($post['files'] as $i => &$file) {
+                    if (isset($file['thumb']) && $file['thumb'] != 'spoiler' && $file['thumb'] != 'deleted') {
+                        $clone($file['file_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file']);
+                        $clone($file['thumb_path'], sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb']);
+                    }
+                }
+            }
+            // Insert reply
+            $newIDs[$post['id']] = $newPostID = post($post);
+
+            if (!empty($post['tracked_cites'])) {
+                $insert_rows = [];
+                foreach ($post['tracked_cites'] as $cite) {
+                    $insert_rows[] = '(' .
+                        $pdo->quote($targetBoard) . ', ' . $newPostID . ', ' .
+                        $pdo->quote($cite[0]) . ', ' . (int)$cite[1] . ')';
+                }
+                query('INSERT INTO ``cites`` VALUES ' . implode(', ', $insert_rows)) or error(db_error());
+            }
+        }
+
+        modLog("Moved thread #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoardURI);
+
+        // Build new thread
+        buildThread($newID);
+
+        clean();
+        buildIndex();
+
+        // Trigger themes
+        Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
+
+        $newboard = $board;
+
+        // Return to original board
+        openBoard($originBoardURI);
+
+        if ($shadow) {
+            // Lock old thread
+            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `locked` = 1 WHERE `id` = :id', $originBoardURI));
+            $query->bindValue(':id', $postID, PDO::PARAM_INT);
+            $query->execute() or error(db_error($query));
+
+            // Leave a reply, linking to the new thread
+            $spost = [
+                'mod' => true,
+                'subject' => '',
+                'email' => '',
+                'name' => (!$config['mod']['shadow_name'] ? $config['anonymous'] : $config['mod']['shadow_name']),
+                'capcode' => $config['mod']['shadow_capcode'],
+                'trip' => '',
+                'password' => '',
+                'has_file' => false,
+                // Attach to original thread
+                'thread' => $postID,
+                'op' => false
+            ];
+
+            $spost['body'] = $spost['body_nomarkup'] = sprintf($config['mod']['shadow_mesage'], '>>>/' . $targetBoard . '/' . $newID);
+
+            markup($spost['body']);
+
+            $botID = post($spost);
+            buildThread($postID);
+
+            buildIndex();
+
+            header('Location: ?/' . sprintf($config['board_path'], $newboard['uri']) . $config['dir']['res'] . link_for($op, false, $newboard) .
+                '#' . $botID, true, $config['redirect_http']);
+        } else {
+            deletePost($postID);
+            buildIndex();
+
+            openBoard($targetBoard);
+            header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . link_for($op, false, $newboard), true, $config['redirect_http']);
+        }
+    }
+
+    $boards = listBoards();
+    if (count($boards) <= 1) {
+        error(_('Impossible to move thread; there is only one board.'));
+    }
+
+    $board_path = rtrim(sprintf($config['board_path'], $originBoardURI), '/');
+	$security_token = make_secure_link_token("{$board_path}/move/{$postID}");
 
 
-			if (!empty($post['tracked_cites'])) {
-				$insert_rows = [];
-				foreach ($post['tracked_cites'] as $cite) {
-					$insert_rows[] = '(' .
-						$pdo->quote($board['uri']) . ', ' . $newPostID . ', ' .
-						$pdo->quote($cite[0]) . ', ' . (int)$cite[1] . ')';
-				}
-				query('INSERT INTO ``cites`` VALUES ' . implode(', ', $insert_rows)) or error(db_error());
-			}
-		}
-
-		modLog("Moved thread #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoard);
-
-		// build new thread
-		buildThread($newID);
-
-		clean();
-		buildIndex();
-
-		// trigger themes
-		Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
-
-		$newboard = $board;
-
-		// return to original board
-		openBoard($originBoard);
-
-		if ($shadow) {
-			// lock old thread
-			$query = prepare(sprintf('UPDATE ``posts_%s`` SET `locked` = 1 WHERE `id` = :id', $originBoard));
-			$query->bindValue(':id', $postID, PDO::PARAM_INT);
-			$query->execute() or error(db_error($query));
-
-			// leave a reply, linking to the new thread
-			$spost = array(
-				'mod' => true,
-				'subject' => '',
-				'email' => '',
-				'name' => (!$config['mod']['shadow_name'] ? $config['anonymous'] : $config['mod']['shadow_name']),
-				'capcode' => $config['mod']['shadow_capcode'],
-				'trip' => '',
-				'password' => '',
-				'has_file' => false,
-				// attach to original thread
-				'thread' => $postID,
-				'op' => false
-			);
-
-			$spost['body'] = $spost['body_nomarkup'] = sprintf($config['mod']['shadow_mesage'], '>>>/' . $targetBoard . '/' . $newID);
-
-			markup($spost['body']);
-
-			$botID = post($spost);
-			buildThread($postID);
-
-			buildIndex();
-
-			header('Location: ?/' . sprintf($config['board_path'], $newboard['uri']) . $config['dir']['res'] . link_for($op, false, $newboard) .
-				'#' . $botID, true, $config['redirect_http']);
-		} else {
-			deletePost($postID);
-			buildIndex();
-
-			openBoard($targetBoard);
-			header('Location: ?/' . sprintf($config['board_path'], $newboard['uri']) . $config['dir']['res'] . link_for($op, false, $newboard), true, $config['redirect_http']);
-		}
-	}
-
-	$boards = listBoards();
-	if (count($boards) <= 1)
-		error(_('Impossible to move thread; there is only one board.'));
-
-	$security_token = make_secure_link_token($originBoard . '/move/' . $postID);
-
-	mod_page(
-		_('Move thread'),
-		$config['file_mod_move'],
-		[
-			'post' => $postID,
-			'board' => $originBoard,
-			'boards' => $boards,
-			'token' => $security_token
-		],
-		$mod
-	);
+    mod_page(
+        _('Move thread'),
+        $config['file_mod_move'],
+        [
+            'post' => $postID,
+            'board' => $originBoardURI,
+            'boards' => $boards,
+            'token' => $security_token
+        ],
+        $mod
+    );
 }
 
 function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['ban'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	$security_token = make_secure_link_token($board . '/ban/' . $post);
+    if (!hasPermission($config['mod']['ban'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	$query = prepare(sprintf('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
-		' FROM ``posts_%s`` WHERE `id` = :id', $board));
-	$query->bindValue(':id', $post);
-	$query->execute() or error(db_error($query));
-	if (!$_post = $query->fetch(PDO::FETCH_ASSOC))
-		error($config['error']['404']);
+    $security_token = make_secure_link_token($board_uri . '/ban/' . $post);
 
-	$thread = $_post['thread'];
-	$ip = $_post['ip'];
+    $query = prepare(sprintf('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
+        ' FROM ``posts_%s`` WHERE `id` = :id', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->execute() or error(db_error($query));
+    if (!$_post = $query->fetch(PDO::FETCH_ASSOC)) {
+        error($config['error']['404']);
+    }
 
-	if (isset($_POST['new_ban'], $_POST['reason'], $_POST['length'], $_POST['board'])) {
-		if (isset($_POST['ip']))
-			$ip = $_POST['ip'];
+    $thread = $_post['thread'];
+    $ip = $_post['ip'];
 
-		Bans::new_ban($ip, $_POST['reason'], $_POST['length'], $_POST['board'] == '*' ? false : $_POST['board'],
-			false, $config['ban_show_post'] ? $_post : false);
+    if (isset($_POST['new_ban'], $_POST['reason'], $_POST['length'], $_POST['board'])) {
+        if (isset($_POST['ip'])) {
+            $ip = $_POST['ip'];
+        }
 
-		if (isset($_POST['public_message'], $_POST['message'])) {
-			// public ban message
-			$length_english = Bans::parse_time($_POST['length']) ? 'for ' . Format\until(Bans::parse_time($_POST['length'])) : 'permanently';
-			$_POST['message'] = preg_replace('/[\r\n]/', '', $_POST['message']);
-			$_POST['message'] = str_replace('%length%', $length_english, $_POST['message']);
-			$_POST['message'] = str_replace('%LENGTH%', strtoupper($length_english), $_POST['message']);
-			$query = prepare(sprintf('UPDATE ``posts_%s`` SET `body_nomarkup` = CONCAT(`body_nomarkup`, :body_nomarkup) WHERE `id` = :id', $board));
-			$query->bindValue(':id', $post);
-			$query->bindValue(':body_nomarkup', sprintf("\n<tinyboard ban message>%s</tinyboard>", utf8tohtml($_POST['message'])));
-			$query->execute() or error(db_error($query));
-			rebuildPost($post);
+        Bans::new_ban($ip, $_POST['reason'], $_POST['length'], $_POST['board'] == '*' ? false : $_POST['board'],
+            false, $config['ban_show_post'] ? $_post : false);
 
-			modLog("Attached a public ban message to post #{$post}: " . utf8tohtml($_POST['message']));
-			buildThread($thread ? $thread : $post);
-			buildIndex();
-		} elseif (isset($_POST['delete']) && (int) $_POST['delete']) {
-			// Delete post
-			deletePost($post);
-			modLog("Deleted post #{$post}");
-			// Rebuild board
-			buildIndex();
-			// Rebuild themes
-			Vichan\Functions\Theme\rebuild_themes('post-delete', $board);
-		}
+        if (isset($_POST['public_message'], $_POST['message'])) {
+            // Public ban message
+            $length_english = Bans::parse_time($_POST['length']) ? 'for ' . Format\until(Bans::parse_time($_POST['length'])) : 'permanently';
+            $_POST['message'] = preg_replace('/[\r\n]/', '', $_POST['message']);
+            $_POST['message'] = str_replace('%length%', $length_english, $_POST['message']);
+            $_POST['message'] = str_replace('%LENGTH%', strtoupper($length_english), $_POST['message']);
+            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `body_nomarkup` = CONCAT(`body_nomarkup`, :body_nomarkup) WHERE `id` = :id', $board_uri));
+            $query->bindValue(':id', $post);
+            $query->bindValue(':body_nomarkup', sprintf("\n<tinyboard ban message>%s</tinyboard>", utf8tohtml($_POST['message'])));
+            $query->execute() or error(db_error($query));
+            rebuildPost($post);
 
-		header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
-	}
+            modLog("Attached a public ban message to post #{$post}: " . utf8tohtml($_POST['message']));
+            buildThread($thread ? $thread : $post);
+            buildIndex();
+        } elseif (isset($_POST['delete']) && (int)$_POST['delete']) {
+            // Delete post
+            deletePost($post);
+            modLog("Deleted post #{$post}");
+            // Rebuild board
+            buildIndex();
+            // Rebuild themes
+            Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
+        }
 
-	$args = array(
-		'ip' => $ip,
-		'hide_ip' => !hasPermission($config['mod']['show_ip'], $board),
-		'post' => $post,
-		'board' => $board,
-		'delete' => (bool)$delete,
-		'boards' => listBoards(),
-		'reasons' => $config['premade_ban_reasons'],
-		'token' => $security_token
-	);
+        header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    }
 
-	mod_page(_('New ban'), $config['file_mod_ban_form'], $args, $mod);
+    $args = [
+        'ip' => $ip,
+        'hide_ip' => !hasPermission($config['mod']['show_ip'], $board_uri),
+        'post' => $post,
+        'board' => $board_uri,
+        'delete' => (bool)$delete,
+        'boards' => listBoards(),
+        'reasons' => $config['premade_ban_reasons'],
+        'token' => $security_token
+    ];
+
+    mod_page(_('New ban'), $config['file_mod_ban_form'], $args, $mod);
 }
 
 function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['editpost'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	if ($edit_raw_html && !hasPermission($config['mod']['rawhtml'], $board))
-		error($config['error']['noaccess']);
+    if (!hasPermission($config['mod']['editpost'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	$security_token = make_secure_link_token($board . '/edit' . ($edit_raw_html ? '_raw' : '') . '/' . $postID);
+    if ($edit_raw_html && !hasPermission($config['mod']['rawhtml'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	$query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $board));
-	$query->bindValue(':id', $postID);
-	$query->execute() or error(db_error($query));
+    // Generate the security token
+    $board_path = rtrim(sprintf($config['board_path'], $board_uri), '/');
+	$security_token = make_secure_link_token("{$board_path}/edit" . ($edit_raw_html ? '_raw' : '') . "/{$postID}");
 
-	if (!$post = $query->fetch(PDO::FETCH_ASSOC))
-		error($config['error']['404']);
 
-	if (isset($_POST['name'], $_POST['email'], $_POST['subject'], $_POST['body'])) {
-		// Remove any modifiers they may have put in
-		$_POST['body'] = remove_modifiers($_POST['body']);
 
-		// Add back modifiers in the original post
-		$modifiers = extract_modifiers($post['body_nomarkup']);
-		foreach ($modifiers as $key => $value) {
-			$_POST['body'] .= "<tinyboard $key>$value</tinyboard>";
-		}
+    $query = prepare(sprintf('SELECT * FROM ``posts_%s`` WHERE `id` = :id', $board_uri));
+    $query->bindValue(':id', $postID);
+    $query->execute() or error(db_error($query));
 
-		if ($edit_raw_html)
-			$query = prepare(sprintf('UPDATE ``posts_%s`` SET `name` = :name, `email` = :email, `subject` = :subject, `body` = :body, `body_nomarkup` = :body_nomarkup WHERE `id` = :id', $board));
-		else
-			$query = prepare(sprintf('UPDATE ``posts_%s`` SET `name` = :name, `email` = :email, `subject` = :subject, `body_nomarkup` = :body WHERE `id` = :id', $board));
-		$query->bindValue(':id', $postID);
-		$query->bindValue(':name', $_POST['name']);
-		$query->bindValue(':email', $_POST['email']);
-		$query->bindValue(':subject', $_POST['subject']);
-		$query->bindValue(':body', $_POST['body']);
-		if ($edit_raw_html) {
-			$body_nomarkup = $_POST['body'] . "\n<tinyboard raw html>1</tinyboard>";
-			$query->bindValue(':body_nomarkup', $body_nomarkup);
-		}
-		$query->execute() or error(db_error($query));
+    if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
+        error($config['error']['404']);
+    }
 
-		if ($edit_raw_html) {
-			modLog("Edited raw HTML of post #{$postID}");
-		} else {
-			modLog("Edited post #{$postID}");
-			rebuildPost($postID);
-		}
+    if (isset($_POST['name'], $_POST['email'], $_POST['subject'], $_POST['body'])) {
+        // Validate the security token
+        if (!isset($_POST['token']) || $_POST['token'] !== $security_token) {
+            error('Invalid security token! Please go back and try again.');
+        }
 
-		buildIndex();
+        // Process the form submission
+        $_POST['body'] = remove_modifiers($_POST['body']);
+        $modifiers = extract_modifiers($post['body_nomarkup']);
+        foreach ($modifiers as $key => $value) {
+            $_POST['body'] .= "<tinyboard $key>$value</tinyboard>";
+        }
 
-		Vichan\Functions\Theme\rebuild_themes('post', $board);
+        if ($edit_raw_html) {
+            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `name` = :name, `email` = :email, `subject` = :subject, `body` = :body, `body_nomarkup` = :body_nomarkup WHERE `id` = :id', $board_uri));
+        } else {
+            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `name` = :name, `email` = :email, `subject` = :subject, `body_nomarkup` = :body WHERE `id` = :id', $board_uri));
+        }
+        $query->bindValue(':id', $postID);
+        $query->bindValue(':name', $_POST['name']);
+        $query->bindValue(':email', $_POST['email']);
+        $query->bindValue(':subject', $_POST['subject']);
+        $query->bindValue(':body', $_POST['body']);
+        if ($edit_raw_html) {
+            $body_nomarkup = $_POST['body'] . "\n<tinyboard raw html>1</tinyboard>";
+            $query->bindValue(':body_nomarkup', $body_nomarkup);
+        }
+        $query->execute() or error(db_error($query));
 
-		header('Location: ?/' . sprintf($config['board_path'], $board) . $config['dir']['res'] . link_for($post) . '#' . $postID, true, $config['redirect_http']);
-	} else {
-		// Remove modifiers
-		$post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
+        modLog("Edited post #{$postID}");
+        rebuildPost($postID);
+        buildIndex();
 
-		$post['body_nomarkup'] = utf8tohtml($post['body_nomarkup']);
-		$post['body'] = utf8tohtml($post['body']);
-		if ($config['minify_html']) {
-			$post['body_nomarkup'] = str_replace("\n", '&#010;', $post['body_nomarkup']);
-			$post['body'] = str_replace("\n", '&#010;', $post['body']);
-			$post['body_nomarkup'] = str_replace("\r", '', $post['body_nomarkup']);
-			$post['body'] = str_replace("\r", '', $post['body']);
-			$post['body_nomarkup'] = str_replace("\t", '&#09;', $post['body_nomarkup']);
-			$post['body'] = str_replace("\t", '&#09;', $post['body']);
-		}
+        Vichan\Functions\Theme\rebuild_themes('post', $board_uri);
 
-		mod_page(
-			_('Edit post'),
-			$config['file_mod_edit_post_form'],
-			[
-				'token' => $security_token,
-				'board' => $board,
-				'raw' => $edit_raw_html,
-				'post' => $post
-			],
-			$mod
-		);
-	}
+        header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['dir']['res'] . link_for($post) . '#' . $postID, true, $config['redirect_http']);
+    } else {
+        // Remove modifiers
+        $post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
+        $post['body_nomarkup'] = utf8tohtml($post['body_nomarkup']);
+        $post['body'] = utf8tohtml($post['body']);
+
+        mod_page(
+            _('Edit post'),
+            $config['file_mod_edit_post_form'],
+            [
+                'token' => $security_token,
+                'board' => $board_uri,
+                'raw' => $edit_raw_html,
+                'post' => $post
+            ],
+            $mod
+        );
+    }
 }
 
 function mod_delete(Context $ctx, $board, $post) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['delete'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	// Delete post
-	deletePost($post);
-	// Record the action
-	modLog("Deleted post #{$post}");
-	// Rebuild board
-	buildIndex();
-	// Rebuild themes
-	Vichan\Functions\Theme\rebuild_themes('post-delete', $board);
-	// Redirect
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    if (!hasPermission($config['mod']['delete'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
+
+    // Delete post
+    deletePost($post);
+    // Record the action
+    modLog("Deleted post #{$post}");
+    // Rebuild board
+    buildIndex();
+    // Rebuild themes
+    Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
+
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_deletefile(Context $ctx, $board, $post, $file) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['deletefile'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	// Delete file
-	deleteFile($post, TRUE, $file);
-	// Record the action
-	modLog("Deleted file from post #{$post}");
+    if (!hasPermission($config['mod']['deletefile'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	// Rebuild board
-	buildIndex();
-	// Rebuild themes
-	Vichan\Functions\Theme\rebuild_themes('post-delete', $board);
+    // Delete file
+    deleteFile($post, true, $file);
+    // Record the action
+    modLog("Deleted file from post #{$post}");
 
-	// Redirect
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Rebuild board
+    buildIndex();
+    // Rebuild themes
+    Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
+
+    // Redirect
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_spoiler_image(Context $ctx, $board, $post, $file) {
-	$config = $ctx->get('config');
+    $config = $ctx->get('config');
 
-	if (!openBoard($board))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
+    $board_uri = basename($board);
 
-	if (!hasPermission($config['mod']['spoilerimage'], $board))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	// Delete file thumbnail
-	$query = prepare(sprintf("SELECT `files`, `thread` FROM ``posts_%s`` WHERE id = :id", $board));
-	$query->bindValue(':id', $post, PDO::PARAM_INT);
-	$query->execute() or error(db_error($query));
-	$result = $query->fetch(PDO::FETCH_ASSOC);
-	$files = json_decode($result['files']);
+    if (!hasPermission($config['mod']['spoilerimage'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
+    // Delete file thumbnail
+    $query = prepare(sprintf("SELECT `files`, `thread` FROM ``posts_%s`` WHERE id = :id", $board_uri));
+    $query->bindValue(':id', $post, PDO::PARAM_INT);
+    $query->execute() or error(db_error($query));
+    $result = $query->fetch(PDO::FETCH_ASSOC);
+    $files = json_decode($result['files']);
 
-	$size_spoiler_image = @getimagesize($config['spoiler_image']);
-	file_unlink($board . '/' . $config['dir']['thumb'] . $files[$file]->thumb);
-	$files[$file]->thumb = 'spoiler';
-	$files[$file]->thumbwidth = $size_spoiler_image[0];
-	$files[$file]->thumbheight = $size_spoiler_image[1];
+    $size_spoiler_image = @getimagesize($config['spoiler_image']);
+    file_unlink($board_uri . '/' . $config['dir']['thumb'] . $files[$file]->thumb);
+    $files[$file]->thumb = 'spoiler';
+    $files[$file]->thumbwidth = $size_spoiler_image[0];
+    $files[$file]->thumbheight = $size_spoiler_image[1];
 
-	// Make thumbnail spoiler
-	$query = prepare(sprintf("UPDATE ``posts_%s`` SET `files` = :files WHERE `id` = :id", $board));
-	$query->bindValue(':files', json_encode($files));
-	$query->bindValue(':id', $post, PDO::PARAM_INT);
-	$query->execute() or error(db_error($query));
+    // Make thumbnail spoiler
+    $query = prepare(sprintf("UPDATE ``posts_%s`` SET `files` = :files WHERE `id` = :id", $board_uri));
+    $query->bindValue(':files', json_encode($files));
+    $query->bindValue(':id', $post, PDO::PARAM_INT);
+    $query->execute() or error(db_error($query));
 
-	// Record the action
-	modLog("Spoilered file from post #{$post}");
+    // Record the action
+    modLog("Spoilered file from post #{$post}");
 
-	// Rebuild thread
-	buildThread($result['thread'] ? $result['thread'] : $post);
+    // Rebuild thread
+    buildThread($result['thread'] ? $result['thread'] : $post);
 
-	// Rebuild board
-	buildIndex();
+    // Rebuild board
+    buildIndex();
 
-	// Rebuild themes
-	Vichan\Functions\Theme\rebuild_themes('post-delete', $board);
+    // Rebuild themes
+    Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
-	// Redirect
-	header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
-	global $board;
-	$config = $ctx->get('config');
+    global $board;
+    $config = $ctx->get('config');
 
-	$global = (bool)$global;
+    $global = (bool)$global;
 
-	if (!openBoard($boardName))
-		error($config['error']['noboard']);
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($boardName);
 
-	if (!$global && !hasPermission($config['mod']['deletebyip'], $boardName))
-		error($config['error']['noaccess']);
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
 
-	if ($global && !hasPermission($config['mod']['deletebyip_global'], $boardName))
-		error($config['error']['noaccess']);
+    if (!$global && !hasPermission($config['mod']['deletebyip'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	// Find IP address
-	$query = prepare(sprintf('SELECT `ip` FROM ``posts_%s`` WHERE `id` = :id', $boardName));
-	$query->bindValue(':id', $post);
-	$query->execute() or error(db_error($query));
-	if (!$ip = $query->fetchColumn())
-		error($config['error']['invalidpost']);
+    if ($global && !hasPermission($config['mod']['deletebyip_global'], $board_uri)) {
+        error($config['error']['noaccess']);
+    }
 
-	$boards = $global ? listBoards() : array(array('uri' => $boardName));
+    // Find IP address
+    $query = prepare(sprintf('SELECT `ip` FROM ``posts_%s`` WHERE `id` = :id', $board_uri));
+    $query->bindValue(':id', $post);
+    $query->execute() or error(db_error($query));
+    if (!$ip = $query->fetchColumn()) {
+        error($config['error']['invalidpost']);
+    }
 
-	$query = '';
-	foreach ($boards as $_board) {
-		$query .= sprintf("SELECT `thread`, `id`, '%s' AS `board` FROM ``posts_%s`` WHERE `ip` = :ip UNION ALL ", $_board['uri'], $_board['uri']);
-	}
-	$query = preg_replace('/UNION ALL $/', '', $query);
+    $boards = $global ? listBoards() : array(array('uri' => $board_uri));
 
-	$query = prepare($query);
-	$query->bindValue(':ip', $ip);
-	$query->execute() or error(db_error($query));
+    $query = '';
+    foreach ($boards as $_board) {
+        $query .= sprintf("SELECT `thread`, `id`, '%s' AS `board` FROM ``posts_%s`` WHERE `ip` = :ip UNION ALL ", $_board['uri'], $_board['uri']);
+    }
+    $query = preg_replace('/UNION ALL $/', '', $query);
 
-	if ($query->rowCount() < 1)
-		error($config['error']['invalidpost']);
+    $query = prepare($query);
+    $query->bindValue(':ip', $ip);
+    $query->execute() or error(db_error($query));
 
-	@set_time_limit($config['mod']['rebuild_timelimit']);
+    if ($query->rowCount() < 1) {
+        error($config['error']['invalidpost']);
+    }
 
-	$threads_to_rebuild = [];
-	$threads_deleted = [];
-	while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-		openBoard($post['board']);
+    @set_time_limit($config['mod']['rebuild_timelimit']);
 
-		deletePost($post['id'], false, false);
+    $threads_to_rebuild = [];
+    $threads_deleted = [];
+    while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+        openBoard($post['board']);
 
-		Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
+        deletePost($post['id'], false, false);
 
-		buildIndex();
+        Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
 
-		if ($post['thread'])
-			$threads_to_rebuild[$post['board']][$post['thread']] = true;
-		else
-			$threads_deleted[$post['board']][$post['id']] = true;
-	}
+        buildIndex();
 
-	foreach ($threads_to_rebuild as $_board => $_threads) {
-		openBoard($_board);
-		foreach ($_threads as $_thread => $_dummy) {
-			if ($_dummy && !isset($threads_deleted[$_board][$_thread]))
-				buildThread($_thread);
-		}
-		buildIndex();
-	}
+        if ($post['thread']) {
+            $threads_to_rebuild[$post['board']][$post['thread']] = true;
+        } else {
+            $threads_deleted[$post['board']][$post['id']] = true;
+        }
+    }
 
-	if ($global) {
-		$board = false;
-	}
+    foreach ($threads_to_rebuild as $_board => $_threads) {
+        openBoard($_board);
+        foreach ($_threads as $_thread => $_dummy) {
+            if ($_dummy && !isset($threads_deleted[$_board][$_thread])) {
+                buildThread($_thread);
+            }
+        }
+        buildIndex();
+    }
 
-	// Record the action
-	$cip = cloak_ip($ip);
-	modLog("Deleted all posts by IP address: <a href=\"?/IP/$cip\">$cip</a>");
+    if ($global) {
+        $board = false;
+    }
 
-	// Redirect
-	header('Location: ?/' . sprintf($config['board_path'], $boardName) . $config['file_index'], true, $config['redirect_http']);
+    // Record the action
+    $cip = cloak_ip($ip);
+    modLog("Deleted all posts by IP address: <a href=\"?/IP/$cip\">$cip</a>");
+
+    // Redirect
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_user(Context $ctx, $uid) {
@@ -3554,19 +3642,26 @@ function mod_view_archive_mod_archive($context, $boardName) {
 function mod_archive_thread(Context $ctx, $board, $post) {
     $config = $ctx->get('config');
 
-    // Pass the board name as a string, not the context object
-    if (!openBoard($board)) // <-- Use $board directly here
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
+    $board_uri = basename($board);
+
+    // Open the board using the extracted URI
+    if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
+    }
 
-    if (!hasPermission($config['mod']['send_threads_to_archive'], $board))
+    if (!hasPermission($config['mod']['send_threads_to_archive'], $board_uri)) {
         error($config['error']['noaccess']);
+    }
 
+    // Archive the thread
     Archive::archiveThread($post);
 
     // Call mod_delete with the correct context
-    mod_delete($ctx, $board, $post);
+    mod_delete($ctx, $board_uri, $post);
 
-    header('Location: ?/' . sprintf($config['board_path'], $board) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 

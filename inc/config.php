@@ -1381,7 +1381,7 @@
 	$config['file_mod_debug_sql'] = 'mod/debug/sql.html';
 
 	// Board directory, followed by a forward-slash (/).
-	$config['board_path'] = '%s/';
+	$config['board_path'] = 'channel/%s/';
 	// Misc directories.
 	$config['dir']['img'] = 'src/';
 	$config['dir']['thumb'] = 'thumb/';
@@ -1649,7 +1649,7 @@
 	//);
 
 	// Enable the moving of single replies
-	$config['move_replies'] = false;
+	$config['move_replies'] = true;
 
 /*
  * ====================
@@ -1730,7 +1730,7 @@
 	// Edit posts
 	$config['mod']['editpost'] = ADMIN;
 	// "Move" a thread to another board (EXPERIMENTAL; has some known bugs)
-	$config['mod']['move'] = DISABLED;
+	$config['mod']['move'] = ADMIN;
 	// Bypass "field_disable_*" (forced anonymity, etc.)
 	$config['mod']['bypass_field_disable'] = MOD;
 	// Post bypass unoriginal content check on robot-enabled boards
