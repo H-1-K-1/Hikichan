@@ -201,6 +201,13 @@ function delete_cyclical_posts(string $boardUri, int $threadId, int $cycleLimit)
     }
 }
 
+/**
+ * Method handling functions
+ */
+//These 2 lines might get removed now that nntpchan is gone.
+$dropped_post = false;
+$context = Vichan\build_context($config);
+
 if (isset($_POST['delete'])) {
 	// Delete
 
