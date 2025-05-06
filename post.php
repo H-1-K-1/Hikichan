@@ -1158,10 +1158,13 @@ if (isset($_POST['delete'])) {
 
 	$root = $post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root'];
 
-	if ($noko) {
+	if ($post['op']) {
+		// Redirect to the newly created thread
+		$redirect = $root . $board['dir'] . $config['dir']['res'] . link_for($post, false, false, $thread);
+	} else if ($noko) {
 		$redirect = $root . $board['dir'] . $config['dir']['res'] .
 			link_for($post, false, false, $thread) . (!$post['op'] ? '#' . $id : '');
-
+	
 		if (!$post['op'] && isset($_SERVER['HTTP_REFERER'])) {
 			$regex = array(
 				'board' => str_replace('%s', '(\w{1,8})', preg_quote($config['board_path'], '/')),
@@ -1170,7 +1173,7 @@ if (isset($_POST['delete'])) {
 						  str_replace(array('%d', '%s'), array('(\d+)', '[a-z0-9-]+'), preg_quote($config['file_page50_slug'], '/')) . ')',
 				'res' => preg_quote($config['dir']['res'], '/'),
 			);
-
+	
 			if (preg_match('/\/' . $regex['board'] . $regex['res'] . $regex['page50'] . '([?&].*)?$/', $_SERVER['HTTP_REFERER'])) {
 				$redirect = $root . $board['dir'] . $config['dir']['res'] .
 					link_for($post, true, false, $thread) . (!$post['op'] ? '#' . $id : '');
@@ -1178,7 +1181,6 @@ if (isset($_POST['delete'])) {
 		}
 	} else {
 		$redirect = $root . $board['dir'] . $config['file_index'];
-
 	}
 
 	buildThread($post['op'] ? $id : $post['thread']);
