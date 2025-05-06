@@ -10,31 +10,31 @@ class Archive {
     // Archive thread and replies
     static public function archiveThread($thread_id) {
         global $config, $board;
-
+    
         // If archiving is turned off return
         if(!$config['archive']['threads'])
             return;
-
+    
         // Check if it is a thread
         $thread_query = prepare(sprintf("SELECT `thread`, `subject`, `body_nomarkup`, `trip` FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
         $thread_query->bindValue(':id', $thread_id, PDO::PARAM_INT);
         $thread_query->execute() or error(db_error($thread_query));
         $thread_data = $thread_query->fetch(PDO::FETCH_ASSOC);
-
+    
         if($thread_data['thread'] !== NULL)
             error($config['error']['invalidpost']);
-
+    
         // Create Snippet of thread text
         $thread_data['snippet_body'] = strtok($thread_data['body_nomarkup'], "\r\n");
         $thread_data['snippet_body'] = substr($thread_data['snippet_body'], 0, $config['archive']['snippet_len'] - strlen($thread_data['subject']));
         archive_list_markup($thread_data['snippet_body']);
         $thread_data['snippet'] = '<b>' . $thread_data['subject'] . '</b> ';
         $thread_data['snippet'] .= $thread_data['snippet_body'];
-
+    
         // Generate date-based archive path
         $date_path = date('Y/m/d');
         $archive_path = $board['dir'] . $config['dir']['archive'] . $date_path . '/';
-
+    
         // Create directories
         @mkdir($archive_path . $config['dir']['res'], 0777, true);
         @mkdir($archive_path . $config['dir']['img'], 0777, true);
@@ -44,10 +44,10 @@ class Archive {
         $query = prepare(sprintf("SELECT `id`,`thread`,`files`,`slug` FROM ``posts_%s`` WHERE `id` = :id OR `thread` = :id", $board['uri']));
         $query->bindValue(':id', $thread_id, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
-
+    
         // List of files associated with thread
         $file_list = array();
-
+    
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
             // Copy Static HTML page for Thread
             if (!$post['thread']) {
@@ -69,28 +69,27 @@ class Archive {
                 $thread_file_content = str_replace('Posting mode: Reply', 'Archived thread', $thread_file_content);
                 // Remove Post Form from HTML (First Form)
                 $thread_file_content = preg_replace("/<form name=\"post\"(.*?)<\/form>/i", "", $thread_file_content);
-
+    
                 // Refix archive link that will be wrong
                 $thread_file_content = str_replace(sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['archive'], $board['uri']), sprintf('href="/' . $config['board_path'] . $config['dir']['archive'], $board['uri']), $thread_file_content);
-
+    
                 // Remove Form from HTML
                 $thread_file_content = preg_replace("/<form(.*?)>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<\/form>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<input (.*?)>/i", "", $thread_file_content);
-
+    
                 // Remove Redundant code from HTML
                 $thread_file_content = preg_replace("/<div id=\"report\-fields\"(.*?)<\/div>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<div id=\"thread\-interactions\"(.*?)<\/div>/i", "", $thread_file_content);
-				// remove catalog button
-				$thread_file_content = preg_replace("/<a id=\"unimportant\" href=\"\/[a-zA-Z0-9]+\/archive\/catalog(.*?)<\/a>/i", "", $thread_file_content);
-				// remade featured button because it will be wrong
-				$thread_file_content = preg_replace("/\b\/(archive)(\/featured\/)/i", "$2", $thread_file_content);
-
+                // remove catalog button
+                $thread_file_content = preg_replace("/<a id=\"unimportant\" href=\"\/[a-zA-Z0-9]+\/archive\/catalog(.*?)<\/a>/i", "", $thread_file_content);
+                // remade featured button because it will be wrong
+                $thread_file_content = preg_replace("/\b\/(archive)(\/featured\/)/i", "$2", $thread_file_content);
+    
                 // Write altered thread HTML to archive location
                 @file_put_contents($board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread_id), $thread_file_content, LOCK_EX);
             }
-
-
+    
             // Copy json file to Archive
             // Read Content of Json file
             $json_file_content = @file_get_contents($board['dir'] . $config['dir']['res'] . sprintf('%d.json', $thread_id));
@@ -98,43 +97,50 @@ class Archive {
             $json_file_content = str_replace(substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1), substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['archive'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1), $json_file_content);
             // Write altered thread json to archive location
             @file_put_contents($board['dir'] . $config['dir']['archive']. $date_path . '/' . $config['dir']['res'] .  sprintf('%d.json', $thread_id), $json_file_content, LOCK_EX);
-
-
+    
             // Copy Images and Files Associated with Thread
             if ($post['files']) {
                 foreach (json_decode($post['files']) as $i => $f) {
                     if ($f->file !== 'deleted') {
                         @copy($board['dir'] . $config['dir']['img'] . $f->file, $archive_path . $config['dir']['img'] . $f->file);
                         @copy($board['dir'] . $config['dir']['thumb'] . $f->thumb, $archive_path . $config['dir']['thumb'] . $f->thumb);
-
+    
                         $file_list[] = $f;
                     }
                 }
             }
         }
-
+    
+        // Extract the first thumbnail from file_list
+        $first_image = null;
+        foreach ($file_list as $file) {
+            if (isset($file->thumb) && $file->thumb !== 'deleted') {
+                $first_image = $file->thumb; // Store the thumbnail filename (e.g., image123.png)
+                break;
+            }
+        }
+    
         // Insert Archive Data in Database
-        $query = prepare(sprintf("INSERT INTO ``archive_%s`` VALUES (:thread_id, :snippet, :lifetime, :files, 0, 0, 0, :path)", $board['uri']));
+        $query = prepare(sprintf("INSERT INTO ``archive_%s`` VALUES (:thread_id, :snippet, :lifetime, :files, 0, 0, 0, :path, :first_image)", $board['uri']));
         $query->bindValue(':thread_id', $thread_id, PDO::PARAM_INT);
         $query->bindValue(':snippet', $thread_data['snippet'], PDO::PARAM_STR);
-        $query->bindValue(':lifetime', 	time(), PDO::PARAM_INT);
+        $query->bindValue(':lifetime', time(), PDO::PARAM_INT);
         $query->bindValue(':files', json_encode($file_list));
         $query->bindValue(':path', $date_path, PDO::PARAM_STR);
+        $query->bindValue(':first_image', $first_image, PDO::PARAM_STR); // Bind the first image
         $query->execute() or error(db_error($query));
-
-
+    
         // Check if Thread should be Auto Featured based on OP Trip
         if(in_array($thread_data['trip'], $config['archive']['auto_feature_trips']))
             self::featureThread($thread_id);
         
-
         // Purge Threads that have timed out
         if(!$config['archive']['cron_job']['purge'])
             self::purgeArchive();
-
+    
         // Rebuild Archive Index
         self::buildArchiveIndex();
-
+    
         return true;
     }
 
@@ -362,8 +368,15 @@ class Archive {
         for ($page = 1; $page <= $total_pages; $page++) {
             $archive = self::getArchiveListPaginated($page, $threads_per_page);
     
-            foreach ($archive as &$thread)
+            foreach ($archive as &$thread) {
                 $thread['archived_url'] = $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+                // Construct the image URL if first_image exists
+                if ($thread['first_image']) {
+                    $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image'];
+                } else {
+                    $thread['image_url'] = null;
+                }
+            }
     
             $title = sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']);
     
@@ -395,14 +408,14 @@ class Archive {
 
     static public function getArchiveListPaginated($page, $threads_per_page) {
         global $config, $board;
-
+    
         $offset = ($page - 1) * $threads_per_page;
-        $query = prepare(sprintf("SELECT `id`, `snippet`, `featured`, `mod_archived`, `votes` FROM ``archive_%s`` WHERE `lifetime` > :lifetime ORDER BY `id` DESC LIMIT :limit OFFSET :offset", $board['uri']));
+        $query = prepare(sprintf("SELECT `id`, `snippet`, `featured`, `mod_archived`, `votes`, `path`, `first_image` FROM ``archive_%s`` WHERE `lifetime` > :lifetime ORDER BY `id` DESC LIMIT :limit OFFSET :offset", $board['uri']));
         $query->bindValue(':lifetime', strtotime("-" . $config['archive']['lifetime']), PDO::PARAM_INT);
         $query->bindValue(':limit', $threads_per_page, PDO::PARAM_INT);
         $query->bindValue(':offset', $offset, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
-
+    
         return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 

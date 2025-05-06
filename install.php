@@ -623,6 +623,10 @@ if (file_exists($config['has_installed'])) {
 					`lifetime` int(11) NOT NULL,
 					`files` text NOT NULL,
 					`featured` int(1) NOT NULL,
+					`mod_archived` int(1) NOT NULL,
+					`votes` int(10) UNSIGNED NOT NULL,
+					`path` varchar(255) NOT NULL,
+					`first_image` varchar(255) DEFAULT NULL,
 					UNIQUE KEY `id` (`id`),
 					KEY `lifetime` (`lifetime`)
 					) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

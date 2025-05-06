@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS ``archive_{{ board }}`` (
   `mod_archived` int(1) NOT NULL,
   `votes` INT UNSIGNED NOT NULL,
   `path` varchar(255) NOT NULL,
+  `first_image` varchar(255) DEFAULT NULL,
   UNIQUE KEY `id` (`id`),
   KEY `lifetime` (`lifetime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
