@@ -3,10 +3,16 @@
 	<p>
 		<a href="?/rebuild">{% trans 'Go back and rebuild again' %}</a>.
 	</p>
+
+	{% if in_progress %}
+		<!-- Auto-refresh while rebuilding -->
+		<meta http-equiv="refresh" content="1;URL=?/rebuild">
+		<p><em>{% trans 'Continuing rebuild automatically…' %}</em></p>
+	{% endif %}
+
 	<ul>
 		{% for log in logs %}
 			<li>{{ log }}</li>
 		{% endfor %}
 	</ul>
 </div>
-

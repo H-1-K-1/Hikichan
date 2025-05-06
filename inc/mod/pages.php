@@ -2614,84 +2614,187 @@ function mod_new_pm(Context $ctx, $username) {
 }
 
 function mod_rebuild(Context $ctx) {
-	global $twig, $mod;
-	$config = $ctx->get('config');
+    global $twig, $mod;
+    $config = $ctx->get('config');
+    $cache = $ctx->get(CacheDriver::class);
 
-	if (!hasPermission($config['mod']['rebuild']))
-		error($config['error']['noaccess']);
+    if (!hasPermission($config['mod']['rebuild']))
+        error($config['error']['noaccess']);
 
-	$cache = $ctx->get(CacheDriver::class);
+    session_start();
 
-	if (isset($_POST['rebuild'])) {
-		@set_time_limit($config['mod']['rebuild_timelimit']);
+    // Start new rebuild session
+    if (isset($_POST['rebuild'])) {
+        $_SESSION['rebuild_progress'] = [
+            'boards' => [],
+            'current_board' => null,
+            'threads' => [],
+            'thread_index' => 0,
+            'step' => 0
+        ];
 
-		$log = [];
-		$boards = listBoards();
-		$rebuilt_scripts = [];
+        foreach (listBoards() as $board) {
+            if (isset($_POST['boards_all']) || isset($_POST['board_' . $board['uri']])) {
+                $_SESSION['rebuild_progress']['boards'][] = $board['uri'];
+            }
+        }
 
-		if (isset($_POST['rebuild_cache'])) {
-			if ($config['cache']['enabled']) {
-				$log[] = 'Flushing cache';
-				$cache->flush();
-			}
+        $_SESSION['rebuild_options'] = [
+            'rebuild_cache' => isset($_POST['rebuild_cache']),
+            'rebuild_javascript' => isset($_POST['rebuild_javascript']),
+            'rebuild_index' => isset($_POST['rebuild_index']),
+            'rebuild_thread' => isset($_POST['rebuild_thread']),
+            'rebuild_themes' => isset($_POST['rebuild_themes']),
+            'rebuild_posts' => isset($_POST['rebuild_posts'])
+        ];
 
-			$log[] = 'Clearing template cache';
-			load_twig();
-			$twig->getCache()->clear();
-		}
+        // First run
+        header('Location: ?/rebuild'); exit;
+    }
 
-		if (isset($_POST['rebuild_themes'])) {
-			$log[] = 'Regenerating theme files';
-			Vichan\Functions\Theme\rebuild_themes('all');
-		}
+    $log = [];
 
-		if (isset($_POST['rebuild_javascript'])) {
-			$log[] = 'Rebuilding <strong>' . $config['file_script'] . '</strong>';
-			buildJavascript();
-			$rebuilt_scripts[] = $config['file_script'];
-		}
+    // Handle rebuild progress
+    if (isset($_SESSION['rebuild_progress'])) {
+        $progress = &$_SESSION['rebuild_progress'];
+        $options = $_SESSION['rebuild_options'];
 
-		foreach ($boards as $board) {
-			if (!(isset($_POST['boards_all']) || isset($_POST['board_' . $board['uri']])))
-				continue;
+        // Global rebuild tasks (run once)
+        if (!isset($progress['global_tasks_done'])) {
+            $progress['global_tasks_done'] = true;
 
-			openBoard($board['uri']);
-			$config['try_smarter'] = false;
+            if ($options['rebuild_cache']) {
+                if ($config['cache']['enabled']) {
+                    $log[] = 'Flushing cache';
+                    $cache->flush();
+                }
+                load_twig();
+                $twig->getCache()->clear();
+            }
 
-			if (isset($_POST['rebuild_index'])) {
-				buildIndex();
-				$log[] = '<strong>' . sprintf($config['board_abbreviation'], $board['uri']) . '</strong>: Creating index pages';
-			}
+            if ($options['rebuild_javascript']) {
+                $log[] = 'Rebuilding <strong>' . $config['file_script'] . '</strong>';
+                buildJavascript();
+            }
 
-			if (isset($_POST['rebuild_javascript']) && !in_array($config['file_script'], $rebuilt_scripts)) {
-				$log[] = '<strong>' . sprintf($config['board_abbreviation'], $board['uri']) . '</strong>: Rebuilding <strong>' . $config['file_script'] . '</strong>';
-				buildJavascript();
-				$rebuilt_scripts[] = $config['file_script'];
-			}
+            if ($options['rebuild_themes']) {
+                $log[] = 'Regenerating theme files';
+                Vichan\Functions\Theme\rebuild_themes('all');
+            }
+        }
 
-			if (isset($_POST['rebuild_thread'])) {
-				$query = query(sprintf("SELECT `id` FROM ``posts_%s`` WHERE `thread` IS NULL", $board['uri'])) or error(db_error());
-				while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-					$log[] = '<strong>' . sprintf($config['board_abbreviation'], $board['uri']) . '</strong>: Rebuilding thread #' . $post['id'];
-					buildThread($post['id']);
-				}
-			}
-		}
+        // Check if all boards are processed
+        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads'])) {
+            unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
+            $log[] = 'All boards processed.';
+            mod_page(_('Rebuild complete'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
+            return;
+        }
 
-		mod_page(_('Rebuild'), $config['file_mod_rebuilt'], [ 'logs' => $log ], $mod);
-		return;
-	}
+        // If no threads are queued for the current board, move to the next board
+        if (empty($progress['threads']) && $progress['step'] < count($progress['boards'])) {
+            $board_uri = $progress['boards'][$progress['step']];
+            $progress['current_board'] = $board_uri;
+            openBoard($board_uri);
+            $config['try_smarter'] = false;
 
-	mod_page(
-		_('Rebuild'),
-		$config['file_mod_rebuild'],
-		[
-			'boards' => listBoards(),
-			'token' => make_secure_link_token('rebuild')
-		],
-		$mod
-	);
+            $log[] = '<strong>' . sprintf($config['board_abbreviation'], $board_uri) . '</strong>: Processing…';
+
+            if ($options['rebuild_cache']) {
+                if ($config['cache']['enabled']) {
+                    $log[] = 'Flushing cache';
+                    $cache->flush();
+                }
+                load_twig();
+                $twig->getCache()->clear();
+                $options['rebuild_cache'] = false; // only once
+            }
+
+            if ($options['rebuild_themes']) {
+                $log[] = 'Regenerating theme files';
+                Vichan\Functions\Theme\rebuild_themes('all');
+                $options['rebuild_themes'] = false;
+            }
+
+            if ($options['rebuild_javascript']) {
+                $log[] = 'Rebuilding <strong>' . $config['file_script'] . '</strong>';
+                buildJavascript();
+                $options['rebuild_javascript'] = false;
+            }
+
+            if ($options['rebuild_index']) {
+                $log[] = 'Building index for ' . $board_uri;
+                buildIndex();
+            }
+
+            // Always fetch threads for the board
+            $log[] = 'Fetching threads for ' . $board_uri;
+            $query = query(sprintf("SELECT `id` FROM ``posts_%s`` WHERE `thread` IS NULL", $board_uri)) or error(db_error());
+            $progress['threads'] = [];
+            while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+                $progress['threads'][] = $post['id'];
+            }
+            $progress['thread_index'] = 0;
+
+            if (empty($progress['threads'])) {
+                $progress['step']++;
+            }
+        }
+
+        // Process threads
+        if (!empty($progress['threads'])) {
+            $board_uri = $progress['current_board'];
+            openBoard($board_uri);
+
+            if ($options['rebuild_thread']) {
+                // Incremental rebuild (in steps)
+                $batch_size = 5;
+                $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
+
+                foreach ($threads_to_process as $thread_id) {
+                    $log[] = 'Rebuilding thread #' . $thread_id;
+                    buildThread($thread_id);
+                }
+
+                $progress['thread_index'] += $batch_size;
+
+                // If all threads for the current board are processed, move to the next board
+                if ($progress['thread_index'] >= count($progress['threads'])) {
+                    $progress['threads'] = [];
+                    $progress['thread_index'] = 0;
+                    $progress['step']++;
+                }
+            } else {
+                // Rebuild all threads at once
+                foreach ($progress['threads'] as $thread_id) {
+                    $log[] = 'Rebuilding thread #' . $thread_id;
+                    buildThread($thread_id);
+                }
+                // Clear threads and move to the next board
+                $progress['threads'] = [];
+                $progress['thread_index'] = 0;
+                $progress['step']++;
+            }
+        }
+
+        // Refresh for next batch or board
+        mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+            'logs' => $log,
+            'in_progress' => true
+        ], $mod);
+
+        header("Refresh: 1; URL=?/rebuild");
+        exit;
+    }
+
+    // Initial rebuild form
+    mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
+        'boards' => listBoards(),
+        'token' => make_secure_link_token('rebuild')
+    ], $mod);
 }
+
+
 
 function mod_reports(Context $ctx) {
 	global $mod;
