@@ -39,26 +39,27 @@
 		</div>
 		
 		{% if settings.description or settings.featured_image or settings.quote or settings.video_embed %}
-			<div class="ban">
-				<h2>What is Vichan?</h2>
+		<div class="ban" id="vichan-info">
+			<button class="dismiss-btn" onclick="dismissInfo()">✖</button>
+			<h2>What is Vichan?</h2>
+			<br>
+			{% if settings.description %}
+				<div class="description">{{ settings.description }}</div>
 				<br>
-				{% if settings.description %}
-					<div class="description">{{ settings.description }}</div>
-					<br>
-				{% endif %}
-				{% if settings.featured_image %}
-					<img class="featured_image" src="{{ settings.featured_image }}"  alt="Featured Image"/>
-					<br>
-				{% endif %}
-				{% if settings.quote %}
-					<div class="quote">{{ settings.quote }}</div>
-					<br>
-				{% endif %}
-				{% if settings.video_embed %}
-					<iframe class="video_embed" width="400" height="200" src="{{ settings.video_embed }}"></iframe>
-					<br>
-				{% endif %}
-			</div>
+			{% endif %}
+			{% if settings.featured_image %}
+				<img class="featured_image" src="{{ settings.featured_image }}" alt="Featured Image"/>
+				<br>
+			{% endif %}
+			{% if settings.quote %}
+				<div class="quote">{{ settings.quote }}</div>
+				<br>
+			{% endif %}
+			{% if settings.video_embed %}
+				<iframe class="video_embed" width="400" height="200" src="{{ settings.video_embed }}"></iframe>
+				<br>
+			{% endif %}
+		</div>
 		{% endif %}
 	
 	    <div class="ban">
@@ -124,6 +125,36 @@
 	{% include 'footer.html' %}
 
 	<script>
+		function setCookie(name, value, days) {
+			const d = new Date();
+			d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+			document.cookie = name + "=" + value + ";path=/;expires=" + d.toUTCString();
+		}
+
+		function getCookie(name) {
+			const cname = name + "=";
+			const decodedCookie = decodeURIComponent(document.cookie);
+			const ca = decodedCookie.split(';');
+			for (let i = 0; i < ca.length; i++) {
+				let c = ca[i].trim();
+				if (c.indexOf(cname) === 0) {
+					return c.substring(cname.length, c.length);
+				}
+			}
+			return "";
+		}
+
+		function dismissInfo() {
+			document.getElementById('vichan-info').style.display = 'none';
+			setCookie('hideVichanInfo', '1', 365);
+		}
+
+		document.addEventListener('DOMContentLoaded', function () {
+			if (getCookie('hideVichanInfo') === '1') {
+				const el = document.getElementById('vichan-info');
+				if (el) el.style.display = 'none';
+			}
+		});
 		document.addEventListener('DOMContentLoaded', function () {
 			const filter = document.getElementById('activityFilter');
 			const posts = document.querySelectorAll('.recent-card');

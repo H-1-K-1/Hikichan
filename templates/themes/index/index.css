@@ -163,6 +163,13 @@
 	float: left;
 	margin-right: 100px;
 }
+.dismiss-btn {
+	float: right;
+	background: none;
+	border: none;
+	font-size: 16px;
+	cursor: pointer;
+}
 
 .stats {
 	list-style: none;
