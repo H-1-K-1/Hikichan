@@ -3,7 +3,9 @@
 	min-width: 300px;
 	margin: 30px auto;
 	padding: 0;
+	text-align: center;
 }
+
 .box {
 	background: white;
 	border: 1px solid #98E;
@@ -11,24 +13,29 @@
 	margin: 8px 0;
 	padding: 0;
 }
+
 .box h2 {
 	padding: 3px 7px;
 	font-size: 12pt;
 }
+
 .box ul li {
 	list-style: none;
 	margin: 0;
 }
+
 .mainBox {
 	background: transparent;
 	border: 1px solid #008080;
 	width: 100%;
 	margin-bottom: 5px;
 }
+
 .mainBox h2 {
 	background: #59A;
 	color: white;
 }
+
 .box.image {
 	background: transparent;
 	border: none;
@@ -38,42 +45,125 @@
 	overflow-x: hidden;
 	overflow-y: auto;
 }
+
 .box img {
 	float: left;
 	margin: 5px;
 	width: auto !important;
-	height: 100px !important;
+	height: 75px !important;
 	border-radius: 10px;
 }
+
+/* Activity Section */
+.activity-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 15px;
+	max-width: 980px;
+	margin: 0 auto;
+}
+
+.activity-header h1 {
+	margin: 0;
+	font-size: 20px;
+}
+
+.filter-label {
+	font-size: 14px;
+}
+
+#activityFilter {
+	margin-left: 5px;
+	padding: 4px;
+	font-size: 14px;
+}
+
+.recent-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 15px;
+	justify-items: center;
+	padding: 10px;
+}
+
+.recent-card {
+	background: #f9f9f9;
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	width: 150px;
+	padding: 5px;
+	box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
+	transition: transform 0.2s ease-in-out;
+}
+
+.recent-card:hover {
+	transform: scale(1.03);
+}
+
+.recent-thumb {
+	width: 100%;
+	height: auto;
+	border-radius: 4px;
+}
+
+.recent-info {
+	margin-top: 5px;
+	text-align: left;
+	font-size: 12px;
+}
+
+.recent-board {
+	color: #555;
+	font-weight: bold;
+	margin-bottom: 3px;
+}
+
+.recent-snippet a {
+	color: #000;
+	text-decoration: none;
+	display: block;
+}
+
+.recent-snippet a:hover {
+	text-decoration: underline;
+}
+
 .icon {
 	display: block;
-	margin-left: auto;
-	margin-right: auto;
+	margin: 0 auto;
 	max-width: 100px;
 }
-.imageofnow {
+
+.featured_image {
 	display: block;
-	margin-left: auto;
-	margin-right: auto;
+	margin: 0 auto;
 	max-width: 300px;
 }
-.videoofnow {
+
+.video_embed {
 	display: block;
-	margin-left: auto;
-	margin-right: auto;
+	margin: 0 auto;
 	max-width: 500px;
 	max-height: 300px;
 }
-.quoteofnow {
+
+.quote {
 	text-align: center;
 	font-size: 20px;
-	font-family: -WEBKIT-PICTOGRAPH;
+	font-family: -webkit-pictograph;
 }
+
 .description {
 	text-align: center;
-	font-weight: bolder;
+	font-weight: bold;
 }
+
 .boardlinksurl {
 	float: left;
 	margin-right: 100px;
+}
+
+.stats {
+	list-style: none;
 }

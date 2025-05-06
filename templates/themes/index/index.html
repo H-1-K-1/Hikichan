@@ -21,42 +21,48 @@
 	{% if config.url_banner %}<img class="board_image" src="{{ config.url_banner }}" {% if config.banner_width or config.banner_height %}style="{% if config.banner_width %}width:{{ config.banner_width }}px{% endif %};{% if config.banner_width %}height:{{ config.banner_height }}px{% endif %}" {% endif %}alt="" />{% endif %}
 	
 	<div class="box-wrap">
-	    <fieldset>
-		<legend>Boards</legend>
-		<ul>
-			{% for board in boards %}
-				<li class="boardlinksurl">
-					<a href="{{ config.board_path|sprintf(board.uri) }}">
-						{{ board.title|e }}
-					</a>
-				</li>
-			{% endfor %}
-		</ul>
-	    </fieldset>
-	    <br>
-		{% if settings.description or settings.imageofnow or settings.quoteofnow or settings.videoofnow %}
-			<div class="mainBox">
+		<div class="ban">
+			<h2>Boards</h2>
+			{% if settings.use_boardlist %}
+				<div class="boardlist">{{ settings.boardlist }}</div>
+			{% else %}
+				<ul>
+					{% for board in boards %}
+						<li class="boardlinksurl">
+							<a href="{{ config.board_path|sprintf(board.uri) }}">
+								{{ board.title|e }}
+							</a>
+						</li>
+					{% endfor %}
+				</ul>
+			{% endif %}
+		</div>
+		
+		{% if settings.description or settings.featured_image or settings.quote or settings.video_embed %}
+			<div class="ban">
+				<h2>What is Vichan?</h2>
 				<br>
 				{% if settings.description %}
 					<div class="description">{{ settings.description }}</div>
 					<br>
 				{% endif %}
-				{% if settings.imageofnow %}
-					<img class="imageofnow" src="{{ settings.imageofnow }}">
+				{% if settings.featured_image %}
+					<img class="featured_image" src="{{ settings.featured_image }}"  alt="Featured Image"/>
 					<br>
 				{% endif %}
-				{% if settings.quoteofnow %}
-					<div class="quoteofnow">{{ settings.quoteofnow }}</div>
+				{% if settings.quote %}
+					<div class="quote">{{ settings.quote }}</div>
 					<br>
 				{% endif %}
-				{% if settings.videoofnow %}
-					<iframe class="videoofnow" width="560" height="315" src="{{ settings.videoofnow }}"></iframe>
+				{% if settings.video_embed %}
+					<iframe class="video_embed" width="400" height="200" src="{{ settings.video_embed }}"></iframe>
 					<br>
 				{% endif %}
 			</div>
 		{% endif %}
 	
 	    <div class="ban">
+			<h2>News</h2>
 		{% if news|length == 0 %}
 			<p style="text-align:center" class="unimportant">(No news to show.)</p>
 		{% else %}
@@ -73,34 +79,39 @@
 			{% endfor %}
 		{% endif %}
 	    </div>
-	    <h1>Recent Images</h1>
-		<div class="box image">
-			<ul>
-				{% for post in recent_images %}
-					<li>
-						<a href="{{ post.link }}">
-							<img src="{{ post.src }}" style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px" alt="">
-						</a>
-					</li>
-				{% endfor %}
-			</ul>
+		<div class="ban">
+			<h2>Recent Activity</h2>
+			<div class="activity-header">
+				<label for="activityFilter" class="filter-label">
+					<select id="activityFilter">
+						<option value="sfw">Show Worksafe</option>
+						<option value="nsfw">Show NSFW</option>
+						<option value="all" selected>Show All</option>
+					</select>
+				</label>
+			</div>
+			<div class="box image">
+				<div class="recent-grid">
+					{% for post in recent_activity %}
+						<div class="recent-card" data-nsfw="{{ post.nsfw ? 'true' : 'false' }}">
+							<a href="{{ post.link }}">
+								<img class="recent-thumb" src="{{ post.src }}" alt="">
+							</a>
+							<div class="recent-info">
+								<div class="recent-board"><strong>{{ post.board_name }}</strong></div>
+								<div class="recent-snippet">
+									<a href="{{ post.link }}">{{ post.snippet|raw }}</a>
+								</div>
+							</div>
+						</div>
+					{% endfor %}
+				</div>
+			</div>
 		</div>
-		<div class="mainBox">
-			<h2>Latest Posts</h2>
-			<ul>
-				{% for post in recent_posts %}
-					<li>
-						<strong>{{ post.board_name }}</strong>: 
-						<a href="{{ post.link }}">
-							{{ post.snippet }}
-						</a>
-					</li>
-				{% endfor %}
-			</ul>
-		</div>
-		<div class="mainBox">
+
+		<div class="ban">
 			<h2>Stats</h2>
-			<ul>
+			<ul class="stats">
 				<li>Total posts: {{ stats.total_posts }}</li>
 				<li>Unique posters: {{ stats.unique_posters }}</li>
 				<li>Active content: {{ stats.active_content|filesize }}</li>
@@ -111,6 +122,28 @@
 	<hr/>
 
 	{% include 'footer.html' %}
+
+	<script>
+		document.addEventListener('DOMContentLoaded', function () {
+			const filter = document.getElementById('activityFilter');
+			const posts = document.querySelectorAll('.recent-card');
+		
+			filter.addEventListener('change', function () {
+				posts.forEach(post => {
+					const isNsfw = post.dataset.nsfw === 'true';
+					if (filter.value === 'all') {
+						post.style.display = '';
+					} else if (filter.value === 'sfw' && isNsfw) {
+						post.style.display = 'none';
+					} else if (filter.value === 'nsfw' && !isNsfw) {
+						post.style.display = 'none';
+					} else {
+						post.style.display = '';
+					}
+				});
+			});
+		});
+	</script>
 	
 </body>
 </html>
