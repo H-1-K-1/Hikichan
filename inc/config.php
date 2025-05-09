@@ -480,7 +480,7 @@
 	// Do you need a body for new threads?
 	$config['force_body_op'] = true;
 	// Require an image for threads?
-	$config['force_image_op'] = true;
+	$config['force_image_op'] = false;
 
 	// Strip superfluous new lines at the end of a post.
 	$config['strip_superfluous_returns'] = true;
@@ -493,9 +493,9 @@
 	// Maximum numbers of threads that can be created every hour on a board.
 	$config['max_threads_per_hour'] = 30;
 	// Maximum post body length.
-	$config['max_body'] = 1800;
+	$config['max_body'] = 100000;
 	// Maximum number of lines allowed in a post.
-	$config['maximum_lines'] = 100;
+	$config['maximum_lines'] = 10000;
 	// Maximum number of post body lines to show on the index page.
 	$config['body_truncate'] = 15;
 	// Maximum number of characters to show on the index page.
@@ -840,8 +840,10 @@
 	$config['allowed_ext_op'] = false;
 
 	// Allowed additional file extensions (not images; downloadable files).
-	// $config['allowed_ext_files'][] = 'txt';
-	// $config['allowed_ext_files'][] = 'zip';
+	$config['allowed_ext_files'][] = 'txt';
+	$config['allowed_ext_files'][] = 'zip';
+	$config['allowed_ext_files'][] = 'mp4';
+	$config['allowed_ext_files'][] = 'webm';
 
 	// An alternative function for generating image filenames, instead of the default UNIX timestamp.
 	// $config['filename_func'] = function($post) {
@@ -1040,6 +1042,15 @@
 	// 	array('k', array('l', 'm')),
 	// 	array('status' => 'http://status.example.org/')
 	// );
+
+	$config['boards'] = array(
+		"icon_vichan" => array('/hikichan/static/icons/vichan.png'), # would refer to /static/icons/vichan.png
+		"Boards" => array('b'),
+		"Linkage" => array('sci', "Offsite board name" => '//int.vichan.net/s/'),
+		"d_Mod" => array("mod" => "?/"),
+		"fa_search" => array("search" => "/search.php"),# would refer to a search 
+														# font-awesome icon
+	   );
 
 	// Whether or not to put brackets around the whole board list
 	$config['boardlist_wrap_bracket'] = false;
@@ -1451,7 +1462,7 @@
 	$config['mod_archive']['threads'] = true;
 
 	// Days to keep archived threads before deletion (ex. "60 minutes", "6 hours", "1 day", "1 week"), if set to false all archived threads are kept forever
-	$config['archive']['lifetime'] = "2 days";
+	$config['archive']['lifetime'] = false;
 
 	// Number of chars in snippet
 	$config['archive']['snippet_len'] = 400;
