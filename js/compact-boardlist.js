@@ -70,15 +70,16 @@ if (device_type == 'desktop') {
 	      .appendTo(this);
 	    for (var j in this.item.boards) {
 	      var board = this.item.boards[j];
-            
+
 	      var tag;
-              if (board.name) {
-	        tag = $("<a href='"+board.href+"'><span>"+board.name+"</span><span class='cb-uri'>/"+board.uri+"/</span></a>")
-	      }
-	      else {
-	        tag = $("<a href='"+board.href+"'><span>"+board.uri+"</span><span class='cb-uri'><i class='fa fa-globe'></i></span></a>")
-	      }
-	      tag
+        var baseUrl = window.location.origin;  // Gets the base URL dynamically (e.g., http://localhost or http://yourdomain.com)
+        if (board.name) {
+        tag = $("<a href='" + baseUrl + configRoot + boardFolder + board.uri + "/index.html'><span>" + board.name + "</span><span class='cb-uri'>/" + board.uri + "/</span></a>");
+      }
+      else {
+        tag = $("<a href='" + baseUrl + configRoot + boardFolder + board.uri + "'><span>" + board.uri + "</span><span class='cb-uri'><i class='fa fa-globe'></i></span></a>");
+      }
+      tag
 		.addClass("cb-menuitem")
                 .appendTo(list)
 	    }
@@ -91,3 +92,4 @@ if (device_type == 'desktop') {
     do_boardlist = undefined;
   };
 }
+

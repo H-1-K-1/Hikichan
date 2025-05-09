@@ -10,6 +10,7 @@
 	var configRoot="{{ config.root }}";
 	var inMod = {% if mod %} true {% else %} false {% endif %};
 	var modRoot = "{{ config.root }}" + (inMod ? "mod.php?/" : "");
+	var boardFolder = "{{ config.board_path|replace({'/%s': ''}) }}";
 </script>
 {% if not nojavascript %}
 	<script type="text/javascript" src="{{ config.url_javascript }}?v={{ config.resource_version }} data-resource-version="{{ config.resource_version }}"></script>
