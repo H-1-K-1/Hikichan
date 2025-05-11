@@ -1,3 +1,10 @@
+document.addEventListener('DOMContentLoaded', function() {
+    var captcha = document.getElementById('captcha_image');
+    if (captcha) {
+        captcha.src = 'inc/captcha/captcha.php?' + Math.random();
+    }
+});
+
 //Refresh Captcha
 function refreshCaptcha(){
 	var img = document.images['captcha_image'];

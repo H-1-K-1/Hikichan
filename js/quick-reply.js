@@ -362,7 +362,7 @@
 		$(window).trigger('quick-reply');
 	
 		$(window).ready(function() {
-			if (settings.get('hide_at_top', true)) {
+			if (settings.get('hide_at_top', false)) {
 				$(window).scroll(function() {
 					if ($(this).width() <= 400)
 						return;

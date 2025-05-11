@@ -2,9 +2,14 @@
 	<h2 style="margin:20px 0">{{ message }}</h2>
 	{% if board %}
 		<p>
-			<a href="{{ config.root }}{% if mod %}{{ config.file_mod }}?/{% endif %}{{ board.dir }}{{ config.file_index }}">
+			<a href="javascript:history.back()">
 				{% trans 'Go back' %}
 			</a>
+			<noscript>
+				<a href="{{ config.root }}{% if mod %}{{ config.file_mod }}?/{% endif %}{{ board.dir }}{{ config.file_index }}">
+					{% trans 'Go back' %}
+				</a>
+			</noscript>
 		</p>
 	{% endif %}
 </div>

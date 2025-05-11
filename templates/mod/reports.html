@@ -1,5 +1,10 @@
 {% if reports %}
 	{{ reports }}
+	{% if last_time and last_id %}
+		<p style="text-align:center; margin-top:1em;">
+			<a href="{{ config.root }}mod.php?/reports&last_time={{ last_time }}&last_id={{ last_id }}">Next {{ limit }} reports</a>
+		</p>
+	{% endif %}
 {% else %}
 	<p style="text-align:center" class="unimportant">({% trans 'There are no reports.' %})</p>
 {% endif %}

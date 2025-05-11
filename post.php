@@ -201,6 +201,22 @@ function delete_cyclical_posts(string $boardUri, int $threadId, int $cycleLimit)
     }
 }
 
+function verify_captcha() {
+    global $config;
+
+    session_start();
+
+    if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
+        error($config['error']['captcha']);
+    }
+
+    if (!isset($_SESSION['captcha']) ||
+        strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0
+    ) {
+        error($config['error']['captcha']);
+    }
+}
+
 /**
  * Method handling functions
  */
@@ -226,6 +242,8 @@ if (isset($_POST['delete'])) {
 			$delete[] = (int)$m[1];
 		}
 	}
+
+	$delete = ids_from_postdata($_POST);
 
 	checkDNSBL();
 
@@ -311,6 +329,113 @@ if (isset($_POST['delete'])) {
 
 	Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
 
+} else if (isset($_POST['edit'])) {
+    if (!$config['allow_edit'])
+        error('Post editing is not allowed!');
+
+    checkDNSBL();
+
+    // Check if board exists
+    if (!openBoard($_POST['board']))
+        error($config['error']['noboard']);
+
+    // Check if banned
+    checkBan($board['uri']);
+
+    if (!isset($_POST['board'], $_POST['password']))
+        error($config['error']['bot']);
+
+    if (empty($_POST['password']))
+        error($config['error']['invalidpassword']);
+
+    $password = hashPassword($_POST['password']);
+
+    // Check if user is coming from edit template
+    $view_base = isset($_POST['body']);
+
+    if (!$view_base) {
+        // Fetch id list from $_POST
+        $ids = ids_from_postdata($_POST);
+        if (count($ids) == 0) {
+            error('You must select one post to edit.');
+        } else if (count($ids) > 1) {
+            error('You must select only one post to edit.');
+        }        
+        // First and only id from ids array
+        $id = $ids[0];
+    } else { 
+        $id = (int)$_POST['id'];
+    }
+
+    $query = prepare(sprintf("SELECT * FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
+    $query->bindValue(':id', $id, PDO::PARAM_INT);
+    $query->execute() or error(db_error($query));
+
+    if ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+        // Use hash_equals for secure password comparison, like in delete
+        if (!hash_equals($post['password'], $password)) {
+            error($config['error']['invalidpassword']);
+        }
+
+        if (!$view_base) {
+            // Removes modifiers for showing 
+            $post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
+
+            echo Element('page.html', array(
+                'config' => $config,
+                'mod' => false,
+                'title' => 'Edit post',
+                'subtitle' => '',
+                'boardlist' => array(),
+                'body' => Element('edit_post_form.html',
+                        array_merge(
+                            array('config' => $config, 'mod' => false), 
+                            array('post' => array_merge($post, array('board' => $board['uri'])))
+                        )
+                    )
+                )
+            );
+        } else {
+            // Remove any modifiers they may have put in
+            $_POST['body'] = remove_modifiers($_POST['body']);
+
+            // Add back modifiers from the original post
+            $modifiers = extract_modifiers($post['body_nomarkup']);
+
+            // If post was previously edited, it should have a history modifier
+            // then, we want to add the actual post to it.
+            $history_html = Element('post/history_item.html', array(
+                'post' => $post,
+                'config' => $config,
+                'edited_at' => time()
+            ));
+            if (isset($modifiers['history'])) {
+                $modifiers['history'] = $history_html.$modifiers['history'];
+            } else {
+                $modifiers['history'] = $history_html;
+            }
+
+            foreach ($modifiers as $key => $value) {
+                $_POST['body'] .= "<tinyboard $key>$value</tinyboard>";
+            }
+
+            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `body_nomarkup` = :body_nomarkup WHERE `id` = :id', $board['uri']));
+            $query->bindValue(':id', $id);
+            $query->bindValue(':body_nomarkup', $_POST['body']);
+            $query->execute() or error(db_error($query));    
+
+            rebuildPost($id);
+
+            //buildIndex();
+            //rebuildThemes('post', $board['uri']);
+
+            header('Location: ' . $config['root'] . $board['dir'] . $config['file_index'], true, $config['redirect_http']);
+        }
+    } else {
+        // Invalid post
+        error($config['error']['404']);
+    }
+
 } elseif (isset($_POST['report'])) {
 	if (!isset($_POST['board'], $_POST['reason']))
 		error($config['error']['bot']);
@@ -342,30 +467,8 @@ if (isset($_POST['delete'])) {
 		error($config['error']['toomanyreports']);
 
 
-	if ($config['report_captcha']) {
-		if (!isset($_POST['captcha_text'], $_POST['captcha_cookie'])) {
-			error($config['error']['bot']);
-		}
-
-		try {
-			$query = new NativeCaptchaQuery(
-				$context->get(HttpDriver::class),
-				$config['domain'],
-				$config['captcha']['provider_check'],
-				$config['captcha']['extra']
-			);
-			$success = $query->verify(
-				$_POST['captcha_text'],
-				$_POST['captcha_cookie']
-			);
-
-			if (!$success) {
-				error($config['error']['captcha']);
-			}
-		} catch (RuntimeException $e) {
-			$context->get(LogDriver::class)->log(LogDriver::ERROR, "Native captcha IO exception: {$e->getMessage()}");
-			error($config['error']['local_io_error']);
-		}
+	if ($config['report_captcha'] && $config['captcha']['provider'] === 'native') {
+		verify_captcha();
 	}
 
 	$reason = escape_markup_modifiers($_POST['reason']);
@@ -493,22 +596,9 @@ if (isset($_POST['delete'])) {
 			}
 		}
 
-	if ($config['captcha']['provider'] === 'native') {
-		if (!$dropped_post) {
-			session_start();
-	
-			if (!isset($_POST['captcha']) || $_POST['captcha'] === '') {
-				error($config['error']['captcha']);
-			}
-	
-			// Case-insensitive comparison
-			if (!isset($_SESSION['captcha']) || strcasecmp($_SESSION['captcha'], $_POST['captcha']) !== 0) {
-				error($config['error']['captcha']); // CAPTCHA failed
-			}
-	
-			// CAPTCHA matched – continue as normal
+		if ($config['captcha']['provider'] === 'native' && !$dropped_post) {
+			verify_captcha();
 		}
-	}
 		
 
 

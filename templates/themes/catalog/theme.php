@@ -144,9 +144,9 @@
 			if ($mod) {
 				return $element;
 			} else {
-				file_write($config['dir']['home'] . $board_name . '/catalog.html', $element);
+				file_write($config['dir']['home'] . $board['dir']  . '/catalog.html', $element);
 
-				file_write($config['dir']['home'] . $board_name . '/index.rss', Element('themes/catalog/index.rss', Array(
+				file_write($config['dir']['home'] . $board['dir']  . '/index.rss', Element('themes/catalog/index.rss', Array(
 					'config' => $config,
 					'recent_posts' => $recent_posts,
 					'board' => $board

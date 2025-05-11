@@ -8,6 +8,7 @@
  *
  */
 
+
 if (active_page == 'thread' || active_page == 'index' || active_page == 'ukko') {
 $(document).on('menu_ready', function(){
 var Menu = window.Menu;
@@ -15,6 +16,8 @@ var Menu = window.Menu;
 if ($('#delete-fields #password').length) {
 	Menu.add_item("delete_post_menu", _("Delete post"));
 	Menu.add_item("delete_file_menu", _("Delete file"));
+	Menu.add_item("edit_post_menu", _("Edit post")); // ✅ NEW
+
 	Menu.onclick(function(e, $buf) {
 		var ele = e.target.parentElement.parentElement;
 		var $ele = $(ele);
@@ -22,17 +25,20 @@ if ($('#delete-fields #password').length) {
 		var postId = $ele.find('.post_no').not('[id]').text();
 		var board_name = $ele.parent().data('board');
 
-		$buf.find('#delete_post_menu,#delete_file_menu').click(function(e) {
+		$buf.find('#delete_post_menu,#delete_file_menu,#edit_post_menu').click(function(e) {
 			e.preventDefault();
 			$('#delete_'+postId).prop('checked', 'checked');
-		
+
 			if ($(this).attr('id') === 'delete_file_menu') {
 				$('#delete_file').prop('checked', 'checked');
+				$('input[name=delete][type=submit]').click();
+			} else if ($(this).attr('id') === 'edit_post_menu') {
+				$('input[type="hidden"][name="board"]').val(board_name);
+				$('input[name=edit][type=submit]').click(); // ✅ NEW
 			} else {
 				$('#delete_file').prop('checked', '');
+				$('input[name=delete][type=submit]').click();
 			}
-			$('input[type="hidden"][name="board"]').val(board_name);
-			$('input[name=delete][type=submit]').click();
 		});
 	});
 }

@@ -285,7 +285,7 @@
 
 	$config['captcha'] = [
 		// Can be false, 'recaptcha', 'hcaptcha' or 'native'.
-		'provider' => false,
+		'provider' => 'native',
 		/*
 		 * If not false, the captcha is dynamically injected on the client if the web server set the `captcha-required`
 		 * cookie to 1. The configuration value should be set the IP for which the captcha should be verified.
@@ -523,6 +523,8 @@
 	$config['delete_time'] = 10;
 	// How long should a user be able to delete their post for? (In seconds. Set to 0 to disable.)
 	$config['max_delete_time'] = 0;
+	// Allow users to edit their own posts?
+	$config['allow_edit'] = true;
 	// Reply limit (stops bumping thread when this is reached).
 	$config['reply_limit'] = 250;
 
@@ -955,6 +957,9 @@
 	// Maximum number of characters per report.
 	$config['report_max_length'] = 30;
 
+	//the amount of reports per page.
+	$config['mod']['recent_reports'] = 5;
+
 	// Allow unfiltered HTML in board subtitle. This is useful for placing icons and links.
 	$config['allow_subtitle_html'] = false;
 
@@ -1149,7 +1154,7 @@
  */
 
 	// Enable embedding (see below).
-	$config['enable_embedding'] = false;
+	$config['enable_embedding'] = true;
 
 	// Custom embedding (YouTube, vimeo, etc.)
 	// It's very important that you match the entire input (with ^ and $) or things will not work correctly.
@@ -2057,7 +2062,7 @@
 	$config['password_crypt_version'] = 1;
 
 	// Use CAPTCHA for reports?
-	$config['report_captcha'] = false;
+	$config['report_captcha'] = true;
 
 	// Allowed HTML tags in ?/edit_pages.
 	$config['allowed_html'] = 'a[href|title],p,br,li,ol,ul,strong,em,u,h2,b,i,tt,div,img[src|alt|title],hr';

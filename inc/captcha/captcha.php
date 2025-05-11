@@ -1,6 +1,11 @@
 <?php
 session_start();
 
+// Prevent caching
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+
 // Generate a random 5-character alphanumeric string
 $chars = 'ABCDEFGHJKLMNPRSTUVWXYZabcdefghjkmnprstuvwxyz23456789';
 $captcha_text = substr(str_shuffle($chars), 0, 5);

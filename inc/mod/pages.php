@@ -591,7 +591,7 @@ function mod_edit_board(Context $ctx, $boardName) {
 			$config['file_mod_board'],
 			[
 				'board' => $board,
-				'token' => make_secure_link_token('edit/' . $board['uri'])
+				'token' => make_secure_link_token('edit/channel/' . $board['uri'])
 			],
 			$mod
 		);
@@ -670,7 +670,8 @@ function mod_new_board(Context $ctx) {
 
 		Vichan\Functions\Theme\rebuild_themes('boards');
 
-		header('Location: ?/' . $board['uri'] . '/' . $config['file_index'], true, $config['redirect_http']);
+		header('Location: ?/', true, $config['redirect_http']);
+
 	}
 
 	mod_page(
@@ -2803,8 +2804,29 @@ function mod_reports(Context $ctx) {
 	if (!hasPermission($config['mod']['reports']))
 		error($config['error']['noaccess']);
 
-	$query = prepare("SELECT * FROM ``reports`` ORDER BY `time` DESC LIMIT :limit");
-	$query->bindValue(':limit', $config['mod']['recent_reports'], PDO::PARAM_INT);
+	// Pagination: use cursor-based method (like mod_users)
+	$limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 25;
+	$last_time = isset($_GET['last_time']) && is_numeric($_GET['last_time']) ? (int)$_GET['last_time'] : null;
+	$last_id = isset($_GET['last_id']) && is_numeric($_GET['last_id']) ? (int)$_GET['last_id'] : null;
+
+	// Total report count
+	$total_query = query("SELECT COUNT(*) FROM ``reports``") or error(db_error());
+	$total_reports = (int)$total_query->fetchColumn();
+
+	// Main query with pagination
+	$sql = "
+		SELECT * FROM ``reports``
+		WHERE (
+			(:last_time IS NULL AND :last_id IS NULL)
+			OR (`time` < :last_time OR (`time` = :last_time AND `id` < :last_id))
+		)
+		ORDER BY `time` DESC, `id` DESC
+		LIMIT :limit
+	";
+	$query = prepare($sql);
+	$query->bindValue(':last_time', $last_time, PDO::PARAM_INT);
+	$query->bindValue(':last_id', $last_id, PDO::PARAM_INT);
+	$query->bindValue(':limit', $limit, PDO::PARAM_INT);
 	$query->execute() or error(db_error($query));
 	$reports = $query->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2825,11 +2847,9 @@ function mod_reports(Context $ctx) {
 		}
 	}
 
-	$count = 0;
 	$body = '';
 	foreach ($reports as $report) {
 		if (!isset($report_posts[$report['board']][$report['post']])) {
-			// // Invalid report (post has since been deleted)
 			$query = prepare("DELETE FROM ``reports`` WHERE `post` = :id AND `board` = :board");
 			$query->bindValue(':id', $report['post'], PDO::PARAM_INT);
 			$query->bindValue(':board', $report['board']);
@@ -2842,13 +2862,11 @@ function mod_reports(Context $ctx) {
 		$post = &$report_posts[$report['board']][$report['post']];
 
 		if (!$post['thread']) {
-			// Still need to fix this:
 			$po = new Thread($post, '?/', $mod, false);
 		} else {
 			$po = new Post($post, '?/', $mod);
 		}
 
-		// a little messy and inefficient
 		$append_html = Element($config['file_mod_report'], array(
 			'report' => $report,
 			'config' => $config,
@@ -2859,35 +2877,46 @@ function mod_reports(Context $ctx) {
 			'token_post' => make_secure_link_token('reports/'. $report['id'] . '/dismiss&post'),
 		));
 
-		// Bug fix for https://github.com/savetheinternet/Tinyboard/issues/21
 		$po->body = truncate($po->body, $po->link(), $config['body_truncate'] - substr_count($append_html, '<br>'));
 
 		if (mb_strlen($po->body) + mb_strlen($append_html) > $config['body_truncate_char']) {
-			// still too long; temporarily increase limit in the config
 			$__old_body_truncate_char = $config['body_truncate_char'];
 			$config['body_truncate_char'] = mb_strlen($po->body) + mb_strlen($append_html);
 		}
 
 		$po->body .= $append_html;
-
 		$body .= $po->build(true) . '<hr>';
 
 		if (isset($__old_body_truncate_char))
 			$config['body_truncate_char'] = $__old_body_truncate_char;
-
-		$count++;
 	}
 
+	// Update cursor for next page
+	$new_last_time = null;
+	$new_last_id = null;
+	if (!empty($reports)) {
+		$last_report = end($reports);
+		$new_last_time = $last_report['time'];
+		$new_last_id = $last_report['id'];
+	}
+
+	// Render the page with total report count
 	mod_page(
-		sprintf('%s (%d)', _('Report queue'), $count),
+		sprintf('%s (%d)', _('Report queue'), $total_reports),
 		$config['file_mod_reports'],
 		[
 			'reports' => $body,
-			'count' => $count
+			'count' => count($reports),
+			'limit' => $limit,
+			'last_time' => $new_last_time,
+			'last_id' => $new_last_id
 		],
 		$mod
 	);
 }
+
+
+
 
 function mod_report_dismiss(Context $ctx, $id, $action) {
 	$config = $ctx->get('config');
