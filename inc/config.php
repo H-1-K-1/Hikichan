@@ -832,7 +832,8 @@
 		'bmp',
 		'gif',
 		'png',
-		'webp'
+		'webp',
+		'webm'
 	];
 	// $config['allowed_ext'][] = 'svg';
 
@@ -846,6 +847,7 @@
 	$config['allowed_ext_files'][] = 'zip';
 	$config['allowed_ext_files'][] = 'mp4';
 	$config['allowed_ext_files'][] = 'webm';
+
 
 	// An alternative function for generating image filenames, instead of the default UNIX timestamp.
 	// $config['filename_func'] = function($post) {
@@ -1155,6 +1157,9 @@
 
 	// Enable embedding (see below).
 	$config['enable_embedding'] = true;
+
+	// Enable voice recording (see below).
+	$config['enable_voice'] = true;
 
 	// Custom embedding (YouTube, vimeo, etc.)
 	// It's very important that you match the entire input (with ^ and $) or things will not work correctly.

@@ -16,6 +16,7 @@ $(function(){
   var enabled_file = true;
   var enabled_url = $("#upload_url").length > 0;
   var enabled_embed = $("#upload_embed").length > 0;
+  var enabled_voice = $("#upload_voice").length > 0;
   var enabled_oekaki = typeof window.oekaki != "undefined";
 
   var disable_all = function() {
@@ -24,6 +25,7 @@ $(function(){
     $(".file_separator").hide();
     $("#upload_url").hide();
     $("#upload_embed").hide();
+    $("#upload_voice").hide();
     $(".add_image").hide();
     $(".dropzone-wrap").hide();
 
@@ -60,13 +62,18 @@ $(function(){
     $("#upload_embed").show();
   };
 
+  enable_voice = function() {
+    disable_all();
+    $("#upload_voice").show();
+  };
+
   enable_oekaki = function() {
     disable_all();
 
     window.oekaki.init();
   };
 
-  if (enabled_url || enabled_embed || enabled_oekaki) {
+  if (enabled_url || enabled_embed || enabled_voice || enabled_oekaki) {
     $("<tr><th>"+_("Select")+"</th><td id='upload_selection'></td></tr>").insertBefore("#upload");
     var my_html = "<a href='javascript:void(0)' onclick='enable_file(); return false;'>"+_("File")+"</a>";
     if (enabled_url) {
@@ -74,6 +81,9 @@ $(function(){
     }
     if (enabled_embed) {
       my_html += " / <a href='javascript:void(0)' onclick='enable_embed(); return false;'>"+_("Embed")+"</a>";
+    }
+    if (enabled_voice) {
+      my_html += " / <a href='javascript:void(0)' onclick='enable_voice(); return false;'>"+_("Voice")+"</a>";
     }
     if (enabled_oekaki) {
       my_html += " / <a href='javascript:void(0)' onclick='enable_oekaki(); return false;'>"+_("Oekaki")+"</a>";

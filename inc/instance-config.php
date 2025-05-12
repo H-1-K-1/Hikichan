@@ -67,5 +67,6 @@ $config['additional_javascript'][] = 'js/show-op.js';
 $config['additional_javascript'][] = 'js/id-highlighter.js';
 $config['additional_javascript'][] = 'js/infinite-scroll.js';
 $config['additional_javascript'][] = 'js/id_colors.js';
+$config['additional_javascript'][] = 'js/voice-record.js';
 
 ?>

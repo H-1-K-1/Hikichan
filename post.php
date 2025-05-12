@@ -817,7 +817,56 @@ if (isset($_POST['delete'])) {
 		$noko = false;
 		$post['email'] = '';
 	} else $noko = $config['always_noko'];
+	
+	if ($config['enable_voice'] && isset($_POST['voice_data']) && !empty($_POST['voice_data'])) {
+		if (!empty($_POST['voice_data'])) {
+			$voice_data = $_POST['voice_data'];
 
+			// Only accept data:audio/webm;base64,...
+			if (preg_match('/^data:audio\/webm;base64,/', $voice_data)) {
+				// Strip prefix and decode
+				$voice_data = substr($voice_data, strpos($voice_data, ',') + 1);
+				$voice_data = base64_decode($voice_data);
+
+				// Write to a temp file
+				$tmpname = tempnam(sys_get_temp_dir(), 'voice_') . '.webm';
+				if (file_put_contents($tmpname, $voice_data) === false) {
+					error($config['error']['nomove']);
+				}
+
+				// Final filename + paths
+				$filename = time() . rand(1000, 9999) . '.webm';
+				$path     = $board['dir'] . $config['dir']['img'] . $filename;
+
+				// Thumbnail icon + size (generic file icon)
+				$icon      = isset($config['file_icons']['webm'])
+							? $config['file_icons']['webm']
+							: $config['file_icons']['default'];
+				$icon_path = sprintf($config['file_thumb'], $icon);
+				$thumbsize = @getimagesize($icon_path);
+				$thumb_w   = $thumbsize[0] ?? 128;
+				$thumb_h   = $thumbsize[1] ?? 128;
+
+				// Inject into $post['files']
+				$post['files'][] = array(
+					'name'        => 'voice.webm',
+					'tmp_name'    => $tmpname,
+					'file_tmp'    => true,            // ← ensures rename() is used
+					'filename'    => 'voice.webm',
+					'extension'   => 'webm',
+					'type'        => 'audio/webm',
+					'size'        => strlen($voice_data),
+					'file'        => $path,
+					'thumb'       => 'file',
+					'thumbwidth'  => $thumb_w,
+					'thumbheight' => $thumb_h,
+					'is_an_image' => false
+				);
+
+				$post['has_file'] = true;
+			}
+		}
+	}
 	if ($post['has_file']) {
 		$i = 0;
 		foreach ($_FILES as $key => $file) {
@@ -1183,6 +1232,7 @@ if (isset($_POST['delete'])) {
 				$file['thumb'] = mb_substr($file['thumb'], mb_strlen($board['dir'] . $config['dir']['thumb']));
 		}
 	}
+	
 
 	$post = (object)$post;
 	$post->files = array_map(function($a) { return (object)$a; }, $post->files);
