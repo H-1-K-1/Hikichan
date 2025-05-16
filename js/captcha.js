@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     var captcha = document.getElementById('captcha_image');
     if (captcha) {
-        captcha.src = 'inc/captcha/captcha.php?' + Math.random();
+        captcha.src = configRoot + 'inc/captcha/captcha.php?' + Math.random();
     }
 });
 

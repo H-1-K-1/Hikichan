@@ -55,6 +55,50 @@
 
 	{% if config.global_message %}<hr /><div class="blotter">{{ config.global_message }}</div>{% endif %}
 	<hr />
+	<form method="post" action="{{ config.root }}poll.php" id="poll-form">
+	<input type="hidden" name="vote_poll" value="1">
+	<input type="hidden" name="poll_id" value="{{ poll.id }}">
+	<input type="hidden" name="board" value="{{ board.uri }}">
+	<ul>
+		{% for opt in poll.options %}
+		<li>
+			<label>
+			<input type="radio" name="option_id" value="{{ opt.id }}">
+			{{ opt.option_text|e }} ({{ opt.votes }})
+			</label>
+		</li>
+		{% endfor %}
+	</ul>
+	<button type="submit">Vote</button>
+	</form>
+	<script>
+	document.getElementById('poll-form').addEventListener('submit', function(e) {
+	e.preventDefault();
+
+	const form = e.target;
+	const formData = new FormData(form);
+
+	fetch(form.action, {
+		method: 'POST',
+		body: formData,
+		headers: {
+		'X-Requested-With': 'XMLHttpRequest'
+		}
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+		alert('Vote recorded.');
+		// Optionally, update the poll results dynamically here
+		} else {
+		alert(data.message);
+		}
+	})
+	.catch(error => {
+		console.error('Error:', error);
+	});
+	});
+	</script>
 	<form name="postcontrols" action="{{ config.post_url }}" method="post">
 		<input type="hidden" name="board" value="{{ board.uri }}" />
 		{% if mod %}<input type="hidden" name="mod" value="1" />{% endif %}

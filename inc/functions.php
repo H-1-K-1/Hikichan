@@ -2304,9 +2304,14 @@ function buildThread($id, $return = false, $mod = false) {
 
 		$hasnoko50 = $thread->postCount() >= $config['noko50_min'];
 
+		// ─── Add poll support ───────────────────────────────
+		$poll = get_poll($id);
+		// ────────────────────────────────────────────────────
+
 		$options = [
 			'board' => $board,
 			'thread' => $thread,
+			'poll' => $poll, // ← Pass poll data to template
 			'body' => $thread->build(),
 			'config' => $config,
 			'id' => $id,
@@ -2316,6 +2321,7 @@ function buildThread($id, $return = false, $mod = false) {
 			'boardlist' => createBoardlist($mod),
 			'return' => ($mod ? '?/' . sprintf($config['board_path'], $board['uri']) . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
 		];
+
 		if ($mod) {
 			$options['pm'] = create_pm_header();
 		}
@@ -2355,6 +2361,7 @@ function buildThread($id, $return = false, $mod = false) {
 		file_write($board['dir'] . $config['dir']['res'] . link_for($thread), $body);
 	}
 }
+
 
 function buildThread50($id, $return = false, $mod = false, $thread = null) {
 	global $board, $config;
@@ -2981,4 +2988,61 @@ function ids_from_postdata($post, $prefix='delete') {
 		}
 	}
 	return array_unique($ids);
+}
+
+/**
+ * Create a new poll for a thread.
+ */
+function create_poll($thread_id, $question, $options, $max_votes = 1, $expires = null) {
+    global $pdo;
+    // Insert poll
+    $stmt = $pdo->prepare("INSERT INTO polls (thread_id, question, max_votes, expires) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$thread_id, $question, $max_votes, $expires]);
+    $poll_id = $pdo->lastInsertId();
+
+    // Insert options
+    $opt_stmt = $pdo->prepare("INSERT INTO poll_options (poll_id, option_text) VALUES (?, ?)");
+    foreach ($options as $opt) {
+        $opt_stmt->execute([$poll_id, trim($opt)]);
+    }
+    return $poll_id;
+}
+
+/**
+ * Record a vote.
+ */
+function vote_poll($poll_id, $option_id) {
+    global $pdo;
+    $ip_bin = inet_pton($_SERVER['REMOTE_ADDR']);
+    $now = time();
+
+    // Check if already voted
+    $check = $pdo->prepare("SELECT 1 FROM poll_votes WHERE poll_id = ? AND ip = ?");
+    $check->execute([$poll_id, $ip_bin]);
+    if ($check->fetchColumn()) return false;
+
+    // Record vote
+    $ins = $pdo->prepare("INSERT INTO poll_votes (poll_id, option_id, ip, vote_time) VALUES (?, ?, ?, ?)");
+    $ins->execute([$poll_id, $option_id, $ip_bin, $now]);
+
+    // Increment option count
+    $upd = $pdo->prepare("UPDATE poll_options SET votes = votes + 1 WHERE id = ?");
+    $upd->execute([$option_id]);
+
+    return true;
+}
+
+/**
+ * Fetch poll and options for display.
+ */
+function get_poll($thread_id) {
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM polls WHERE thread_id = ?");
+    $stmt->execute([$thread_id]);
+    $poll = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$poll) return null;
+    $opts = $pdo->prepare("SELECT * FROM poll_options WHERE poll_id = ?");
+    $opts->execute([$poll['id']]);
+    $poll['options'] = $opts->fetchAll(PDO::FETCH_ASSOC);
+    return $poll;
 }

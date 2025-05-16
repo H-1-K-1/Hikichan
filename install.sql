@@ -351,6 +351,51 @@ CREATE TABLE IF NOT EXISTS `pages` (
   UNIQUE KEY `u_pages` (`name`,`board`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- --------------------------------------------------------
+
+--
+-- Poll definitions
+--
+CREATE TABLE IF NOT EXISTS `polls` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `thread_id` INT UNSIGNED NOT NULL,
+  `question` TEXT NOT NULL,
+  `max_votes` TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  `expires` INT(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY (`thread_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Poll options
+--
+CREATE TABLE IF NOT EXISTS `poll_options` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `poll_id` INT UNSIGNED NOT NULL,
+  `option_text` VARCHAR(255) NOT NULL,
+  `votes` INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY (`poll_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Poll votes (per IP)
+--
+CREATE TABLE IF NOT EXISTS `poll_votes` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `poll_id` INT UNSIGNED NOT NULL,
+  `option_id` INT UNSIGNED NOT NULL,
+  `ip` VARBINARY(16) NOT NULL,
+  `vote_time` INT(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_vote` (`poll_id`, `ip`),
+  KEY (`option_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=ascii;
+
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
