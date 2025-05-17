@@ -18,6 +18,7 @@ $(function(){
   var enabled_embed = $("#upload_embed").length > 0;
   var enabled_voice = $("#upload_voice").length > 0;
   var enabled_oekaki = typeof window.oekaki != "undefined";
+  var enabled_poll = $("#poll_creator").length > 0;
 
   var disable_all = function() {
     $("#upload").hide();
@@ -26,6 +27,7 @@ $(function(){
     $("#upload_url").hide();
     $("#upload_embed").hide();
     $("#upload_voice").hide();
+	$("#poll_creator").hide();
     $(".add_image").hide();
     $(".dropzone-wrap").hide();
 
@@ -72,8 +74,13 @@ $(function(){
 
     window.oekaki.init();
   };
+  
+  enable_poll = function() {
+    disable_all();
+    $("#poll_creator").show();
+  };
 
-  if (enabled_url || enabled_embed || enabled_voice || enabled_oekaki) {
+  if (enabled_url || enabled_embed || enabled_voice || enabled_oekaki || enabled_poll) {
     $("<tr><th>"+_("Select")+"</th><td id='upload_selection'></td></tr>").insertBefore("#upload");
     var my_html = "<a href='javascript:void(0)' onclick='enable_file(); return false;'>"+_("File")+"</a>";
     if (enabled_url) {
@@ -89,6 +96,9 @@ $(function(){
       my_html += " / <a href='javascript:void(0)' onclick='enable_oekaki(); return false;'>"+_("Oekaki")+"</a>";
 
       $("#confirm_oekaki_label").hide();
+    }
+	if (enabled_poll) {
+      my_html += " / <a href='javascript:void(0)' onclick='enable_poll(); return false;'>"+_("Poll")+"</a>";
     }
     $("#upload_selection").html(my_html);
 

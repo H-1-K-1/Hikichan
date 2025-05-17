@@ -1254,18 +1254,18 @@ if (isset($_POST['delete'])) {
 	insertFloodPost($post);
 
 	// ─── Handle poll creation ────────────────────────────────────────────
-if ($post['op'] && !empty($_POST['poll_question']) &&
-    is_array($_POST['poll_options']) &&
-    count($_POST['poll_options']) >= 2) {
-    
-    $question   = trim($_POST['poll_question']);
-    $options    = array_filter($_POST['poll_options'], function($v){ return trim($v) !== ''; });
-    $max_votes  = intval($_POST['poll_max_votes']);
-    $expires    = !empty($_POST['poll_expires']) ? strtotime($_POST['poll_expires']) : null;
+	if ($config['enable_poll'] && $post['op'] && !empty($_POST['poll_question']) &&
+		is_array($_POST['poll_options']) &&
+		count($_POST['poll_options']) >= 2) {
+		
+		$question   = trim($_POST['poll_question']);
+		$options    = array_filter($_POST['poll_options'], function($v){ return trim($v) !== ''; });
+		$max_votes  = intval($_POST['poll_max_votes']);
+		$expires    = !empty($_POST['poll_expires']) ? strtotime($_POST['poll_expires']) : null;
 
-    create_poll($post['id'], $question, $options, $max_votes, $expires);
-}
-// ─────────────────────────────────────────────────────────────────────
+		create_poll($post['id'], $question, $options, $max_votes, $expires);
+	}
+	// ─────────────────────────────────────────────────────────────────────
 
 
 	// Handle cyclical threads

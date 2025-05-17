@@ -1300,6 +1300,11 @@ function index($page, $mod=false, $brief = false) {
 
 	while ($th = $query->fetch(PDO::FETCH_ASSOC)) {
 		$thread = new Thread($th, $mod ? '?/' : $config['root'], $mod);
+		
+		$poll = get_poll($th['id']);
+		if ($poll) {
+			$thread->poll = $poll;
+		}
 
 		if ($config['cache']['enabled']) {
 			$cached = cache::get("thread_index_{$board['uri']}_{$th['id']}");
@@ -3013,24 +3018,42 @@ function create_poll($thread_id, $question, $options, $max_votes = 1, $expires =
  */
 function vote_poll($poll_id, $option_id) {
     global $pdo;
+
     $ip_bin = inet_pton($_SERVER['REMOTE_ADDR']);
     $now = time();
 
-    // Check if already voted
-    $check = $pdo->prepare("SELECT 1 FROM poll_votes WHERE poll_id = ? AND ip = ?");
+    $poll_stmt = $pdo->prepare("SELECT expires, max_votes FROM polls WHERE id = ?");
+    $poll_stmt->execute([$poll_id]);
+    $poll = $poll_stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$poll) return false;
+
+    // Check expiration
+    if (!empty($poll['expires']) && $now > (int)$poll['expires']) {
+        return 'closed';
+    }
+
+    // Check votes already cast by this IP
+    $check = $pdo->prepare("SELECT COUNT(*) FROM poll_votes WHERE poll_id = ? AND ip = ?");
     $check->execute([$poll_id, $ip_bin]);
-    if ($check->fetchColumn()) return false;
+    $already_voted = (int)$check->fetchColumn();
+
+    if ($poll['max_votes'] > 0 && $already_voted >= $poll['max_votes']) {
+        return 'limit';
+    }
 
     // Record vote
     $ins = $pdo->prepare("INSERT INTO poll_votes (poll_id, option_id, ip, vote_time) VALUES (?, ?, ?, ?)");
     $ins->execute([$poll_id, $option_id, $ip_bin, $now]);
 
-    // Increment option count
     $upd = $pdo->prepare("UPDATE poll_options SET votes = votes + 1 WHERE id = ?");
     $upd->execute([$option_id]);
 
     return true;
 }
+
+
+
 
 /**
  * Fetch poll and options for display.

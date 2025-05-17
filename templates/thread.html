@@ -55,50 +55,117 @@
 
 	{% if config.global_message %}<hr /><div class="blotter">{{ config.global_message }}</div>{% endif %}
 	<hr />
-	<form method="post" action="{{ config.root }}poll.php" id="poll-form">
-	<input type="hidden" name="vote_poll" value="1">
-	<input type="hidden" name="poll_id" value="{{ poll.id }}">
-	<input type="hidden" name="board" value="{{ board.uri }}">
-	<ul>
-		{% for opt in poll.options %}
-		<li>
-			<label>
-			<input type="radio" name="option_id" value="{{ opt.id }}">
-			{{ opt.option_text|e }} ({{ opt.votes }})
-			</label>
-		</li>
-		{% endfor %}
-	</ul>
-	<button type="submit">Vote</button>
-	</form>
-	<script>
-	document.getElementById('poll-form').addEventListener('submit', function(e) {
-	e.preventDefault();
+	{% if config.enable_poll and poll %}
+	  {% set total_votes = poll.options | reduce((a, o) => a + o.votes, 0) %}
+	  {% set now_ts = "now"|date("U") %}
+	  {% set expired = poll.expires and now_ts > poll.expires %}
+	  {% set maxed_out = poll.max_votes > 0 and total_votes >= poll.max_votes %}
+	  {% set closed = expired or maxed_out %}
 
-	const form = e.target;
-	const formData = new FormData(form);
+	  <div class="poll-wrapper">
+		<h3>{{ poll.question|e }}</h3>
 
-	fetch(form.action, {
-		method: 'POST',
-		body: formData,
-		headers: {
-		'X-Requested-With': 'XMLHttpRequest'
+		{% if poll.max_votes > 0 %}
+		  <p><strong>🗳️ Poll will close after {{ poll.max_votes }} total votes.</strong><br>
+			 ✅ Currently: {{ total_votes }} vote{{ total_votes == 1 ? '' : 's' }} cast.</p>
+		{% endif %}
+
+		<form method="post" action="{{ config.root }}poll.php" id="poll-form">
+		  <input type="hidden" name="vote_poll" value="1">
+		  <input type="hidden" name="poll_id" value="{{ poll.id }}">
+		  <input type="hidden" name="board" value="{{ board.uri }}">
+
+		  <ul class="poll-options">
+			{% for opt in poll.options %}
+			  {% set percent = total_votes > 0 ? (opt.votes / total_votes * 100) | round(1) : 0 %}
+			  <li>
+				<label>
+				  <input type="radio" name="option_id" value="{{ opt.id }}" {% if closed %}disabled{% endif %}>
+				  {{ opt.option_text|e }} ({{ opt.votes }} vote{{ opt.votes == 1 ? '' : 's' }}, {{ percent }}%)
+				</label>
+				<div class="poll-bar-bg"><div class="poll-bar" style="width: {{ percent }}%"></div></div>
+			  </li>
+			{% endfor %}
+		  </ul>
+
+		  <button type="submit" {% if closed %}disabled{% endif %}>
+			{% if expired %}
+			  Poll expired
+			{% elseif maxed_out %}
+			  Max votes reached
+			{% else %}
+			  Vote
+			{% endif %}
+		  </button>
+		</form>
+
+		<p>
+		  {% if expired %}
+			<strong>Poll closed</strong>
+		  {% elseif maxed_out %}
+			<strong>Poll closed (max votes reached)</strong>
+		  {% elseif poll.expires %}
+			<strong>Poll ends in:</strong> <span id="poll-countdown"></span>
+		  {% endif %}
+		</p>
+	  </div>
+
+	  <script>
+		const pollForm = document.getElementById('poll-form');
+		if (pollForm && !{{ closed ? 'true' : 'false' }}) {
+		  pollForm.addEventListener('submit', function(e) {
+			e.preventDefault();
+			const formData = new FormData(pollForm);
+			fetch(pollForm.action, {
+			  method: 'POST',
+			  body: formData,
+			  headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			})
+			.then(r => r.json())
+			.then(data => {
+			  if (data.success) {
+				location.reload();
+			  } else {
+				alert(data.message || "Voting not allowed.");
+			  }
+			})
+			.catch(error => {
+			  console.error(error);
+			  alert("Unexpected error while voting.");
+			});
+		  });
 		}
-	})
-	.then(response => response.json())
-	.then(data => {
-		if (data.success) {
-		alert('Vote recorded.');
-		// Optionally, update the poll results dynamically here
-		} else {
-		alert(data.message);
+
+		{% if poll.expires %}
+		const countdownEl = document.getElementById("poll-countdown");
+		const pollEnd = {{ poll.expires }};
+		function updateCountdown() {
+		  const now = Math.floor(Date.now() / 1000);
+		  let rem = pollEnd - now;
+		  if (!countdownEl) return;
+		  if (rem <= 0) {
+			countdownEl.textContent = "Poll closed";
+			clearInterval(timer);
+			pollForm.querySelectorAll("input, button").forEach(el => el.disabled = true);
+			return;
+		  }
+		  const d = Math.floor(rem / 86400); rem %= 86400;
+		  const h = Math.floor(rem / 3600); rem %= 3600;
+		  const m = Math.floor(rem / 60); const s = rem % 60;
+		  countdownEl.textContent = (d > 0 ? d + "d " : "") +
+			String(h).padStart(2, "0") + ":" +
+			String(m).padStart(2, "0") + ":" +
+			String(s).padStart(2, "0");
 		}
-	})
-	.catch(error => {
-		console.error('Error:', error);
-	});
-	});
-	</script>
+		updateCountdown();
+		const timer = setInterval(updateCountdown, 1000);
+		{% endif %}
+	  </script>
+	{% endif %}
+
+
+
+
 	<form name="postcontrols" action="{{ config.post_url }}" method="post">
 		<input type="hidden" name="board" value="{{ board.uri }}" />
 		{% if mod %}<input type="hidden" name="mod" value="1" />{% endif %}

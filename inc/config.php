@@ -1160,6 +1160,9 @@
 
 	// Enable voice recording (see below).
 	$config['enable_voice'] = true;
+	
+	// Enable making polls.
+	$config['enable_poll'] = true;
 
 	// Custom embedding (YouTube, vimeo, etc.)
 	// It's very important that you match the entire input (with ^ and $) or things will not work correctly.
