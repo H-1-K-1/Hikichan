@@ -38,6 +38,23 @@ function md5_hash_of_file($config, $path) {
 	}
 }
 
+function getThreadPage($thread_id) {
+	global $board, $config;
+
+	$query = query("SELECT `id` FROM `posts_{$board['uri']}` WHERE `thread` IS NULL ORDER BY `bump` DESC") or error(db_error());
+	$position = 0;
+
+	while ($th = $query->fetch(PDO::FETCH_ASSOC)) {
+		if ($th['id'] == $thread_id) {
+			return floor($position / $config['threads_per_page']) + 1;
+		}
+		$position++;
+	}
+
+	return 1; // fallback
+}
+
+
 /**
  * Strip the symbols incompatible with the current database version.
  *
@@ -1359,8 +1376,23 @@ if (isset($_POST['delete'])) {
 		));
 	}
 
-	if ($config['try_smarter'] && $post['op'])
-		$build_pages = range(1, $config['max_pages']);
+	//if ($config['try_smarter'] && $post['op'])
+	//$build_pages = range(1, $config['max_pages']);
+
+	if ($config['try_smarter']){
+		// ✅ BEGIN SMART BUILD LOGIC
+		global $build_pages;
+		$build_pages = [1];
+
+		if ($post['op']) {
+			$build_pages[] = 2;
+		} else {
+			$build_pages[] = getThreadPage($post['thread']);
+		}
+
+		$build_pages = array_unique($build_pages);
+		// ✅ END SMART BUILD LOGIC
+	}
 
 	if ($post['op'])
 		clean($id);
