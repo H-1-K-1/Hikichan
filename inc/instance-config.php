@@ -68,5 +68,9 @@ $config['additional_javascript'][] = 'js/id-highlighter.js';
 $config['additional_javascript'][] = 'js/infinite-scroll.js';
 $config['additional_javascript'][] = 'js/id_colors.js';
 $config['additional_javascript'][] = 'js/voice-record.js';
+$config['additional_javascript'][] = 'js/treeview.js';
+$config['additional_javascript'][] = 'js/inline.js';
+$config['additional_javascript'][] = 'js/pepe-colored-quotes.js';
+$config['additional_javascript'][] = 'js/inline-expanding-filename.js';
 
 ?>
