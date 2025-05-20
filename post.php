@@ -83,64 +83,6 @@ function strip_symbols($input) {
 }
 
 /**
- * Download a remote file from the given url.
- * The file is deleted at shutdown.
- *
- * @param HttpDriver $http The http client.
- * @param string $file_url The url to download the file from.
- * @param int $request_timeout Timeout to retrieve the file.
- * @param array $extra_extensions Allowed file extensions.
- * @param string $tmp_dir Temporary directory to save the file into.
- * @param array $error_array An array with error codes, used to create exceptions on failure.
- * @return array|false Returns an array describing the file on success, or false if the file was too large
- * @throws InvalidArgumentException|RuntimeException Throws on invalid arguments and IO errors.
- */
-function download_file_from_url(HttpDriver $http, $file_url, $request_timeout, $allowed_extensions, $tmp_dir, &$error_array) {
-	if (!preg_match('@^https?://@', $file_url)) {
-		throw new InvalidArgumentException($error_array['invalidimg']);
-	}
-
-	$param_idx = mb_strpos($file_url, '?');
-	if ($param_idx !== false) {
-		$url_without_params = mb_substr($file_url, 0, $param_idx);
-	} else {
-		$url_without_params = $file_url;
-	}
-
-	$extension = strtolower(mb_substr($url_without_params, mb_strrpos($url_without_params, '.') + 1));
-
-	if (!in_array($extension, $allowed_extensions)) {
-		throw new InvalidArgumentException($error_array['unknownext']);
-	}
-
-	$tmp_file = tempnam($tmp_dir, 'url');
-	function unlink_tmp_file($file) {
-		@unlink($file);
-		fatal_error_handler();
-	}
-	register_shutdown_function('unlink_tmp_file', $tmp_file);
-
-	$fd = fopen($tmp_file, 'w');
-
-	try {
-		$success = $http->requestGetInto($url_without_params, null, $fd, $request_timeout);
-		if (!$success) {
-			return false;
-		}
-	} finally {
-		fclose($fd);
-	}
-
-	return array(
-		'name' => basename($url_without_params),
-		'tmp_name' => $tmp_file,
-		'file_tmp' => true,
-		'error' => 0,
-		'size' => filesize($tmp_file)
-	);
-}
-
-/**
  * Try extract text from the given image.
  *
  * @param array $config Instance configuration.
@@ -707,32 +649,66 @@ if (isset($_POST['delete'])) {
 	}
 
 	if ($config['allow_upload_by_url'] && isset($_POST['file_url']) && !empty($_POST['file_url'])) {
-		$allowed_extensions = $config['allowed_ext_files'];
+		$post['file_url'] = $_POST['file_url'];
+		if (!preg_match('@^https?://@', $post['file_url']))
+			error($config['error']['invalidimg']);
 
-		// Add allowed extensions for OP, if enabled.
+		if (mb_strpos($post['file_url'], '?') !== false)
+			$url_without_params = mb_substr($post['file_url'], 0, mb_strpos($post['file_url'], '?'));
+		else
+			$url_without_params = $post['file_url'];
+
+		$post['extension'] = strtolower(mb_substr($url_without_params, mb_strrpos($url_without_params, '.') + 1));
+
 		if ($post['op'] && $config['allowed_ext_op']) {
-			array_merge($allowed_extensions, $config['allowed_ext_op']);
+			if (!in_array($post['extension'], $config['allowed_ext_op']))
+				error($config['error']['unknownext']);
+		}
+		else if (!in_array($post['extension'], $config['allowed_ext']) && !in_array($post['extension'], $config['allowed_ext_files']))
+			error($config['error']['unknownext']);
+
+		// create temp file
+		$post['file_tmp'] = tempnam($config['tmp'], 'url');
+		function unlink_tmp_file($file) {
+			@unlink($file);
+			fatal_error_handler();
+		}
+		register_shutdown_function('unlink_tmp_file', $post['file_tmp']);
+
+		// download via cURL
+		$fp = fopen($post['file_tmp'], 'w');
+		$curl = curl_init();
+		curl_setopt($curl, CURLOPT_URL, $post['file_url']);
+		curl_setopt($curl, CURLOPT_FAILONERROR, true);
+		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
+		curl_setopt($curl, CURLOPT_TIMEOUT, $config['upload_by_url_timeout']);
+		curl_setopt($curl, CURLOPT_USERAGENT, 'Tinyboard');
+		curl_setopt($curl, CURLOPT_BINARYTRANSFER, true);
+		curl_setopt($curl, CURLOPT_FILE, $fp);
+		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+
+		if (curl_exec($curl) === false)
+			error($config['error']['nomove'] . '<br/>Curl says: ' . curl_error($curl));
+
+		curl_close($curl);
+		fclose($fp);
+
+		// **NEW**: enforce max filesize
+		$downloaded_size = filesize($post['file_tmp']);
+		if ($downloaded_size === false || $downloaded_size > $config['max_filesize']) {
+			@unlink($post['file_tmp']);
+			error($config['error']['toobig']);  // make sure you have this in your error array
 		}
 
-		try {
-			$ret = download_file_from_url(
-				$context->get(HttpDriver::class),
-				$_POST['file_url'],
-				$config['upload_by_url_timeout'],
-				$allowed_extensions,
-				$config['tmp'],
-				$config['error']
-			);
-			if ($ret === false) {
-				error(sprintf3($config['error']['filesize'], array(
-					'filesz' => 'more than that',
-					'maxsz' => number_format($config['max_filesize'])
-				)));
-			}
-			$_FILES['file'] = $ret;
-		} catch (Exception $e) {
-			error($e->getMessage());
-		}
+		// now treat it like a normal upload
+		$_FILES['file'] = array(
+			'name'     => basename($url_without_params),
+			'tmp_name' => $post['file_tmp'],
+			'file_tmp' => true,
+			'error'    => 0,
+			'size'     => $downloaded_size
+		);
 	}
 
 	$post['name'] = $_POST['name'] != '' ? $_POST['name'] : $config['anonymous'];
