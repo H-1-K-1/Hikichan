@@ -72,5 +72,18 @@ $config['additional_javascript'][] = 'js/treeview.js';
 $config['additional_javascript'][] = 'js/inline.js';
 $config['additional_javascript'][] = 'js/pepe-colored-quotes.js';
 $config['additional_javascript'][] = 'js/inline-expanding-filename.js';
+$config['additional_javascript'][] = 'js/mascots+spread.js';
+$config['additional_javascript'][] = 'js/expand-audio.js';
+
+// Custom stylesheets available for the user to choose. See the "stylesheets/" folder for a list of
+	// available stylesheets (or create your own).
+	$config['stylesheets'] = [
+		// Default; there is no additional/custom stylesheet for this.
+		'Yotsuba B' => '',
+		'Yotsuba' => 'yotsuba.css',
+		'Tomorrow' => 'tomorrow.css'
+	];
+	// $config['stylesheets']['Futaba'] = 'futaba.css';
+	// $config['stylesheets']['Dark'] = 'dark.css';
 
 ?>
