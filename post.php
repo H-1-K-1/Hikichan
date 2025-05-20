@@ -54,6 +54,93 @@ function getThreadPage($thread_id) {
 	return 1; // fallback
 }
 
+/**
+ * Download a remote file via URL into a temp file, validating size and extension.
+ *
+ * @param string $url            The remote file URL.
+ * @param array  $config         Global configuration array.
+ * @param bool   $is_op_post     True if this is an op post (to check allowed_ext_op).
+ *
+ * @return array Returns an array suitable for $_FILES['file']:
+ *               [
+ *                 'name'     => string,  // original filename
+ *                 'tmp_name' => string,  // local temp filename
+ *                 'size'     => int,     // file size
+ *               ]
+ *
+ * @throws RuntimeException on any validation or download error.
+ */
+function downloadFileByUrl(string $url, array $config, bool $is_op_post = false): array {
+    // Basic URL format check
+    if (!preg_match('~^https?://~i', $url)) {
+        throw new RuntimeException($config['error']['invalidimg']);
+    }
+
+    // Strip query string for extension & basename
+    $urlNoParams = strtok($url, '?');
+    $extension   = strtolower(pathinfo($urlNoParams, PATHINFO_EXTENSION));
+
+    // Validate extension
+    $allowed = $is_op_post && !empty($config['allowed_ext_op'])
+        ? $config['allowed_ext_op']
+        : array_merge($config['allowed_ext'], $config['allowed_ext_files']);
+    if (!in_array($extension, $allowed, true)) {
+        throw new RuntimeException($config['error']['unknownext']);
+    }
+
+    // Create a temporary filename
+    $tmpFile = tempnam($config['tmp'], 'url_');
+    if (!$tmpFile) {
+        throw new RuntimeException('Unable to create temporary file.');
+    }
+    register_shutdown_function(function() use ($tmpFile) {
+        @unlink($tmpFile);
+    });
+
+    // Prepare cURL
+    $fp   = fopen($tmpFile, 'w');
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+        CURLOPT_FILE           => $fp,
+        CURLOPT_FAILONERROR    => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT        => $config['upload_by_url_timeout'],
+        CURLOPT_USERAGENT      => 'Tinyboard',
+        CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        // Uncomment these only if you really cannot configure a CA bundle:
+        // CURLOPT_SSL_VERIFYPEER => false,
+        // CURLOPT_SSL_VERIFYHOST => 0,
+    ]);
+
+    // Download
+    if (!curl_exec($curl)) {
+        $err = curl_error($curl);
+        curl_close($curl);
+        fclose($fp);
+
+        if (stripos($err, 'SSL certificate problem') !== false) {
+            throw new RuntimeException('SSL verification failed; please check your CA bundle.');
+        }
+        throw new RuntimeException($config['error']['nomove'] . '<br/>Curl says: ' . $err);
+    }
+
+    curl_close($curl);
+    fclose($fp);
+
+    // Enforce max filesize
+    $size = filesize($tmpFile);
+    if ($size === false || $size > $config['max_filesize']) {
+        @unlink($tmpFile);
+        throw new RuntimeException($config['error']['toobig']);
+    }
+
+    return [
+        'name'     => basename($urlNoParams),
+        'tmp_name' => $tmpFile,
+        'size'     => $size,
+    ];
+}
 
 /**
  * Strip the symbols incompatible with the current database version.
@@ -648,67 +735,21 @@ if (isset($_POST['delete'])) {
 			$_POST['subject'] = '';
 	}
 
-	if ($config['allow_upload_by_url'] && isset($_POST['file_url']) && !empty($_POST['file_url'])) {
-		$post['file_url'] = $_POST['file_url'];
-		if (!preg_match('@^https?://@', $post['file_url']))
-			error($config['error']['invalidimg']);
+	try {
+		if ($config['allow_upload_by_url'] && !empty($_POST['file_url'])) {
+			$isOp = !empty($post['op']);
+			$file  = downloadFileByUrl($_POST['file_url'], $config, $isOp);
 
-		if (mb_strpos($post['file_url'], '?') !== false)
-			$url_without_params = mb_substr($post['file_url'], 0, mb_strpos($post['file_url'], '?'));
-		else
-			$url_without_params = $post['file_url'];
-
-		$post['extension'] = strtolower(mb_substr($url_without_params, mb_strrpos($url_without_params, '.') + 1));
-
-		if ($post['op'] && $config['allowed_ext_op']) {
-			if (!in_array($post['extension'], $config['allowed_ext_op']))
-				error($config['error']['unknownext']);
+			$_FILES['file'] = [
+				'name'     => $file['name'],
+				'tmp_name' => $file['tmp_name'],
+				'file_tmp' => true,
+				'error'    => 0,
+				'size'     => $file['size'],
+			];
 		}
-		else if (!in_array($post['extension'], $config['allowed_ext']) && !in_array($post['extension'], $config['allowed_ext_files']))
-			error($config['error']['unknownext']);
-
-		// create temp file
-		$post['file_tmp'] = tempnam($config['tmp'], 'url');
-		function unlink_tmp_file($file) {
-			@unlink($file);
-			fatal_error_handler();
-		}
-		register_shutdown_function('unlink_tmp_file', $post['file_tmp']);
-
-		// download via cURL
-		$fp = fopen($post['file_tmp'], 'w');
-		$curl = curl_init();
-		curl_setopt($curl, CURLOPT_URL, $post['file_url']);
-		curl_setopt($curl, CURLOPT_FAILONERROR, true);
-		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, false);
-		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 5);
-		curl_setopt($curl, CURLOPT_TIMEOUT, $config['upload_by_url_timeout']);
-		curl_setopt($curl, CURLOPT_USERAGENT, 'Tinyboard');
-		curl_setopt($curl, CURLOPT_BINARYTRANSFER, true);
-		curl_setopt($curl, CURLOPT_FILE, $fp);
-		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-
-		if (curl_exec($curl) === false)
-			error($config['error']['nomove'] . '<br/>Curl says: ' . curl_error($curl));
-
-		curl_close($curl);
-		fclose($fp);
-
-		// **NEW**: enforce max filesize
-		$downloaded_size = filesize($post['file_tmp']);
-		if ($downloaded_size === false || $downloaded_size > $config['max_filesize']) {
-			@unlink($post['file_tmp']);
-			error($config['error']['toobig']);  // make sure you have this in your error array
-		}
-
-		// now treat it like a normal upload
-		$_FILES['file'] = array(
-			'name'     => basename($url_without_params),
-			'tmp_name' => $post['file_tmp'],
-			'file_tmp' => true,
-			'error'    => 0,
-			'size'     => $downloaded_size
-		);
+	} catch (RuntimeException $e) {
+		error($e->getMessage());
 	}
 
 	$post['name'] = $_POST['name'] != '' ? $_POST['name'] : $config['anonymous'];
