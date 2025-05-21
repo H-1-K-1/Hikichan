@@ -18,7 +18,7 @@
     <thead>
         <tr>
             <th width='80px'>Post #</th>
-            <th width='100px'>Image</th> <!-- New column for image -->
+            <th width='100px'>Image</th>
             <th>Snippet</th>
             <th width='50px'> </th>
             <th width='50px'>Votes</th>
@@ -105,18 +105,36 @@
         {% endfor %}
     </tbody>
 </table>
-<div style="text-align: center; margin-top: 20px;">
-    {% if current_page > 1 %}
-        <a href="{{ current_page - 1 == 1 ? 'index.html' : (current_page - 1) ~ '.html' }}">« Previous</a>
-    {% endif %}
-    {% for page in 1..total_pages %}
-        {% if page == current_page %}
-            <strong>{{ page }}</strong>
-        {% else %}
-            <a href="{{ page == 1 ? 'index.html' : page ~ '.html' }}">{{ page }}</a>
+{% if mod %}
+    <div style="text-align: center; margin-top: 20px;">
+        {% if current_page > 1 %}
+            <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}">« Previous</a>
         {% endif %}
-    {% endfor %}
-    {% if current_page < total_pages %}
-        <a href="{{ current_page + 1 == 1 ? 'index.html' : (current_page + 1) ~ '.html' }}">Next »</a>
-    {% endif %}
-</div>
+        {% for page in 1..total_pages %}
+            {% if page == current_page %}
+                <strong>{{ page }}</strong>
+            {% else %}
+                <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}">{{ page }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if current_page < total_pages %}
+            <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}">Next »</a>
+        {% endif %}
+    </div>
+{% else %}
+    <div style="text-align: center; margin-top: 20px;">
+        {% if current_page > 1 %}
+            <a href="{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}">« Previous</a>
+        {% endif %}
+        {% for page in 1..total_pages %}
+            {% if page == current_page %}
+                <strong>{{ page }}</strong>
+            {% else %}
+                <a href="{{ page == 1 ? '' : page ~ '.html' }}">{{ page }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if current_page < total_pages %}
+            <a href="{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}">Next »</a>
+        {% endif %}
+    </div>
+{% endif %}

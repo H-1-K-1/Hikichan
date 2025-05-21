@@ -591,7 +591,7 @@ function mod_edit_board(Context $ctx, $boardName) {
 			$config['file_mod_board'],
 			[
 				'board' => $board,
-				'token' => make_secure_link_token('edit/channel/' . $board['uri'])
+				'token' => make_secure_link_token('edit/' .  $config['board_prefix'] . $board['uri'])
 			],
 			$mod
 		);
@@ -3668,7 +3668,7 @@ function mod_view_archive($context, $boardName, $page_no = 1) {
 	}
 
 	// Pagination setup
-    $threads_per_page = 100;
+    $threads_per_page = 5;
     $archive = Archive::getArchiveListPaginated($page_no, $threads_per_page);
     $total_threads = Archive::getArchiveCount();
     $total_pages = ceil($total_threads / $threads_per_page);
@@ -3685,7 +3685,7 @@ function mod_view_archive($context, $boardName, $page_no = 1) {
 				'board' => $board,
 				'current_page' => $page_no,
 				'total_pages' => $total_pages,
-				'token' => make_secure_link_token($board['uri']. '/archive/')
+				'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/archive/')
 			),
 			true
 		);
@@ -3725,7 +3725,7 @@ function mod_view_archive_featured($context, $boardName) {
 		array(
 			'archive' => $archive,
 			'board' => $board,
-			'token' => make_secure_link_token($board['uri']. '/featured/')
+			'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/featured/')
 		),
 		true // <- important: this is a mod page
 	);
@@ -3766,7 +3766,7 @@ function mod_view_archive_mod_archive($context, $boardName) {
 			'archive' => $archive,
 			'is_mod_archive' => true,
 			'board' => $board,
-			'token' => make_secure_link_token($board['uri']. '/mod_archive/')
+			'token' => make_secure_link_token($config['board_prefix'] . 'channel/' . $board['uri'] . '/mod_archive/')
 		),
 		true // <- again, it's a mod page
 	);

@@ -1,11 +1,6 @@
 <?php
 
-
-
-
-
 class Archive {
-
 
     // Archive thread and replies
     static public function archiveThread($thread_id) {
@@ -87,7 +82,7 @@ class Archive {
                 $thread_file_content = preg_replace("/\b\/(archive)(\/featured\/)/i", "$2", $thread_file_content);
     
                 // Write altered thread HTML to archive location
-                @file_put_contents($board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread_id), $thread_file_content, LOCK_EX);
+                @file_put_contents($archive_path . $config['dir']['res'] . sprintf($config['file_page'], $thread_id), $thread_file_content, LOCK_EX);
             }
     
             // Copy json file to Archive
@@ -144,10 +139,6 @@ class Archive {
         return true;
     }
 
-
-
-
-
     // Removes Archived Threads that have outlived their lifetime
     static public function purgeArchive() {
         global $config, $board;
@@ -192,12 +183,6 @@ class Archive {
 
         return $query->rowCount();
     }
-
-
-
-
-
-
 
     // Feature thread and replies
     static public function featureThread($thread_id, $mod_archive = false) {
@@ -265,12 +250,6 @@ class Archive {
         return true;
     }
 
-
-
-
-
-
-
     static public function deleteFeatured($thread_id, $mod_archive = false) {
         global $config, $board, $mod;
 
@@ -334,8 +313,6 @@ class Archive {
         self::buildArchiveIndex();
     }
 
-
-
     static public function RebuildArchiveIndexes() {
         global $config;
 
@@ -355,7 +332,6 @@ class Archive {
 
     }
 
-
     static public function buildArchiveIndex($threads_per_page = 5) {
         global $config, $board;
     
@@ -369,7 +345,7 @@ class Archive {
             $archive = self::getArchiveListPaginated($page, $threads_per_page);
     
             foreach ($archive as &$thread) {
-                $thread['archived_url'] = $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+                $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
                 // Construct the image URL if first_image exists
                 if ($thread['first_image']) {
                     $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image'];
@@ -404,7 +380,6 @@ class Archive {
             file_write($filename, $archive_page);
         }
     }
-    
 
     static public function getArchiveListPaginated($page, $threads_per_page) {
         global $config, $board;
@@ -430,8 +405,6 @@ class Archive {
         return $result['count'];
     }
 
-
-
     static public function getArchiveList($featured = false, $mod_archive = false, $order_by_lifetime = false) {
         global $config, $board;
 
@@ -451,8 +424,6 @@ class Archive {
 
         return $archive;
     }
-
-
 
     static public function buildFeaturedIndex() {
         global $config, $board;
@@ -484,11 +455,6 @@ class Archive {
 
         file_write($config['dir']['home'] . $board['dir'] . $config['dir']['featured'] . $config['file_index'], $archive_page);
     }
-
-
-
-
-
 
     static public function addVote($board, $thread_id) {
         global $config;
@@ -523,10 +489,6 @@ class Archive {
         // Rebuild Archive Index
         self::buildArchiveIndex();
     }
-
-
-
-
 }
 
 ?>

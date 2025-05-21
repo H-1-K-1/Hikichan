@@ -1410,6 +1410,8 @@
 
 	// Board directory, followed by a forward-slash (/).
 	$config['board_path'] = 'channel/%s/';
+	 // This is the path to the board directory, relative to the root directory. you need to change this if you change the board_path
+    $config['board_prefix'] = 'channel/';
 	// Misc directories.
 	$config['dir']['img'] = 'src/';
 	$config['dir']['thumb'] = 'thumb/';

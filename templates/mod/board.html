@@ -1,7 +1,7 @@
 {% if new %}
 	{% set action = '?/new-board' %}
 {% else %}
-	{% set action = '?/edit/channel/' ~ board.uri %}
+	{% set action = '?/edit/' ~ board.dir_no_slash %}
 {% endif %}
 
 <form action="{{ action }}" method="post">

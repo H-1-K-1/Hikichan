@@ -418,6 +418,7 @@ function setupBoard($array) {
 
 	$board['dir'] = sprintf($config['board_path'], $board['uri']);
 	$board['url'] = sprintf($config['board_abbreviation'], $board['uri']);
+	$board['dir_no_slash'] = rtrim(sprintf($config['board_path'], $board['uri']), '/');
 
 	loadConfig();
 
@@ -432,11 +433,13 @@ function setupBoard($array) {
 	if (!file_exists($board['dir'] . $config['dir']['res']))
 		@mkdir($board['dir'] . $config['dir']['res'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
+
+	
 	// Create Archive Folders
 	if (!file_exists($board['dir'] . $config['dir']['archive']))
 		@mkdir($board['dir'] . $config['dir']['archive'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . ". Check permissions.", true);
-	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['img']))
+	/*if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['img']))
 		@mkdir($board['dir'] . $config['dir']['archive'] . $config['dir']['img'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['thumb']))
@@ -444,12 +447,12 @@ function setupBoard($array) {
 			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['archive'] . $config['dir']['res']))
 		@mkdir($board['dir'] . $config['dir']['archive'] . $config['dir']['res'], 0777)
-			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);
+			or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . ". Check permissions.", true);*/
 	// Create Featured threads Folders
 	if (!file_exists($board['dir'] . $config['dir']['featured']))
 		@mkdir($board['dir'] . $config['dir']['featured'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . ". Check permissions.", true);
-	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['img']))
+	/*if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['img']))
 		@mkdir($board['dir'] . $config['dir']['featured'] . $config['dir']['img'], 0777)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['thumb']))
@@ -457,12 +460,12 @@ function setupBoard($array) {
 			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['featured'] . $config['dir']['res']))
 		@mkdir($board['dir'] . $config['dir']['featured'] . $config['dir']['res'], 0777)
-			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);
+			or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . $config['dir']['img'] . ". Check permissions.", true);*/
 	// Create Mod Archive threads Folders
 	if (!file_exists($board['dir'] . $config['dir']['mod_archive']))
 		@mkdir($board['dir'] . $config['dir']['mod_archive'], 0777)
 			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . ". Check permissions.<br/>";
-	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['img']))
+	/*if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['img']))
 		@mkdir($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['img'], 0777)
 			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['feamod_archivetured'] . $config['dir']['img'] . ". Check permissions.<br/>";
 	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb']))
@@ -470,23 +473,25 @@ function setupBoard($array) {
 			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb'] . ". Check permissions.<br/>";
 	if (!file_exists($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res']))
 		@mkdir($board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'], 0777)
-			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'] . ". Check permissions.<br/>";
+			or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'] . ". Check permissions.<br/>";*/
 }
 
 function openBoard($uri) {
     global $config, $build_pages, $board;
 
-    // Normalize the URI by removing the board path prefix
-    $board_dir = dirname($config['board_path']);
-    if (str_starts_with($uri, $board_dir . '/')) {
-        $uri = substr($uri, strlen($board_dir) + 1); // +1 for the slash
+    // Extract the board path prefix (e.g., 'channel') from board_path
+    $prefix = trim(dirname($config['board_path']), '/');
+
+    // Remove the prefix from the start of the URI if present
+    if ($prefix !== '' && str_starts_with($uri, $prefix . '/')) {
+        $uri = substr($uri, strlen($prefix) + 1); // +1 for the slash
     }
 
     if ($config['try_smarter']) {
         $build_pages = array();
     }
 
-    if (isset($board) && isset($board['uri']) && $board['uri'] == $uri) {
+    if (isset($board) && isset($board['uri']) && $board['uri'] === $uri) {
         return true;
     }
 
@@ -498,10 +503,9 @@ function openBoard($uri) {
         }
         return true;
     }
+
     return false;
 }
-
-
 
 function getBoardInfo($uri) {
 	global $config;

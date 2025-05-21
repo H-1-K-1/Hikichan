@@ -75,9 +75,13 @@ $pages = [
 	'/search/(posts|IP_notes|bans|log)/(.+)/(\d+)'	=> 'search',		// search
 	'/search/(posts|IP_notes|bans|log)/(.+)'	=> 'search',		// search
 	
-	'/(\%b)/archive/'					=> 'secure_POST view_archive', 					// View Archive
-	'/(\%b)/featured/'					=> 'secure_POST view_archive_featured', 		// View Featured Archive
-	'/(\%b)/mod_archive/'				=> 'secure_POST view_archive_mod_archive', 		// View Mod Archive
+	'/(\%b)/archive/'                => 'secure_POST view_archive',
+    '/(\%b)/archive/(\d+)\.html'       => 'secure_POST view_archive',
+    '/(\%b)/mod_archive/'            => 'secure_POST view_archive_mod_archive',
+    '/(\%b)/mod_archive/(\d+)'       => 'secure_POST view_archive_mod_archive',
+    '/(\%b)/featured/'               => 'secure_POST view_archive_featured',
+    '/(\%b)/featured/(\d+)'          => 'secure_POST view_archive_featured',
+
 
 	'/(\%b)/ban(&delete)?/(\d+)'		=> 'secure_POST ban_post', 	// ban poster
 	'/(\%b)/move/(\d+)'			=> 'secure_POST move',		// move thread
