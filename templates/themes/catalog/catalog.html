@@ -4,18 +4,23 @@
 <head>
 	<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
 	<script type='text/javascript'>
-		var active_page = "catalog"
-		  , board_name = "{{ board }}";
+		var active_page = "catalog",
+		    board_name = "{{ board }}";
 	</script>
 	{% include 'header.html' %}
 	<title>{{ board }} - Catalog</title>
 </head>
-<body class="8chan vichan {% if mod %}is-moderator{% else %}is-not-moderator{% endif %} theme-catalog active-catalog" data-stylesheet="{% if config.default_stylesheet.1 != '' %}{{ config.default_stylesheet.1 }}{% else %}default{% endif %}">
+<body class="8chan vichan {% if mod %}is-moderator{% else %}is-not-moderator{% endif %} theme-catalog active-catalog"
+	data-stylesheet="{% if config.default_stylesheet.1 != '' %}{{ config.default_stylesheet.1 }}{% else %}default{% endif %}">
+	
 	{{ boardlist.top }}
 	<header>
 		<h1>{{ settings.title }} (<a href="{{link}}">/{{ board }}/</a>)</h1>
-		<div class="subtitle">{{ settings.subtitle }}
-			{% if mod %}<p><a href="?/">{% trans %}Return to dashboard{% endtrans %}</a></p>{% endif %}
+		<div class="subtitle">
+			{{ settings.subtitle }}
+			{% if mod %}
+				<p><a href="?/">{% trans %}Return to dashboard{% endtrans %}</a></p>
+			{% endif %}
 		</div>
 	</header>
 
@@ -33,40 +38,58 @@
 		<option selected value="small">{% trans 'Small' %}</option>
 		<option value="large">{% trans 'Large' %}</option>
 	</select>
+
+	{% if total_pages > 1 %}
+	<div class="catalog-pagination">
+		{% for p in 1..total_pages %}
+			{% if p == current_page %}
+				<strong>[{{ p }}]</strong>
+			{% else %}
+				<a href="{{ link }}/catalog{% if p > 1 %}_page_{{ p }}{% endif %}.html">[{{ p }}]</a>
+			{% endif %}
+		{% endfor %}
+	</div>
+	{% endif %}
+
+	<!-- Search Toggle Button -->
+	<div class="catalog_search" style="margin: 10px 0;">
+		[<a id="catalog_search_button" style="cursor: pointer; text-decoration: none;">Search</a>]
+	</div>
+
 	<div class="threads">
 		<div id="Grid">
 		{% for post in recent_posts %}
 			<div class="mix"
+				id="thread-{{ post.thread_id }}"
 				data-reply="{{ post.reply_count }}"
-				 data-bump="{{ post.bump }}"
-				 data-time="{{ post.time }}"
-				 data-id="{{ post.id }}"
-				 data-sticky="{% if post.sticky %}true{% else %}false{% endif %}"
-				 data-locked="{% if post.locked %}true{% else %}false{% endif %}"
-			>
+				data-bump="{{ post.bump }}"
+				data-time="{{ post.time }}"
+				data-id="{{ post.id }}"
+				data-sticky="{% if post.sticky %}true{% else %}false{% endif %}"
+				data-locked="{% if post.locked %}true{% else %}false{% endif %}">
 				<div class="thread grid-li grid-size-small">
-					<a href="{{post.link}}">
+					<a href="{{ post.link }}">
 						{% if post.youtube %}
 							<img src="//img.youtube.com/vi/{{ post.youtube }}/0.jpg"
 						{% else %}
-							<img src="{{post.file}}"
+							<img src="{{ post.file }}"
 						{% endif %}
-						id="img-{{ post.id }}" data-subject="{% if post.subject %}{{ post.subject|e }}{% endif %}" data-name="{{ post.name|e }}" data-muhdifference="{{ post.muhdifference }}" class="{{post.board}} thread-image" title="{{post.bump|date('%b %d %H:%M')}} {% if config.content_lazy_loading %}loading="lazy"{% endif %}">
+						id="img-{{ post.id }}" data-subject="{% if post.subject %}{{ post.subject|e }}{% endif %}"
+						data-name="{{ post.name|e }}" class="{{ post.board }} thread-image"
+						title="{{ post.bump|date('%b %d %H:%M') }}"
+						{% if config.content_lazy_loading %}loading="lazy"{% endif %}>
 					</a>
-						<div class="replies">
-							<strong>R: {{ post.reply_count }} / I: {{ post.image_count }}{% if post.sticky %} (sticky){% endif %}</strong>
-							{% if post.subject %}
-								<p class="intro">
-									<span class="subject">
-										{{ post.subject|e }}
-									</span>
-								</p>
-							{% else %}
-								<br />
-							{% endif %}
-
-								{{ post.body }}
-						</div>
+					<div class="replies">
+						<strong>R: {{ post.reply_count }} / I: {{ post.image_count }}{% if post.sticky %} (sticky){% endif %}</strong>
+						{% if post.subject %}
+							<p class="intro">
+								<span class="subject">{{ post.subject|e }}</span>
+							</p>
+						{% else %}
+							<br />
+						{% endif %}
+						{{ post.body }}
+					</div>
 				</div>
 			</div>
 		{% endfor %}
@@ -75,11 +98,12 @@
 
 	<hr/>
 	{% include 'footer.html' %}
+	
 	<script type="text/javascript">{% verbatim %}
 		var styles = {
-			{% endverbatim %}
-			{% for name, uri in config.stylesheets %}{% verbatim %}'{% endverbatim %}{{ name|addslashes }}{% verbatim %}' : '{% endverbatim %}/stylesheets/{{ uri|addslashes }}{% verbatim %}',
-			{% endverbatim %}{% endfor %}{% verbatim %}
+	{% endverbatim %}
+	{% for name, uri in config.stylesheets %}{% verbatim %}'{% endverbatim %}{{ name|addslashes }}{% verbatim %}' : '{% endverbatim %}/stylesheets/{{ uri|addslashes }}{% verbatim %}',
+	{% endverbatim %}{% endfor %}{% verbatim %}
 		}; onReady(init);
 	{% endverbatim %}</script>
 

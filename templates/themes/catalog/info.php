@@ -24,6 +24,14 @@
 		'comment' => '(space seperated)',
 		'default' => '*'
 	);
+
+	$theme['config'][] = Array(
+		'title' => 'Threads per catalog page',
+		'name' => 'items_per_page',
+		'type' => 'text',
+		'comment' => 'use a large number for all items on one page',
+		'default' => '50'
+	);
 	
 	$theme['config'][] = Array(
 		'title' => 'Update on new posts',
