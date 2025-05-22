@@ -302,6 +302,9 @@ class Archive {
     
         // Delete Thread HTML page
         @unlink($archived_path . $config['dir']['res'] . sprintf($config['file_page'], $thread_id));
+
+        // Delete Thread JSON file
+       @unlink($archived_path . $config['dir']['res'] . sprintf('%d.json', $thread_id));
     
         // Delete Entry in DB
         query(sprintf("DELETE FROM ``archive_%s`` WHERE `id` = %d", $board['uri'], (int)$thread_id)) or error(db_error());

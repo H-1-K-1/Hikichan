@@ -3637,63 +3637,70 @@ function mod_debug_sql(Context $ctx) {
 }
 
 function mod_view_archive($context, $boardName, $page_no = 1) {
-	global $board, $config;
-	
-	// If archiving is turned off return
-	if(!$config['archive']['threads'])
-		return;
-	
-	if (!openBoard($boardName))
-		error($config['error']['noboard']);
+    global $board, $config;
 
-	if(isset($_POST['feature'], $_POST['id'])) {
-		if(!hasPermission($config['mod']['feature_archived_threads'], $board['uri']))
-			error($config['error']['noaccess']);
-		
-		Archive::featureThread($_POST['id']);
-	}
-	else if(isset($_POST['mod_archive'], $_POST['id'])) {
-		if(!hasPermission($config['mod']['add_to_mod_archive'], $board['uri']))
-			error($config['error']['noaccess']);
-		
-		Archive::featureThread($_POST['id'], true);
-	}
+    // If archiving is turned off, return
+    if (!$config['archive']['threads'])
+        return;
 
-	// Handle delete request
-	else if(isset($_POST['delete'], $_POST['id'])) {
-		if(!hasPermission($config['mod']['delete_archived_threads'], $board['uri']))
-			error($config['error']['noaccess']);
-		
-		Archive::deleteArchived($_POST['id']);
-	}
+    // Open the board context
+    if (!openBoard($boardName))
+        error($config['error']['noboard']);
 
-	// Pagination setup
+    // Handle "feature" or "mod archive" requests
+    if (isset($_POST['feature'], $_POST['id'])) {
+        if (!hasPermission($config['mod']['feature_archived_threads'], $board['uri']))
+            error($config['error']['noaccess']);
+
+        Archive::featureThread($_POST['id']);
+    } else if (isset($_POST['mod_archive'], $_POST['id'])) {
+        if (!hasPermission($config['mod']['add_to_mod_archive'], $board['uri']))
+            error($config['error']['noaccess']);
+
+        Archive::featureThread($_POST['id'], true);
+    }
+
+    // Handle delete request
+    else if (isset($_POST['delete'], $_POST['id'])) {
+        if (!hasPermission($config['mod']['delete_archived_threads'], $board['uri']))
+            error($config['error']['noaccess']);
+
+        Archive::deleteArchived($_POST['id']);
+    }
+
+    // Pagination setup
     $threads_per_page = 5;
     $archive = Archive::getArchiveListPaginated($page_no, $threads_per_page);
     $total_threads = Archive::getArchiveCount();
     $total_pages = ceil($total_threads / $threads_per_page);
 
-	foreach($archive as &$thread)
-		$thread['archived_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['archive'] . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
+    // Build archived and image URLs
+    foreach ($archive as &$thread) {
+        $thread['archived_url'] = sprintf($config['board_path'], $board['uri']) . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['id']);
 
-		mod_page(
-			sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']),
-			'mod/archive_list.html',
-			array(
-				'archive' => $archive,
-				'thread_count' => $total_threads,
-				'board' => $board,
-				'current_page' => $page_no,
-				'total_pages' => $total_pages,
-				'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/archive/')
-			),
-			true
-		);
-		
-		
+        if ($thread['first_image']) {
+            $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image'];
+        } else {
+            $thread['image_url'] = null;
+        }
+    }
 
-
+    // Render the archive page
+    mod_page(
+        sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']),
+        'mod/archive_list.html',
+        array(
+            'archive' => $archive,
+            'thread_count' => $total_threads,
+            'board' => $board,
+            'current_page' => $page_no,
+            'total_pages' => $total_pages,
+            'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/archive/')
+        ),
+        true
+    );
 }
+
 
 function mod_view_archive_featured($context, $boardName) {
     global $board, $config;
