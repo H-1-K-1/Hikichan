@@ -23,7 +23,8 @@
 			{% endif %}
 		</div>
 	</header>
-
+	{% include 'post_form.html' %}
+	
 	<span>{% trans 'Sort by' %}: </span>
 	<select id="sort_by" style="display: inline-block">
 		<option selected value="bump:desc">{% trans 'Bump order' %}</option>
@@ -50,11 +51,6 @@
 		{% endfor %}
 	</div>
 	{% endif %}
-
-	<!-- Search Toggle Button -->
-	<div class="catalog_search" style="margin: 10px 0;">
-		[<a id="catalog_search_button" style="cursor: pointer; text-decoration: none;">Search</a>]
-	</div>
 
 	<div class="threads">
 		<div id="Grid">
