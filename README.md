@@ -5,6 +5,10 @@ vichan - A lightweight and full featured PHP imageboard.
 
 As of 29 August 2022 it supports PHP8.1.
 
+HIKICHAN IMPORTANT
+------------
+Hikichan plans to turn the post_b etc... tables into one unified table in the future for all boards called posts. this is a significant change and will mess up everything. This is not set in stone yet and I'm seeing if it is feasable. I first plan to make it so that most bugs are gone and all features that I want are implemented. I will first try and see if separate board tables is feasable since I plan to have 50+ boards in hikichan in the long term.
+
 About
 ------------
 vichan is a free light-weight, fast, highly configurable and user-friendly
