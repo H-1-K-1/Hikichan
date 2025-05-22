@@ -5,9 +5,14 @@ vichan - A lightweight and full featured PHP imageboard.
 
 As of 29 August 2022 it supports PHP8.1.
 
-HIKICHAN IMPORTANT
+HIKICHAN IMPORTANT ALPHA STATEMENT
 ------------
+I intent to make a lot of changes to the code of tinyboard and vichan. We are in alpha as long the feature below isn't correctly implemented.
+
 Hikichan plans to turn the post_b etc... tables into one unified table in the future for all boards called posts. this is a significant change and will mess up everything. This is not set in stone yet and I'm seeing if it is feasable. I first plan to make it so that most bugs are gone and all features that I want are implemented. I will first try and see if separate board tables is feasable since I plan to have 50+ boards in hikichan in the long term.
+
+### Update
+I moved the archive_b etc... boards to archive_threads table for all the boards and it seems to work.
 
 About
 ------------
