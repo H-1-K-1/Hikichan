@@ -36,6 +36,44 @@ CREATE TABLE IF NOT EXISTS `antispam` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `posts`
+--
+
+CREATE TABLE IF NOT EXISTS `posts` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `board_id` int(11) NOT NULL, -- Per-board post number
+  `board` varchar(255) NOT NULL,
+  `thread` int(11) DEFAULT NULL,
+  `subject` varchar(100) DEFAULT NULL,
+  `email` varchar(30) DEFAULT NULL,
+  `name` varchar(35) NOT NULL,
+  `trip` varchar(15) DEFAULT NULL,
+  `capcode` varchar(50) DEFAULT NULL,
+  `body` text NOT NULL,
+  `body_nomarkup` text NOT NULL,
+  `time` int(11) NOT NULL,
+  `bump` int(11) NOT NULL,
+  `files` text,
+  `num_files` int(11) NOT NULL DEFAULT '0',
+  `filehash` varchar(40) DEFAULT NULL,
+  `password` varchar(20) NOT NULL,
+  `ip` varchar(39) NOT NULL,
+  `sticky` bool NOT NULL DEFAULT 0,
+  `locked` bool NOT NULL DEFAULT 0,
+  `cycle` bool NOT NULL DEFAULT 0,
+  `sage` bool NOT NULL DEFAULT 0,
+  `embed` text,
+  `slug` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `board` (`board`),
+  KEY `thread` (`thread`),
+  KEY `time` (`time`),
+  KEY `board_board_id` (`board`, `board_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `archive_threads`
 --
 
@@ -43,6 +81,7 @@ CREATE TABLE IF NOT EXISTS `archive_threads` (
   `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
   `board_uri` varchar(255) NOT NULL,
   `original_thread_id` int(11) UNSIGNED NOT NULL,
+  `board_id` int(11) NOT NULL, -- Per-board post number for the thread
   `snippet` text NOT NULL,
   `lifetime` int(11) NOT NULL,
   `files` mediumtext NOT NULL,
@@ -54,6 +93,7 @@ CREATE TABLE IF NOT EXISTS `archive_threads` (
   PRIMARY KEY (`id`),
   KEY `board_uri_lifetime` (`board_uri`, `lifetime`),
   KEY `board_uri_original_thread_id` (`board_uri`, `original_thread_id`),
+  KEY `board_uri_board_id` (`board_uri`, `board_id`), -- Optional: for fast lookup by board_id
   KEY `board_uri_featured` (`board_uri`, `featured`),
   KEY `board_uri_mod_archived` (`board_uri`, `mod_archived`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

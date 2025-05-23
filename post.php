@@ -21,37 +21,39 @@ use Vichan\Functions\Format;
  * @return string|false
  */
 function md5_hash_of_file($config, $path) {
-	$cmd = false;
-	if ($config['bsd_md5']) {
-		$cmd = '/sbin/md5 -r';
-	}
-	if ($config['gnu_md5']) {
-		$cmd = 'md5sum';
-	}
+    $cmd = false;
+    if ($config['bsd_md5']) {
+        $cmd = '/sbin/md5 -r';
+    }
+    if ($config['gnu_md5']) {
+        $cmd = 'md5sum';
+    }
 
-	if ($cmd) {
-		$output = shell_exec_error($cmd . " " . escapeshellarg($path));
-		$output = explode(' ', $output);
-		return $output[0];
-	} else {
-		return md5_file($path);
-	}
+    if ($cmd) {
+        $output = shell_exec_error($cmd . " " . escapeshellarg($path));
+        $output = explode(' ', $output);
+        return $output[0];
+    } else {
+        return md5_file($path);
+    }
 }
 
 function getThreadPage($thread_id) {
-	global $board, $config;
+    global $board, $config;
 
-	$query = query("SELECT `id` FROM `posts_{$board['uri']}` WHERE `thread` IS NULL ORDER BY `bump` DESC") or error(db_error());
-	$position = 0;
+    $query = prepare("SELECT `id` FROM `posts` WHERE `board` = :board AND `thread` IS NULL ORDER BY `bump` DESC");
+    $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+    $query->execute() or error(db_error());
+    $position = 0;
 
-	while ($th = $query->fetch(PDO::FETCH_ASSOC)) {
-		if ($th['id'] == $thread_id) {
-			return floor($position / $config['threads_per_page']) + 1;
-		}
-		$position++;
-	}
+    while ($th = $query->fetch(PDO::FETCH_ASSOC)) {
+        if ($th['id'] == $thread_id) {
+            return floor($position / $config['threads_per_page']) + 1;
+        }
+        $position++;
+    }
 
-	return 1; // fallback
+    return 1; // fallback
 }
 
 /**
@@ -149,24 +151,24 @@ function downloadFileByUrl(string $url, array $config, bool $is_op_post = false)
  * @return string The value stripped of incompatible symbols.
  */
 function strip_symbols($input) {
-	if (mysql_version() >= 50503) {
-		return $input; // Assume we're using the utf8mb4 charset
-	} else {
-		// MySQL's `utf8` charset only supports up to 3-byte symbols
-		// Remove anything >= 0x010000
+    if (mysql_version() >= 50503) {
+        return $input; // Assume we're using the utf8mb4 charset
+    } else {
+        // MySQL's `utf8` charset only supports up to 3-byte symbols
+        // Remove anything >= 0x010000
 
-		$chars = preg_split('//u', $input, -1, PREG_SPLIT_NO_EMPTY);
-		$ret = '';
-		foreach ($chars as $char) {
-			$o = 0;
-			$ord = ordutf8($char, $o);
-			if ($ord >= 0x010000) {
-				continue;
-			}
-			$ret .= $char;
-		}
-		return $ret;
-	}
+        $chars = preg_split('//u', $input, -1, PREG_SPLIT_NO_EMPTY);
+        $ret = '';
+        foreach ($chars as $char) {
+            $o = 0;
+            $ord = ordutf8($char, $o);
+            if ($ord >= 0x010000) {
+                continue;
+            }
+            $ret .= $char;
+        }
+        return $ret;
+    }
 }
 
 /**
@@ -178,17 +180,17 @@ function strip_symbols($input) {
  * @throws RuntimeException Throws if executing tesseract fails.
  */
 function ocr_image(array $config, string $img_path): string {
-	// The default preprocess command is an ImageMagick b/w quantization.
-	$ret = shell_exec_error(
-		sprintf($config['tesseract_preprocess_command'], escapeshellarg($img_path))
-		 . ' | tesseract stdin stdout 2>/dev/null'
-		 . $config['tesseract_params']
-	);
-	if ($ret === false) {
-		throw new RuntimeException('Unable to run tesseract');
-	}
+    // The default preprocess command is an ImageMagick b/w quantization.
+    $ret = shell_exec_error(
+        sprintf($config['tesseract_preprocess_command'], escapeshellarg($img_path))
+         . ' | tesseract stdin stdout 2>/dev/null'
+         . $config['tesseract_params']
+    );
+    if ($ret === false) {
+        throw new RuntimeException('Unable to run tesseract');
+    }
 
-	return trim($ret);
+    return trim($ret);
 }
 
 
@@ -200,16 +202,16 @@ function ocr_image(array $config, string $img_path): string {
  * @throws RuntimeException Throws on IO errors.
  */
 function strip_image_metadata(string $img_path): int {
-	$err = shell_exec_error('exiftool -overwrite_original -ignoreMinorErrors -q -q -all= -Orientation ' . escapeshellarg($img_path));
-	if ($err === false) {
-		throw new RuntimeException('Could not strip EXIF metadata!');
-	}
-	clearstatcache(true, $img_path);
-	$ret = filesize($img_path);
-	if ($ret === false) {
-		throw new RuntimeException('Could not calculate file size!');
-	}
-	return $ret;
+    $err = shell_exec_error('exiftool -overwrite_original -ignoreMinorErrors -q -q -all= -Orientation ' . escapeshellarg($img_path));
+    if ($err === false) {
+        throw new RuntimeException('Could not strip EXIF metadata!');
+    }
+    clearstatcache(true, $img_path);
+    $ret = filesize($img_path);
+    if ($ret === false) {
+        throw new RuntimeException('Could not calculate file size!');
+    }
+    return $ret;
 }
 
 /**
@@ -221,21 +223,21 @@ function strip_image_metadata(string $img_path): int {
  */
 function delete_cyclical_posts(string $boardUri, int $threadId, int $cycleLimit): void
 {
-    $query = prepare(sprintf('
+    $query = prepare('
         SELECT p.`id`
-        FROM ``posts_%s`` p
+        FROM `posts` p
         LEFT JOIN (
             SELECT `id`
-            FROM ``posts_%s``
-            WHERE `thread` = :thread
+            FROM `posts`
+            WHERE `board` = :board AND `thread` = :thread
             ORDER BY `id` DESC
             LIMIT :limit
         ) recent_posts ON p.id = recent_posts.id
-        WHERE p.thread = :thread
-        AND recent_posts.id IS NULL',
-        $boardUri, $boardUri
-    ));
+        WHERE p.board = :board AND p.thread = :thread
+        AND recent_posts.id IS NULL
+    ');
 
+    $query->bindValue(':board', $boardUri, PDO::PARAM_STR);
     $query->bindValue(':thread', $threadId, PDO::PARAM_INT);
     $query->bindValue(':limit', $cycleLimit, PDO::PARAM_INT);
 
@@ -271,109 +273,111 @@ $dropped_post = false;
 $context = Vichan\build_context($config);
 
 if (isset($_POST['delete'])) {
-	// Delete
+    // Delete
 
-	if (!isset($_POST['board'], $_POST['password']))
-		error($config['error']['bot']);
+    if (!isset($_POST['board'], $_POST['password']))
+        error($config['error']['bot']);
 
-	if (empty($_POST['password'])){
-		error($config['error']['invalidpassword']);
-	}
+    if (empty($_POST['password'])){
+        error($config['error']['invalidpassword']);
+    }
 
-	$password = hashPassword($_POST['password']);
+    $password = hashPassword($_POST['password']);
 
-	$delete = array();
-	foreach ($_POST as $post => $value) {
-		if (preg_match('/^delete_(\d+)$/', $post, $m)) {
-			$delete[] = (int)$m[1];
-		}
-	}
+    $delete = array();
+    foreach ($_POST as $post => $value) {
+        if (preg_match('/^delete_(\d+)$/', $post, $m)) {
+            $delete[] = (int)$m[1];
+        }
+    }
 
-	$delete = ids_from_postdata($_POST);
+    $delete = ids_from_postdata($_POST);
 
-	checkDNSBL();
+    checkDNSBL();
 
-	// Check if board exists
-	if (!openBoard($_POST['board']))
-		error($config['error']['noboard']);
+    // Check if board exists
+    if (!openBoard($_POST['board']))
+        error($config['error']['noboard']);
 
-	if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
-		error("Board is locked");
-	}
+    if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
+        error("Board is locked");
+    }
 
-	// Check if banned
-	checkBan($board['uri']);
+    // Check if banned
+    checkBan($board['uri']);
 
-	// Check if deletion enabled
-	if (!$config['allow_delete'])
-		error(_('Post deletion is not allowed!'));
+    // Check if deletion enabled
+    if (!$config['allow_delete'])
+        error(_('Post deletion is not allowed!'));
 
-	if (empty($delete))
-		error($config['error']['nodelete']);
+    if (empty($delete))
+        error($config['error']['nodelete']);
 
-	foreach ($delete as &$id) {
-		$query = prepare(sprintf("SELECT `id`,`thread`,`time`,`password` FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
-		$query->bindValue(':id', $id, PDO::PARAM_INT);
-		$query->execute() or error(db_error($query));
+    foreach ($delete as &$id) {
+        $query = prepare("SELECT `id`,`thread`,`time`,`password` FROM `posts` WHERE `board` = :board AND `id` = :id");
+        $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+        $query->bindValue(':id', $id, PDO::PARAM_INT);
+        $query->execute() or error(db_error($query));
 
-		if ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-			$thread = false;
-			if ($config['user_moderation'] && $post['thread']) {
-				$thread_query = prepare(sprintf("SELECT `time`,`password` FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
-				$thread_query->bindValue(':id', $post['thread'], PDO::PARAM_INT);
-				$thread_query->execute() or error(db_error($query));
+        if ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+            $thread = false;
+            if ($config['user_moderation'] && $post['thread']) {
+                $thread_query = prepare("SELECT `time`,`password` FROM `posts` WHERE `board` = :board AND `id` = :id");
+                $thread_query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+                $thread_query->bindValue(':id', $post['thread'], PDO::PARAM_INT);
+                $thread_query->execute() or error(db_error($query));
 
-				$thread = $thread_query->fetch(PDO::FETCH_ASSOC);
-			}
+                $thread = $thread_query->fetch(PDO::FETCH_ASSOC);
+            }
 
-			if ($post['time'] < time() - $config['max_delete_time'] && $config['max_delete_time'] != false) {
-				error(sprintf($config['error']['delete_too_late'], Format\until($post['time'] + $config['max_delete_time'])));
-			}
+            if ($post['time'] < time() - $config['max_delete_time'] && $config['max_delete_time'] != false) {
+                error(sprintf($config['error']['delete_too_late'], Format\until($post['time'] + $config['max_delete_time'])));
+            }
 
-			if (!hash_equals($post['password'], $password) && (!$thread || !hash_equals($thread['password'], $password))) {
-				error($config['error']['invalidpassword']);
-			}
+            if (!hash_equals($post['password'], $password) && (!$thread || !hash_equals($thread['password'], $password))) {
+                error($config['error']['invalidpassword']);
+            }
 
 
-			if ($post['time'] > time() - $config['delete_time'] && (!$thread || !hash_equals($thread['password'], $password))) {
-				error(sprintf($config['error']['delete_too_soon'], Format\until($post['time'] + $config['delete_time'])));
-			}
+            if ($post['time'] > time() - $config['delete_time'] && (!$thread || !hash_equals($thread['password'], $password))) {
+                error(sprintf($config['error']['delete_too_soon'], Format\until($post['time'] + $config['delete_time'])));
+            }
 
-			$ip = $_SERVER['REMOTE_ADDR'];
-			if (isset($_POST['file'])) {
-				// Delete just the file
-				deleteFile($id);
-				modLog("User at $ip deleted file from their own post #$id");
-			} else {
-				// Delete entire post
-				deletePost($id);
-				modLog("User at $ip deleted their own post #$id");
-			}
+            $ip = $_SERVER['REMOTE_ADDR'];
+            if (isset($_POST['file'])) {
+                // Delete just the file
+                deleteFile($id);
+                modLog("User at $ip deleted file from their own post #$id");
+            } else {
+                // Delete entire post
+                deletePost($id);
+                modLog("User at $ip deleted their own post #$id");
+            }
 
-			$context->get(LogDriver::class)->log(
-				LogDriver::INFO,
-				'Deleted post: /' . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
-			);
-		}
-	}
+            $context->get(LogDriver::class)->log(
+                LogDriver::INFO,
+                'Deleted post: /' . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
+            );
+        }
+    }
 
-	buildIndex();
+    buildIndex();
 
-	$is_mod = isset($_POST['mod']) && $_POST['mod'];
-	$root = $is_mod ? $config['root'] . $config['file_mod'] . '?/' : $config['root'];
+    $is_mod = isset($_POST['mod']) && $_POST['mod'];
+    $root = $is_mod ? $config['root'] . $config['file_mod'] . '?/' : $config['root'];
 
-	if (!isset($_POST['json_response'])) {
-		header('Location: ' . $root . $board['dir'] . $config['file_index'], true, $config['redirect_http']);
-	} else {
-		header('Content-Type: text/json');
-		echo json_encode(array('success' => true));
-	}
+    if (!isset($_POST['json_response'])) {
+        header('Location: ' . $root . $board['dir'] . $config['file_index'], true, $config['redirect_http']);
+    } else {
+        header('Content-Type: text/json');
+        echo json_encode(array('success' => true));
+    }
 
-	// We are already done, let's continue our heavy-lifting work in the background (if we run off FastCGI)
-	if (function_exists('fastcgi_finish_request'))
-		@fastcgi_finish_request();
+    // We are already done, let's continue our heavy-lifting work in the background (if we run off FastCGI)
+    if (function_exists('fastcgi_finish_request'))
+        @fastcgi_finish_request();
 
-	Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
+    Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
 
 } else if (isset($_POST['edit'])) {
     if (!$config['allow_edit'])
@@ -413,7 +417,8 @@ if (isset($_POST['delete'])) {
         $id = (int)$_POST['id'];
     }
 
-    $query = prepare(sprintf("SELECT * FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
+    $query = prepare("SELECT * FROM `posts` WHERE `board` = :board AND `id` = :id");
+    $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
@@ -465,8 +470,9 @@ if (isset($_POST['delete'])) {
                 $_POST['body'] .= "<tinyboard $key>$value</tinyboard>";
             }
 
-            $query = prepare(sprintf('UPDATE ``posts_%s`` SET `body_nomarkup` = :body_nomarkup WHERE `id` = :id', $board['uri']));
-            $query->bindValue(':id', $id);
+            $query = prepare('UPDATE `posts` SET `body_nomarkup` = :body_nomarkup WHERE `board` = :board AND `id` = :id');
+            $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+            $query->bindValue(':id', $id, PDO::PARAM_INT);
             $query->bindValue(':body_nomarkup', $_POST['body']);
             $query->execute() or error(db_error($query));    
 
@@ -483,225 +489,226 @@ if (isset($_POST['delete'])) {
     }
 
 } elseif (isset($_POST['report'])) {
-	if (!isset($_POST['board'], $_POST['reason']))
-		error($config['error']['bot']);
+    if (!isset($_POST['board'], $_POST['reason']))
+        error($config['error']['bot']);
 
-	$report = array();
-	foreach ($_POST as $post => $value) {
-		if (preg_match('/^delete_(\d+)$/', $post, $m)) {
-			$report[] = (int)$m[1];
-		}
-	}
+    $report = array();
+    foreach ($_POST as $post => $value) {
+        if (preg_match('/^delete_(\d+)$/', $post, $m)) {
+            $report[] = (int)$m[1];
+        }
+    }
 
-	checkDNSBL();
+    checkDNSBL();
 
-	// Check if board exists
-	if (!openBoard($_POST['board']))
-		error($config['error']['noboard']);
+    // Check if board exists
+    if (!openBoard($_POST['board']))
+        error($config['error']['noboard']);
 
-	if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
-		error("Board is locked");
-	}
+    if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
+        error("Board is locked");
+    }
 
-	// Check if banned
-	checkBan($board['uri']);
+    // Check if banned
+    checkBan($board['uri']);
 
-	if (empty($report))
-		error($config['error']['noreport']);
+    if (empty($report))
+        error($config['error']['noreport']);
 
-	if (count($report) > $config['report_limit'])
-		error($config['error']['toomanyreports']);
+    if (count($report) > $config['report_limit'])
+        error($config['error']['toomanyreports']);
 
 
-	if ($config['report_captcha'] && $config['captcha']['provider'] === 'native') {
-		verify_captcha();
-	}
+    if ($config['report_captcha'] && $config['captcha']['provider'] === 'native') {
+        verify_captcha();
+    }
 
-	$reason = escape_markup_modifiers($_POST['reason']);
-	markup($reason);
+    $reason = escape_markup_modifiers($_POST['reason']);
+    markup($reason);
 
-	if (mb_strlen($reason) > $config['report_max_length']) {
-		error($config['error']['toolongreport']);
-	}
+    if (mb_strlen($reason) > $config['report_max_length']) {
+        error($config['error']['toolongreport']);
+    }
 
-	foreach ($report as &$id) {
-		$query = prepare(sprintf("SELECT `id`, `thread` FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
-		$query->bindValue(':id', $id, PDO::PARAM_INT);
-		$query->execute() or error(db_error($query));
+    foreach ($report as &$id) {
+        $query = prepare("SELECT `id`, `thread` FROM `posts` WHERE `board` = :board AND `id` = :id");
+        $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+        $query->bindValue(':id', $id, PDO::PARAM_INT);
+        $query->execute() or error(db_error($query));
 
-		$post = $query->fetch(PDO::FETCH_ASSOC);
-		if ($post === false) {
-			$context->get(LogDriver::class)->log(LogDriver::INFO, "Failed to report non-existing post #{$id} in {$board['dir']}");
-			error($config['error']['nopost']);
-		}
+        $post = $query->fetch(PDO::FETCH_ASSOC);
+        if ($post === false) {
+            $context->get(LogDriver::class)->log(LogDriver::INFO, "Failed to report non-existing post #{$id} in {$board['dir']}");
+            error($config['error']['nopost']);
+        }
 
-		$error = event('report', array('ip' => $_SERVER['REMOTE_ADDR'], 'board' => $board['uri'], 'post' => $post, 'reason' => $reason, 'link' => link_for($post)));
-		if ($error) {
-			error($error);
-		}
+        $error = event('report', array('ip' => $_SERVER['REMOTE_ADDR'], 'board' => $board['uri'], 'post' => $post, 'reason' => $reason, 'link' => link_for($post)));
+        if ($error) {
+            error($error);
+        }
 
-		$context->get(LogDriver::class)->log(
-			LogDriver::INFO,
-			'Reported post: /'
-				 . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
-				 . " for \"$reason\""
-		);
-		$query = prepare("INSERT INTO ``reports`` VALUES (NULL, :time, :ip, :board, :post, :reason)");
-		$query->bindValue(':time', time(), PDO::PARAM_INT);
-		$query->bindValue(':ip', $_SERVER['REMOTE_ADDR'], PDO::PARAM_STR);
-		$query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
-		$query->bindValue(':post', $id, PDO::PARAM_INT);
-		$query->bindValue(':reason', $reason, PDO::PARAM_STR);
-		$query->execute() or error(db_error($query));
-	}
+        $context->get(LogDriver::class)->log(
+            LogDriver::INFO,
+            'Reported post: /'
+                 . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
+                 . " for \"$reason\""
+        );
+        $query = prepare("INSERT INTO ``reports`` VALUES (NULL, :time, :ip, :board, :post, :reason)");
+        $query->bindValue(':time', time(), PDO::PARAM_INT);
+        $query->bindValue(':ip', $_SERVER['REMOTE_ADDR'], PDO::PARAM_STR);
+        $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+        $query->bindValue(':post', $id, PDO::PARAM_INT);
+        $query->bindValue(':reason', $reason, PDO::PARAM_STR);
+        $query->execute() or error(db_error($query));
+    }
 
-	$is_mod = isset($_POST['mod']) && $_POST['mod'];
-	$root = $is_mod ? $config['root'] . $config['file_mod'] . '?/' : $config['root'];
+    $is_mod = isset($_POST['mod']) && $_POST['mod'];
+    $root = $is_mod ? $config['root'] . $config['file_mod'] . '?/' : $config['root'];
 
-	if (!isset($_POST['json_response'])) {
-		$index = $root . $board['dir'] . $config['file_index'];
-		echo Element($config['file_page_template'], array('config' => $config, 'body' => '<div style="text-align:center"><a href="javascript:window.close()">[ ' . _('Close window') ." ]</a> <a href='$index'>[ " . _('Return') . ' ]</a></div>', 'title' => _('Report submitted!')));
-	} else {
-		header('Content-Type: text/json');
-		echo json_encode(array('success' => true));
-	}
+    if (!isset($_POST['json_response'])) {
+        $index = $root . $board['dir'] . $config['file_index'];
+        echo Element($config['file_page_template'], array('config' => $config, 'body' => '<div style="text-align:center"><a href="javascript:window.close()">[ ' . _('Close window') ." ]</a> <a href='$index'>[ " . _('Return') . ' ]</a></div>', 'title' => _('Report submitted!')));
+    } else {
+        header('Content-Type: text/json');
+        echo json_encode(array('success' => true));
+    }
 } elseif (isset($_POST['post']) || $dropped_post) {
-	if (!isset($_POST['body'], $_POST['board']) && !$dropped_post)
-		error($config['error']['bot']);
+    if (!isset($_POST['body'], $_POST['board']) && !$dropped_post)
+        error($config['error']['bot']);
 
-	$post = array('board' => $_POST['board'], 'files' => array());
+    $post = array('board' => $_POST['board'], 'files' => array());
 
-	// Check if board exists
-	if (!openBoard($post['board']))
-		error($config['error']['noboard']);
+    // Check if board exists
+    if (!openBoard($post['board']))
+        error($config['error']['noboard']);
 
-	if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
-		error("Board is locked");
-	}
+    if ((!isset($_POST['mod']) || !$_POST['mod']) && $config['board_locked']) {
+        error("Board is locked");
+    }
 
-	if (!isset($_POST['name']))
-		$_POST['name'] = $config['anonymous'];
+    if (!isset($_POST['name']))
+        $_POST['name'] = $config['anonymous'];
 
-	if (!isset($_POST['email']))
-		$_POST['email'] = '';
+    if (!isset($_POST['email']))
+        $_POST['email'] = '';
 
-	if (!isset($_POST['subject']))
-		$_POST['subject'] = '';
+    if (!isset($_POST['subject']))
+        $_POST['subject'] = '';
 
-	if (!isset($_POST['password']))
-		$_POST['password'] = '';
+    if (!isset($_POST['password']))
+        $_POST['password'] = '';
 
-	if (isset($_POST['thread'])) {
-		$post['op'] = false;
-		$post['thread'] = round($_POST['thread']);
-	} else
-		$post['op'] = true;
-
-
-	if (!$dropped_post) {
-		if ($config['simple_spam'] && $post['op']) {
-			if (!isset($_POST['simple_spam']) || strtolower($config['simple_spam']['answer']) != strtolower($_POST['simple_spam'])) {
-				error($config['error']['simple_spam']);
-			}
-		}
-
-		// Check if banned
-		checkBan($board['uri']);
-
-		// Check for CAPTCHA right after opening the board so the "return" link is in there.
-		if ($config['captcha']['provider'] === 'hcaptcha') {
-			if (!$dropped_post) {
-				if (!isset($_POST['h-captcha-response'])) {
-					error($config['error']['captcha']);
-				}
-
-				$hcaptcha_secret = $config['captcha']['hcaptcha_secret']; // Your hCaptcha secret key from config
-				$hcaptcha_response = $_POST['h-captcha-response'];
-
-				$verify_response = file_get_contents('https://hcaptcha.com/siteverify', false, stream_context_create([
-					'http' => [
-						'method' => 'POST',
-						'header' => "Content-type: application/x-www-form-urlencoded\r\n",
-						'content' => http_build_query([
-							'secret' => $hcaptcha_secret,
-							'response' => $hcaptcha_response,
-							'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
-						])
-					]
-				]));
-
-				if ($verify_response === false) {
-					error($config['error']['remote_io_error']);
-				}
-
-				$response_data = json_decode($verify_response, true);
-
-				if (empty($response_data['success'])) {
-					error($config['error']['captcha']);
-				}
-			}
-		}
-
-		if ($config['captcha']['provider'] === 'native' && !$dropped_post) {
-			verify_captcha();
-		}
-		
+    if (isset($_POST['thread'])) {
+        $post['op'] = false;
+        $post['thread'] = round($_POST['thread']);
+    } else
+        $post['op'] = true;
 
 
-		if (!(($post['op'] && $_POST['post'] == $config['button_newtopic']) ||
-			(!$post['op'] && $_POST['post'] == $config['button_reply'])))
-			error($config['error']['bot']);
+    if (!$dropped_post) {
+        if ($config['simple_spam'] && $post['op']) {
+            if (!isset($_POST['simple_spam']) || strtolower($config['simple_spam']['answer']) != strtolower($_POST['simple_spam'])) {
+                error($config['error']['simple_spam']);
+            }
+        }
 
-		// Check the referrer
-		if ($config['referer_match'] !== false &&
-			(!isset($_SERVER['HTTP_REFERER']) || !preg_match($config['referer_match'], rawurldecode($_SERVER['HTTP_REFERER']))))
-			error($config['error']['referer']);
+        // Check if banned
+        checkBan($board['uri']);
 
-		checkDNSBL();
+        // Check for CAPTCHA right after opening the board so the "return" link is in there.
+        if ($config['captcha']['provider'] === 'hcaptcha') {
+            if (!$dropped_post) {
+                if (!isset($_POST['h-captcha-response'])) {
+                    error($config['error']['captcha']);
+                }
+
+                $hcaptcha_secret = $config['captcha']['hcaptcha_secret']; // Your hCaptcha secret key from config
+                $hcaptcha_response = $_POST['h-captcha-response'];
+
+                $verify_response = file_get_contents('https://hcaptcha.com/siteverify', false, stream_context_create([
+                    'http' => [
+                        'method' => 'POST',
+                        'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+                        'content' => http_build_query([
+                            'secret' => $hcaptcha_secret,
+                            'response' => $hcaptcha_response,
+                            'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
+                        ])
+                    ]
+                ]));
+
+                if ($verify_response === false) {
+                    error($config['error']['remote_io_error']);
+                }
+
+                $response_data = json_decode($verify_response, true);
+
+                if (empty($response_data['success'])) {
+                    error($config['error']['captcha']);
+                }
+            }
+        }
+
+        if ($config['captcha']['provider'] === 'native' && !$dropped_post) {
+            verify_captcha();
+        }
+        
 
 
-		if ($post['mod'] = isset($_POST['mod']) && $_POST['mod']) {
-			check_login($context, false);
-			if (!$mod) {
-				// Liar. You're not a mod.
-				error($config['error']['notamod']);
-			}
+        if (!(($post['op'] && $_POST['post'] == $config['button_newtopic']) ||
+            (!$post['op'] && $_POST['post'] == $config['button_reply'])))
+            error($config['error']['bot']);
 
-			$post['sticky'] = $post['op'] && isset($_POST['sticky']);
-			$post['locked'] = $post['op'] && isset($_POST['lock']);
-			$post['raw'] = isset($_POST['raw']);
+        // Check the referrer
+        if ($config['referer_match'] !== false &&
+            (!isset($_SERVER['HTTP_REFERER']) || !preg_match($config['referer_match'], rawurldecode($_SERVER['HTTP_REFERER']))))
+            error($config['error']['referer']);
 
-			if ($post['sticky'] && !hasPermission($config['mod']['sticky'], $board['uri']))
-				error($config['error']['noaccess']);
-			if ($post['locked'] && !hasPermission($config['mod']['lock'], $board['uri']))
-				error($config['error']['noaccess']);
-			if ($post['raw'] && !hasPermission($config['mod']['rawhtml'], $board['uri']))
-				error($config['error']['noaccess']);
-		}
+        checkDNSBL();
 
-		if ($config['robot_enable'] && $config['robot_mute']) {
-			checkMute();
-		}
-	}
-	else {
-		$mod = $post['mod'] = false;
-	}
 
-	//Check if thread exists
-	if (!$post['op']) {
-		$query = prepare(sprintf("SELECT `sticky`,`locked`,`cycle`,`sage`,`slug` FROM ``posts_%s`` WHERE `id` = :id AND `thread` IS NULL LIMIT 1", $board['uri']));
-		$query->bindValue(':id', $post['thread'], PDO::PARAM_INT);
-		$query->execute() or error(db_error());
+        if ($post['mod'] = isset($_POST['mod']) && $_POST['mod']) {
+            check_login($context, false);
+            if (!$mod) {
+                // Liar. You're not a mod.
+                error($config['error']['notamod']);
+            }
 
-		if (!$thread = $query->fetch(PDO::FETCH_ASSOC)) {
-			// Non-existant
-			error($config['error']['nonexistant']);
-		}
-	}
-	else {
-		$thread = false;
-	}
+            $post['sticky'] = $post['op'] && isset($_POST['sticky']);
+            $post['locked'] = $post['op'] && isset($_POST['lock']);
+            $post['raw'] = isset($_POST['raw']);
 
+            if ($post['sticky'] && !hasPermission($config['mod']['sticky'], $board['uri']))
+                error($config['error']['noaccess']);
+            if ($post['locked'] && !hasPermission($config['mod']['lock'], $board['uri']))
+                error($config['error']['noaccess']);
+            if ($post['raw'] && !hasPermission($config['mod']['rawhtml'], $board['uri']))
+                error($config['error']['noaccess']);
+        }
+
+        if ($config['robot_enable'] && $config['robot_mute']) {
+            checkMute();
+        }
+    }
+    else {
+        $mod = $post['mod'] = false;
+    }
+
+    //Check if thread exists
+    if (!$post['op']) {
+        $query = prepare("SELECT `sticky`,`locked`,`cycle`,`sage`,`slug` FROM `posts` WHERE `board` = :board AND `id` = :id AND `thread` IS NULL LIMIT 1");
+        $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+        $query->bindValue(':id', $post['thread'], PDO::PARAM_INT);
+        $query->execute() or error(db_error());
+
+        if (!$thread = $query->fetch(PDO::FETCH_ASSOC)) {
+            // Non-existant
+            error($config['error']['nonexistant']);
+        }
+    }
+    else {
+        $thread = false;
+    }
 
 	// Check for an embed field
 	if ($config['enable_embedding'] && isset($_POST['embed']) && !empty($_POST['embed'])) {
@@ -1282,6 +1289,14 @@ if (isset($_POST['delete'])) {
 
 	$post['num_files'] = sizeof($post['files']);
 
+	// Assign per-board post number
+	$query = prepare("SELECT MAX(`board_id`) FROM ``posts`` WHERE `board` = :board");
+	$query->bindValue(':board', $board['uri']);
+	$query->execute() or error(db_error($query));
+	$next_board_id = (int)$query->fetchColumn() + 1;
+	$post['board_id'] = $next_board_id;
+
+	// Now insert the post
 	$post['id'] = $id = post($post);
 	$post['slug'] = slugify($post);
 

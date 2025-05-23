@@ -41,7 +41,7 @@
     <tbody>
         {% for thread in archive %}
             <tr>
-                <td>{{ thread.original_thread_id | default(thread.display_id) }}</td>
+                <td>{{ thread.board_id }}</td>
                 <td>{{ thread.snippet }}</td>
                 <td><a href="{{ thread.featured_url }}">[{% trans 'View' %}]</a></td>
                 {% if is_mod_archive %}

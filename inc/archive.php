@@ -8,7 +8,9 @@ class Archive {
         if(!$config['archive']['threads'])
             return;
 
-        $thread_query = prepare(sprintf("SELECT `thread`, `subject`, `body_nomarkup`, `trip` FROM ``posts_%s`` WHERE `id` = :id", $board['uri']));
+        // Fetch thread data
+        $thread_query = prepare("SELECT `thread`, `subject`, `body_nomarkup`, `trip`, `board_id` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
+        $thread_query->bindValue(':board', $board['uri']);
         $thread_query->bindValue(':id', $thread_id, PDO::PARAM_INT);
         $thread_query->execute() or error(db_error($thread_query));
         $thread_data = $thread_query->fetch(PDO::FETCH_ASSOC);
@@ -29,7 +31,8 @@ class Archive {
         @mkdir($archive_path . $config['dir']['img'], 0777, true);
         @mkdir($archive_path . $config['dir']['thumb'], 0777, true);
 
-        $query = prepare(sprintf("SELECT `id`,`thread`,`files`,`slug` FROM ``posts_%s`` WHERE `id` = :id OR `thread` = :id", $board['uri']));
+        $query = prepare("SELECT `id`,`thread`,`files`,`slug` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
+        $query->bindValue(':board', $board['uri']);
         $query->bindValue(':id', $thread_id, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
 
@@ -90,9 +93,10 @@ class Archive {
             }
         }
 
-        $query = prepare("INSERT INTO `archive_threads` (`board_uri`, `original_thread_id`, `snippet`, `lifetime`, `files`, `featured`, `mod_archived`, `votes`, `path`, `first_image`) VALUES (:board_uri, :original_thread_id, :snippet, :lifetime, :files, 0, 0, 0, :path, :first_image)");
+        $query = prepare("INSERT INTO `archive_threads` (`board_uri`, `original_thread_id`, `board_id`, `snippet`, `lifetime`, `files`, `featured`, `mod_archived`, `votes`, `path`, `first_image`) VALUES (:board_uri, :original_thread_id, :board_id, :snippet, :lifetime, :files, 0, 0, 0, :path, :first_image)");
         $query->bindValue(':board_uri', $board['uri'], PDO::PARAM_STR);
         $query->bindValue(':original_thread_id', $thread_id, PDO::PARAM_INT);
+        $query->bindValue(':board_id', $thread_data['board_id'], PDO::PARAM_INT);
         $query->bindValue(':snippet', $thread_data['snippet'], PDO::PARAM_STR);
         $query->bindValue(':lifetime', time(), PDO::PARAM_INT);
         $query->bindValue(':files', json_encode($file_list));
@@ -409,7 +413,7 @@ class Archive {
         global $config;
 
         $offset = ($page - 1) * $threads_per_page;
-        $query = prepare("SELECT `id`, `original_thread_id`, `snippet`, `featured`, `mod_archived`, `votes`, `path`, `first_image` FROM `archive_threads` WHERE `board_uri` = :board_uri AND `lifetime` > :lifetime ORDER BY `original_thread_id` DESC LIMIT :limit OFFSET :offset");
+        $query = prepare("SELECT `id`, `original_thread_id`, `board_id`, `snippet`, `featured`, `mod_archived`, `votes`, `path`, `first_image` FROM `archive_threads` WHERE `board_uri` = :board_uri AND `lifetime` > :lifetime ORDER BY `original_thread_id` DESC LIMIT :limit OFFSET :offset");
         $query->bindValue(':board_uri', $board_uri, PDO::PARAM_STR);
         $query->bindValue(':lifetime', strtotime("-" . $config['archive']['lifetime']), PDO::PARAM_INT);
         $query->bindValue(':limit', $threads_per_page, PDO::PARAM_INT);
@@ -433,7 +437,7 @@ class Archive {
         global $config;
 
         $archive = false;
-        $sql_common_select = "`id`, `original_thread_id`, `snippet`, `featured`, `mod_archived`, `votes`, `path`, `first_image`";
+        $sql_common_select = "`id`, `original_thread_id`, `board_id`, `snippet`, `featured`, `mod_archived`, `votes`, `path`, `first_image`";
         $order_clause = $order_by_lifetime ? " ORDER BY `lifetime` DESC" : " ORDER BY `original_thread_id` DESC";
 
         if($featured) {

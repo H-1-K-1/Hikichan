@@ -28,7 +28,8 @@ function sb_thread($b, $thread, $slugcheck = false) { global $config; $thread = 
 
   if (Cache::get("thread_exists_".$b."_".$thread) == "no") return false;
 
-  $query = prepare(sprintf("SELECT MAX(`id`) AS `max` FROM ``posts_%s``", $b));
+  $query = prepare("SELECT MAX(`id`) AS `max` FROM ``posts`` WHERE `board` = :board");
+  $query->bindValue(':board', $b);
   if (!$query->execute()) return false;
 
   $s = $query->fetch(PDO::FETCH_ASSOC);
@@ -36,9 +37,10 @@ function sb_thread($b, $thread, $slugcheck = false) { global $config; $thread = 
 
   if ($thread > $max) return false;
 
-  $query = prepare(sprintf("SELECT `id` FROM ``posts_%s`` WHERE `id` = :id AND `thread` IS NULL", $b));
+  $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `id` = :id AND `thread` IS NULL");
+  $query->bindValue(':board', $b);
   $query->bindValue(':id', $thread);
-  
+
   if (!$query->execute() || !$query->fetch(PDO::FETCH_ASSOC) ) {
     Cache::set("thread_exists_".$b."_".$thread, "no", 3600);
     return false;
