@@ -616,22 +616,33 @@ if (file_exists($config['has_installed'])) {
                         }
 		case '5.1.2':
 		case '5.1.3':
-			foreach ($boards as &$_board) {
-				query(sprintf("CREATE TABLE IF NOT EXISTS ``archive_%s`` (
-					`id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
-					`snippet` text NOT NULL,
-					`lifetime` int(11) NOT NULL,
-					`files` text NOT NULL,
-					`featured` int(1) NOT NULL,
-					`mod_archived` int(1) NOT NULL,
-					`votes` int(10) UNSIGNED NOT NULL,
-					`path` varchar(255) NOT NULL,
-					`first_image` varchar(255) DEFAULT NULL,
-					UNIQUE KEY `id` (`id`),
-					KEY `lifetime` (`lifetime`)
-					) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-				", $_board['uri']) or error(db_error()));
-			}
+			query("CREATE TABLE IF NOT EXISTS `archive_threads` (
+				`id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+				`board_uri` VARCHAR(255) NOT NULL,
+				`original_thread_id` INT(11) UNSIGNED NOT NULL,
+				`snippet` TEXT NOT NULL,
+				`lifetime` INT(11) NOT NULL,
+				`files` MEDIUMTEXT NOT NULL,
+				`featured` INT(1) NOT NULL DEFAULT 0,
+				`mod_archived` INT(1) NOT NULL DEFAULT 0,
+				`votes` INT UNSIGNED NOT NULL DEFAULT 0,
+				`path` VARCHAR(255) NOT NULL,
+				`first_image` VARCHAR(255) DEFAULT NULL,
+				PRIMARY KEY (`id`),
+				KEY `board_uri_lifetime` (`board_uri`, `lifetime`),
+				KEY `board_uri_original_thread_id` (`board_uri`, `original_thread_id`),
+				KEY `board_uri_featured` (`board_uri`, `featured`),
+				KEY `board_uri_mod_archived` (`board_uri`, `mod_archived`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;") or error(db_error());
+			query("CREATE TABLE IF NOT EXISTS `archive_votes` (
+				`id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+				`board` VARCHAR(58) NOT NULL,
+				`thread_id` INT(10) NOT NULL,
+				`ip` VARCHAR(61) CHARACTER SET ascii NOT NULL,
+				PRIMARY KEY (`id`),
+				UNIQUE KEY `id` (`id`),
+				KEY `ip` (`ip`, `board`, `thread_id`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;") or error(db_error());
 			query("CREATE TABLE IF NOT EXISTS `polls` (
 				`id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 				`thread_id` INT UNSIGNED NOT NULL,

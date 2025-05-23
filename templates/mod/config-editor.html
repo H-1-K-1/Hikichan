@@ -9,7 +9,7 @@
 		{% for _board in boards %}
 			{% if _board.uri != board %}
 				<li>
-					<a href="?/config/{{ _board.uri }}">Edit config for {{ config.board_abbreviation|sprintf(_board.uri) }}</a>
+					<a href="?/config/{{config.board_prefix}}{{ _board.uri }}">Edit config for {{ config.board_abbreviation|sprintf(_board.uri) }}</a>
 				</li>
 			{% endif %}
 		{% endfor %}

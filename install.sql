@@ -36,30 +36,35 @@ CREATE TABLE IF NOT EXISTS `antispam` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `archive_b`
+-- Table structure for table `archive_threads`
 --
 
-CREATE TABLE IF NOT EXISTS `archive_b` (
+CREATE TABLE IF NOT EXISTS `archive_threads` (
   `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `board_uri` varchar(255) NOT NULL,
+  `original_thread_id` int(11) UNSIGNED NOT NULL,
   `snippet` text NOT NULL,
   `lifetime` int(11) NOT NULL,
   `files` mediumtext NOT NULL,
-  `featured` int(1) NOT NULL,
-  `mod_archived` int(1) NOT NULL,
-  `votes` int(10) UNSIGNED NOT NULL,
+  `featured` int(1) NOT NULL DEFAULT 0,
+  `mod_archived` int(1) NOT NULL DEFAULT 0,
+  `votes` INT UNSIGNED NOT NULL DEFAULT 0,
   `path` varchar(255) NOT NULL,
   `first_image` varchar(255) DEFAULT NULL,
-  UNIQUE KEY `id` (`id`),
-  KEY `lifetime` (`lifetime`)
+  PRIMARY KEY (`id`),
+  KEY `board_uri_lifetime` (`board_uri`, `lifetime`),
+  KEY `board_uri_original_thread_id` (`board_uri`, `original_thread_id`),
+  KEY `board_uri_featured` (`board_uri`, `featured`),
+  KEY `board_uri_mod_archived` (`board_uri`, `mod_archived`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
 
 --
--- Table structure for table `votes_archive`
+-- Table structure for table `archive_votes`
 --
 
-CREATE TABLE IF NOT EXISTS `votes_archive` (
+CREATE TABLE IF NOT EXISTS `archive_votes` (
   `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
   `board` varchar(58) NOT NULL,
   `thread_id` int(10) NOT NULL,

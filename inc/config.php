@@ -146,7 +146,6 @@
 	 */
 
 	// Uses a PHP array. MUST NOT be used in multiprocess environments.
-	// This will be ignored if a environment variable ( VICHAN_CACHE_ENGINE ) is set.
 	$config['cache']['enabled'] = 'php';
 	// The recommended in-memory method of caching. Requires the extension. Due to how APCu works, this should be
 	// disabled when you run tools from the cli.
@@ -162,23 +161,20 @@
 	// $config['cache']['enabled'] = 'none';
 
 	// Timeout for cached objects such as posts and HTML.
-	$config['cache']['redis'] = array(
-		'host' => 'localhost',
-		'port' => 6379,
-		'password' => '',
-		'database' => 1
-	);
-
-	// Cache timeout for cached objects
 	$config['cache']['timeout'] = 60 * 60 * 48; // 48 hours
 
-	// Optional prefix for multiple vichan instances
+	// Optional prefix if you're running multiple vichan instances on the same machine.
 	$config['cache']['prefix'] = '';
 
-	// Memcached servers (not used)
-	$config['cache']['memcached'] = [
-		['localhost', 11211]
-	];
+	// Memcached servers to use. Read more: http://www.php.net/manual/en/memcached.addservers.php
+	$config['cache']['memcached'] = array(
+		array('localhost', 11211)
+	);
+
+	// Redis server to use. Location, port, password, database id.
+	// Note that vichan may clear the database at times, so you may want to pick a database id just for
+	// vichan to use.
+	$config['cache']['redis'] = array('localhost', 6379, '', 1);
 
 	// EXPERIMENTAL: Should we cache configs? Warning: this changes board behaviour, i'd say, a lot.
 	// If you have any lambdas/includes present in your config, you should move them to instance-functions.php
@@ -1197,9 +1193,13 @@
         		'<iframe width="%%tb_width%%" height="%%tb_height%%" src="https://odysee.com/$/embed/$1" allowfullscreen></iframe>'
 		),
 		array(
-                        '/^https?:\/\/(www\.)?kick\.com\/([a-zA-Z0-9_]+)(\?[^\'"<>]*)?$/i',
-                        '<iframe src="https://player.kick.com/$2" height="%%tb_height%%" width="%%tb_width%%" frameborder="0" scrolling="no" allowfullscreen="true"></iframe>'
-                ),
+				'/^https?:\/\/(www\.)?kick\.com\/([a-zA-Z0-9_]+)(\?[^\'"<>]*)?$/i',
+				'<iframe src="https://player.kick.com/$2" height="%%tb_height%%" width="%%tb_width%%" frameborder="0" scrolling="no" allowfullscreen="true"></iframe>'
+		),
+		array(
+			'/^https?:\/\/(www\.)?tiktok\.com\/@([a-zA-Z0-9_.]+)\/video\/([0-9]+)(\?[^\'"<>]*)?$/i',
+			'<blockquote class="tiktok-embed" cite="https://www.tiktok.com/@$2/video/$3" data-video-id="$3" style="max-width: %%tb_width%%px;min-width: 325px;"><section></section></blockquote><script async src="https://www.tiktok.com/embed.js"></script>'
+		),
 		/*
   		//Both TikTok and Instagram are commented out since they contain some extra scripting you might not want natively on your website.
 		array(
@@ -1410,7 +1410,7 @@
 
 	// Board directory, followed by a forward-slash (/).
 	$config['board_path'] = 'channel/%s/';
-	 // This is the path to the board directory, relative to the root directory. you need to change this if you change the board_path
+	// This is the path to the board directory, relative to the root directory. you need to change this if you change the board_path
     $config['board_prefix'] = 'channel/';
 	// Misc directories.
 	$config['dir']['img'] = 'src/';

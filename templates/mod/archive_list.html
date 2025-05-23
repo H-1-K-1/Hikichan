@@ -1,42 +1,41 @@
 {% if config.mod_archive.threads and mod and mod|hasPermission(config.view_mod_archive) %}
 <p style="text-align: center">
-    <a id="unimportant" href="{% if mod %}{{ config.file_mod }}?{% endif %}{{ config.root }}{{ board.dir }}{{ config.dir.mod_archive }}">[{% trans %}View Mod Archive{% endtrans %}]</a>
+    <a id="unimportant" href="{% if mod %}{{ config.file_mod }}?/{% endif %}{{ board.dir }}{{ config.dir.mod_archive }}">[{% trans %}View Mod Archive{% endtrans %}]</a>
 </p>
 {% endif %}
 {% if config.feature.threads %}
 <p style="text-align: center">
-    <a id="unimportant" href="{% if mod %}{{ config.file_mod }}?{% endif %}{{ config.root }}{{ board.dir }}{{ config.dir.featured }}">[{% trans %}Featured Thread Archive{% endtrans %}]</a>
+    <a id="unimportant" href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.featured }}{% else %}{{ config.root }}{{ board.dir }}{{ config.dir.featured }}{% endif %}">[{% trans %}Featured Thread Archive{% endtrans %}]</a>
 </p>
 {% endif %}
 <p style="text-align: center">
     <b>{% trans 'Displaying' %} {{ thread_count }} {% trans 'expired threads' %}{% if config.archive.lifetime %} {% trans 'from the past' %} {{ config.archive.lifetime }}{% endif %}</b><br/>
     <small>Vote for a thread to be added to the featured archive</small>
 </p>
-<input type="text" id="search-input" placeholder="{% trans %}Search{% endtrans %}..." 
-    style="margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
+<input type="text" id="search-input" placeholder="{% trans %}Search{% endtrans %}..." style="margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
 <table id="archive-list" class="archive-list modlog">
     <thead>
         <tr>
             <th width='80px'>Post #</th>
             <th width='100px'>Image</th>
             <th>Snippet</th>
-            <th width='50px'> </th>
+            <th width='50px'></th>
             <th width='50px'>Votes</th>
             {% if mod and post.mod|hasPermission(config.mod.feature_archived_threads, board.uri) %}
-                <th width='80px'> </th>
+                <th width='80px'></th>
             {% endif %}
             {% if mod and post.mod|hasPermission(config.mod.add_to_mod_archive, board.uri) %}
-                <th width='80px'> </th>
+                <th width='80px'></th>
             {% endif %}
             {% if mod and post.mod|hasPermission(config.mod.delete_archived_threads, board.uri) %}
-                <th width='80px'> </th>
+                <th width='80px'></th>
             {% endif %}
         </tr>
     </thead>
     <tbody>
         {% for thread in archive %}
             <tr>
-                <td>{{ thread.id }}</td>
+                <td>{{ thread.original_thread_id }}</td>
                 <td>
                     {% if thread.image_url %}
                         <img src="{{ thread.image_url }}" alt="Thread Image" style="max-width: 80px; max-height: 80px;" />
@@ -52,7 +51,7 @@
                             {{ thread.votes }}
                             <form action="{{ config.post_url }}" method="post" class="archiveForm" style="float: right">
                                 <input type="hidden" name="board" value="{{ board.uri }}" />
-                                <input type="hidden" name="thread_id" value="{{ thread.id }}">
+                                <input type="hidden" name="thread_id" value="{{ thread.original_thread_id }}">
                                 <input type="hidden" name="archive_vote" value="1">
                                 <a href="#" onclick="confirm('Press OK to vote for this thread to be added to featured archive.')?this.parentNode.submit():false;">[+]</a>
                             </form>
@@ -105,36 +104,18 @@
         {% endfor %}
     </tbody>
 </table>
-{% if mod %}
-    <div style="text-align: center; margin-top: 20px;">
-        {% if current_page > 1 %}
-            <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}">« Previous</a>
+<div style="text-align: center; margin-top: 20px;">
+    {% if current_page > 1 %}
+        <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% else %}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% endif %}">« Previous</a>
+    {% endif %}
+    {% for page in 1..total_pages %}
+        {% if page == current_page %}
+            <strong>{{ page }}</strong>
+        {% else %}
+            <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}{% else %}{{ page == 1 ? '' : page ~ '.html' }}{% endif %}">{{ page }}</a>
         {% endif %}
-        {% for page in 1..total_pages %}
-            {% if page == current_page %}
-                <strong>{{ page }}</strong>
-            {% else %}
-                <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}">{{ page }}</a>
-            {% endif %}
-        {% endfor %}
-        {% if current_page < total_pages %}
-            <a href="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}">Next »</a>
-        {% endif %}
-    </div>
-{% else %}
-    <div style="text-align: center; margin-top: 20px;">
-        {% if current_page > 1 %}
-            <a href="{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}">« Previous</a>
-        {% endif %}
-        {% for page in 1..total_pages %}
-            {% if page == current_page %}
-                <strong>{{ page }}</strong>
-            {% else %}
-                <a href="{{ page == 1 ? '' : page ~ '.html' }}">{{ page }}</a>
-            {% endif %}
-        {% endfor %}
-        {% if current_page < total_pages %}
-            <a href="{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}">Next »</a>
-        {% endif %}
-    </div>
-{% endif %}
+    {% endfor %}
+    {% if current_page < total_pages %}
+        <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% else %}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% endif %}">Next »</a>
+    {% endif %}
+</div>
