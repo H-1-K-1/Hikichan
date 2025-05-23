@@ -9,6 +9,11 @@ $queries_per_minutes = $config['search']['queries_per_minutes'];
 $queries_per_minutes_all = $config['search']['queries_per_minutes_all'];
 $search_limit = $config['search']['search_limit'];
 
+// Pagination setup
+$page = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 ? (int)$_GET['page'] : 1;
+$archive_page = isset($_GET['archive_page']) && is_numeric($_GET['archive_page']) && $_GET['archive_page'] > 0 ? (int)$_GET['archive_page'] : 1;
+$results_per_page = 10;
+
 //Is there a whitelist? Let's list those boards and if not, let's list everything.
 if (isset($config['search']['boards'])) {
     $boards = $config['search']['boards'];
@@ -131,22 +136,17 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
 
     $like = str_replace('%', '%%', $like);
 
-    // Unified posts table query
-    $query = prepare("SELECT * FROM ``posts`` WHERE `board` = :board AND " . $like . " ORDER BY `time` DESC LIMIT :limit");
+    // Pagination for regular posts
+    $offset = ($page - 1) * $results_per_page;
+    $query = prepare("SELECT SQL_CALC_FOUND_ROWS * FROM ``posts`` WHERE `board` = :board AND " . $like . " ORDER BY `time` DESC LIMIT :limit OFFSET :offset");
     $query->bindValue(':board', $_GET['board']);
-    $query->bindValue(':limit', $search_limit, PDO::PARAM_INT);
+    $query->bindValue(':limit', $results_per_page, PDO::PARAM_INT);
+    $query->bindValue(':offset', $offset, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
-    if($query->rowCount() == $search_limit) {
-        _syslog(LOG_WARNING, 'Query too broad.');
-        $body .= '<p class="unimportant" style="text-align:center">('._('Query too broad.').')</p>';
-        echo Element($config['file_page_template'], Array(
-            'config'=>$config,
-            'title'=>'Search',
-            'body'=>$body,
-        ));
-        exit;
-    }
+    $total_query = query("SELECT FOUND_ROWS()");
+    $total_results = $total_query->fetchColumn();
+    $total_pages = ceil($total_results / $results_per_page);
 
     $temp = '';
     while($post = $query->fetch()) {
@@ -160,12 +160,25 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
 
     if(!empty($temp))
         $_body .= '<fieldset><legend>' .
-                sprintf(ngettext('%d result in', '%d results in', $query->rowCount()), 
-                $query->rowCount()) . ' <a href="/' .
+                sprintf(ngettext('%d result in', '%d results in', $total_results), 
+                $total_results) . ' <a href="/' .
                 sprintf($config['board_path'], $board['uri']) . $config['file_index'] .
         '">' .
         sprintf($config['board_abbreviation'], $board['uri']) . ' - ' . $board['title'] .
         '</a></legend>' . $temp . '</fieldset>';
+
+    // Pagination links for regular results
+    if ($total_pages > 1) {
+        $_body .= '<div class="pagination">';
+        for ($i = 1; $i <= $total_pages; $i++) {
+            if ($i == $page) {
+                $_body .= " <strong>$i</strong> ";
+            } else {
+                $_body .= ' <a href="?search=' . urlencode($_GET['search']) . '&board=' . urlencode($_GET['board']) . '&page=' . $i . '">' . $i . '</a> ';
+            }
+        }
+        $_body .= '</div>';
+    }
 
     // --- ARCHIVE SEARCH ---
     // We'll search the 'snippet' field in archive_threads
@@ -180,41 +193,61 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
 
     $archive_like = str_replace('%', '%%', $archive_like);
 
-    $archive_query = prepare("SELECT * FROM `archive_threads` WHERE `board_uri` = :board AND " . $archive_like . " ORDER BY `lifetime` DESC LIMIT :limit");
+    // Pagination for archive results
+    $archive_offset = ($archive_page - 1) * $results_per_page;
+    $archive_query = prepare("SELECT SQL_CALC_FOUND_ROWS * FROM `archive_threads` WHERE `board_uri` = :board AND " . $archive_like . " ORDER BY `lifetime` DESC LIMIT :limit OFFSET :offset");
     $archive_query->bindValue(':board', $_GET['board']);
-    $archive_query->bindValue(':limit', $search_limit, PDO::PARAM_INT);
+    $archive_query->bindValue(':limit', $results_per_page, PDO::PARAM_INT);
+    $archive_query->bindValue(':offset', $archive_offset, PDO::PARAM_INT);
     $archive_query->execute() or error(db_error($archive_query));
+
+    $archive_total_query = query("SELECT FOUND_ROWS()");
+    $archive_total_results = $archive_total_query->fetchColumn();
+    $archive_total_pages = ceil($archive_total_results / $results_per_page);
 
     $archive_temp = '';
     while($arch = $archive_query->fetch()) {
-		$archive_temp .= '<div class="archiveresult" style="display:flex;align-items:center;">';
+        $archive_temp .= '<div class="archiveresult" style="display:flex;align-items:center;">';
 
-		// Show thumbnail if available
-		if (!empty($arch['first_image'])) {
-			$thumb_url = sprintf(
-				'/hikichan/channel/%s/archive/%s/thumb/%s',
-				urlencode($_GET['board']),
-				$arch['path'],
-				$arch['first_image']
-			);
-			$archive_temp .= '<img src="' . htmlspecialchars($thumb_url) . '" alt="thumb" style="max-width:100px;max-height:100px;margin-right:10px;">';
-		}
+        // Show thumbnail if available
+        if (!empty($arch['first_image'])) {
+            $thumb_url = sprintf(
+                '/hikichan/channel/%s/archive/%s/thumb/%s',
+                urlencode($_GET['board']),
+                $arch['path'],
+                $arch['first_image']
+            );
+            $archive_temp .= '<img src="' . htmlspecialchars($thumb_url) . '" alt="thumb" style="max-width:100px;max-height:100px;margin-right:10px;">';
+        }
 
-		$archive_temp .= '<div>';
-		$archive_temp .= '<b>Archived Thread No.' . htmlspecialchars($arch['board_id']) . '</b>: ';
-		$archive_temp .= $arch['snippet']; // Output as raw HTML
-		$archive_url = sprintf(
-			'/hikichan/channel/%s/archive/%s/res/%d.html',
-			urlencode($_GET['board']),
-			$arch['path'],
-			$arch['board_id']
-		);
-		$archive_temp .= ' <a href="' . $archive_url . '">[View]</a>';
-		$archive_temp .= '</div></div><hr/>';
-	}
+        $archive_temp .= '<div>';
+        $archive_temp .= '<b>Archived Thread No.' . htmlspecialchars($arch['board_id']) . '</b>: ';
+        $archive_temp .= $arch['snippet']; // Output as raw HTML
+        $archive_url = sprintf(
+            '/hikichan/channel/%s/archive/%s/res/%d.html',
+            urlencode($_GET['board']),
+            $arch['path'],
+            $arch['board_id']
+        );
+        $archive_temp .= ' <a href="' . $archive_url . '">[View]</a>';
+        $archive_temp .= '</div></div><hr/>';
+    }
 
     if(!empty($archive_temp))
         $_body .= '<fieldset><legend>Archived Threads</legend>' . $archive_temp . '</fieldset>';
+
+    // Pagination links for archive results
+    if ($archive_total_pages > 1) {
+        $_body .= '<div class="pagination">';
+        for ($i = 1; $i <= $archive_total_pages; $i++) {
+            if ($i == $archive_page) {
+                $_body .= " <strong>$i</strong> ";
+            } else {
+                $_body .= ' <a href="?search=' . urlencode($_GET['search']) . '&board=' . urlencode($_GET['board']) . '&archive_page=' . $i . '">' . $i . '</a> ';
+            }
+        }
+        $_body .= '</div>';
+    }
 
     $body .= '<hr/>';
     if(!empty($_body))

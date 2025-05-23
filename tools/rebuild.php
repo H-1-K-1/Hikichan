@@ -19,10 +19,10 @@
  *
  */
 
-require dirname(__FILE__) . '/inc/cli.php';
+require dirname(__FILE__) . '/../inc/cli.php';
 
-require_once("inc/bans.php");
-require_once("inc/archive.php");
+require_once(dirname(__FILE__) . '/../inc/bans.php');
+require_once(dirname(__FILE__) . '/../inc/archive.php');
 
 $start = microtime(true);
 
@@ -37,20 +37,20 @@ $options['quick'] = isset($opts['quick']);
 $options['full'] = isset($opts['full']) || isset($opts['f']);
 
 if(!$options['quiet'])
-	echo "== Tinyboard + vichan {$config['version']} ==\n";	
+    echo "== Tinyboard + vichan {$config['version']} ==\n";	
 
 if(!$options['quiet'])
-	echo "Clearing template cache...\n";
+    echo "Clearing template cache...\n";
 
 load_twig();
 $twig->getCache()->clear();
 
 if(!$options['quiet'])
-	echo "Regenerating theme files...\n";
+    echo "Regenerating theme files...\n";
 rebuildThemes('all');
 
 if(!$options['quiet'])
-	echo "Generating Javascript file...\n";
+    echo "Generating Javascript file...\n";
 buildJavascript();
 
 $main_js = $config['file_script'];
@@ -58,53 +58,53 @@ $main_js = $config['file_script'];
 $boards = listBoards();
 
 foreach($boards as &$board) {
-	if($options['board'] && $board['uri'] != $options['board'])
-		continue;
-	
-	if(!$options['quiet'])
-		echo "Opening board /{$board['uri']}/...\n";
-	// Reset locale to global locale
-	$config['locale'] = $global_locale;
-	openBoard($board['uri']);
-	$config['try_smarter'] = false;
-	
-	if($config['file_script'] != $main_js) {
-		// different javascript file
-		if(!$options['quiet'])
-			echo "Generating Javascript file...\n";
-		buildJavascript();
-	}
-	
-	
-	if(!$options['quiet'])
-		echo "Creating index pages...\n";
-	buildIndex();
-	
-	if($options['quick'])
-		continue; // do no more
-	
-	if($options['full']) {
-		$query = query(sprintf("SELECT `id` FROM ``posts_%s``", $board['uri'])) or error(db_error());
-		while($post = $query->fetch()) {
-			if(!$options['quiet'])
-				echo "Rebuilding #{$post['id']}...\n";
-			rebuildPost($post['id']);
-		}
-	}
-	
-	$query = query(sprintf("SELECT `id` FROM ``posts_%s`` WHERE `thread` IS NULL", $board['uri'])) or error(db_error());
-	while($post = $query->fetch()) {
-		if(!$options['quiet'])
-			echo "Rebuilding #{$post['id']}...\n";
-		buildThread($post['id']);
-	}
-	// Rebuild Archive Index for Board
-	Archive::RebuildArchiveIndexes();
+    if($options['board'] && $board['uri'] != $options['board'])
+        continue;
+    
+    if(!$options['quiet'])
+        echo "Opening board /{$board['uri']}/...\n";
+    // Reset locale to global locale
+    $config['locale'] = $global_locale;
+    openBoard($board['uri']);
+    $config['try_smarter'] = false;
+    
+    if($config['file_script'] != $main_js) {
+        // different javascript file
+        if(!$options['quiet'])
+            echo "Generating Javascript file...\n";
+        buildJavascript();
+    }
+    
+    if(!$options['quiet'])
+        echo "Creating index pages...\n";
+    buildIndex();
+    
+    if($options['quick'])
+        continue; // do no more
+    
+    if($options['full']) {
+        // Unified posts table: select all posts for this board
+        $query = query("SELECT `id` FROM ``posts`` WHERE `board` = " . $pdo->quote($board['uri'])) or error(db_error());
+        while($post = $query->fetch()) {
+            if(!$options['quiet'])
+                echo "Rebuilding #{$post['id']}...\n";
+            rebuildPost($post['id']);
+        }
+    }
+    
+    // Unified posts table: select all threads for this board
+    $query = query("SELECT `id` FROM ``posts`` WHERE `board` = " . $pdo->quote($board['uri']) . " AND `thread` IS NULL") or error(db_error());
+    while($post = $query->fetch()) {
+        if(!$options['quiet'])
+            echo "Rebuilding #{$post['id']}...\n";
+        buildThread($post['id']);
+    }
+    // Rebuild Archive Index for Board
+    Archive::RebuildArchiveIndexes();
 }
 
 if(!$options['quiet'])
-	printf("Complete! Took %g seconds\n", microtime(true) - $start);
+    printf("Complete! Took %g seconds\n", microtime(true) - $start);
 
 unset($board);
 modLog('Rebuilt everything using tools/rebuild.php');
-
