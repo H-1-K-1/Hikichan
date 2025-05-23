@@ -211,24 +211,28 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
 
         // Show thumbnail if available
         if (!empty($arch['first_image'])) {
-            $thumb_url = sprintf(
-                '/hikichan/channel/%s/archive/%s/thumb/%s',
-                urlencode($_GET['board']),
-                $arch['path'],
-                $arch['first_image']
-            );
-            $archive_temp .= '<img src="' . htmlspecialchars($thumb_url) . '" alt="thumb" style="max-width:100px;max-height:100px;margin-right:10px;">';
-        }
+			$thumb_url = sprintf(
+				'%s/%s/%s/archive/%s/thumb/%s',
+				rtrim($config['root'], '/'),
+				trim($config['board_prefix'], '/'),
+				urlencode($_GET['board']),
+				$arch['path'],
+				$arch['first_image']
+			);
+			$archive_temp .= '<img src="' . htmlspecialchars($thumb_url) . '" alt="thumb" style="max-width:100px;max-height:100px;margin-right:10px;">';
+		}
 
         $archive_temp .= '<div>';
         $archive_temp .= '<b>Archived Thread No.' . htmlspecialchars($arch['board_id']) . '</b>: ';
         $archive_temp .= $arch['snippet']; // Output as raw HTML
-        $archive_url = sprintf(
-            '/hikichan/channel/%s/archive/%s/res/%d.html',
-            urlencode($_GET['board']),
-            $arch['path'],
-            $arch['board_id']
-        );
+       	$archive_url = sprintf(
+			'%s/%s/%s/archive/%s/res/%d.html',
+			rtrim($config['root'], '/'),
+			trim($config['board_prefix'], '/'),
+			urlencode($_GET['board']),
+			$arch['path'],
+			$arch['original_thread_id']
+		);
         $archive_temp .= ' <a href="' . $archive_url . '">[View]</a>';
         $archive_temp .= '</div></div><hr/>';
     }
