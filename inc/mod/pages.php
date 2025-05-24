@@ -2995,10 +2995,6 @@ function mod_recent_posts(Context $ctx, $lim) {
 	$query->bindValue(':last_time', $last_time);
 	$query->execute() or error(db_error($query));
 	$posts = $query->fetchAll(PDO::FETCH_ASSOC);
-	$query = prepare($query);
-	$query->bindValue(':last_time', $last_time);
-	$query->execute() or error(db_error($query));
-	$posts = $query->fetchAll(PDO::FETCH_ASSOC);
 
 	foreach ($posts as &$post) {
 		openBoard($post['board']);

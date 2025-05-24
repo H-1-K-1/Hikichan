@@ -1,4 +1,4 @@
-vichan - A lightweight and full featured PHP imageboard.
+Hikichan - A lightweight and full featured PHP imageboard derived from Vichan and Tinyboard, focused on scalability, more features, and bug fixes.
 ========================================================
 
 **Please do not contact Fredrick Brennan in regards to vichan issues.**
@@ -14,7 +14,11 @@ I intent to make a lot of changes to the code of tinyboard and vichan. We are in
 Unified posts table has been implemented, now we test until everything works.
 
 ### Update
-I moved the archive_b etc... boards to archive_threads table for all the boards and it seems to work.
+~~unified table for archive works~~
+~~unified tabled for posts works~~
+~~deletion of items in posts table works~~
+~~deletion of threads works~~
+
 
 About
 ------------
