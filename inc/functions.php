@@ -419,6 +419,7 @@ function setupBoard($array) {
 	$board['dir'] = sprintf($config['board_path'], $board['uri']);
 	$board['url'] = sprintf($config['board_abbreviation'], $board['uri']);
 	$board['dir_no_slash'] = rtrim(sprintf($config['board_path'], $board['uri']), '/');
+	$board['prefix'] = rtrim(dirname($config['board_path']), '/') . '/'; // Result: 'channel/'
 
 	loadConfig();
 

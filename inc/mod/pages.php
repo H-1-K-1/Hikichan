@@ -589,7 +589,7 @@ function mod_edit_board(Context $ctx, $boardName) {
             $config['file_mod_board'],
             [
                 'board' => $board, 
-                'token' => make_secure_link_token('edit/' .  $config['board_prefix'] . $board['uri'])
+                'token' => make_secure_link_token('edit/' .  $board['prefix'] . $board['uri'])
             ],
             $mod
         );
@@ -3670,7 +3670,7 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
     if (!$config['archive']['threads']) return;
     if (!openBoard($boardName)) error($config['error']['noboard']);
 
-    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $config['board_prefix'] . $board['uri'] . '/archive/')) {
+    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/archive/')) {
         if (isset($_POST['feature'], $_POST['id'])) {
             if (!hasPermission($config['mod']['feature_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::featureThread($_POST['id'], $board['uri']);
@@ -3706,7 +3706,7 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
             'current_page' => $page_no,
             'total_pages' => $total_pages,
             'mod' => $mod,
-            'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/archive/')
+            'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/archive/')
         ],
         true
     );
@@ -3718,7 +3718,7 @@ function mod_view_archive_featured(Context $context, $boardName) {
     if (!$config['feature']['threads']) return;
     if (!openBoard($boardName)) error($config['error']['noboard']);
 
-    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $config['board_prefix'] . $board['uri'] . '/featured/')) {
+    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/featured/')) {
         if (isset($_POST['delete'], $_POST['id'])) {
             if (!hasPermission($config['mod']['delete_featured_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::deleteFeatured($_POST['id'], $board['uri']);
@@ -3742,7 +3742,7 @@ function mod_view_archive_featured(Context $context, $boardName) {
             'archive' => $archive_items,
             'board' => $board,
             'mod' => $mod,
-            'token' => make_secure_link_token($config['board_prefix'] . $board['uri'] . '/featured/')
+            'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/featured/')
         ],
         true
     );
@@ -3755,7 +3755,7 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
     if (!hasPermission($config['mod']['view_mod_archive'], $board['uri'])) error($config['error']['noaccess']);
     if (!openBoard($boardName)) error($config['error']['noboard']);
 
-    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $config['board_prefix'] . 'channel/' . $board['uri'] . '/mod_archive/')) {
+    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/mod_archive/')) {
         if (isset($_POST['delete'], $_POST['id'])) {
             if (!hasPermission($config['mod']['remove_from_mod_archive'], $board['uri'])) error($config['error']['noaccess']);
             Archive::deleteFeatured($_POST['id'], $board['uri'], true);
@@ -3780,7 +3780,7 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
             'is_mod_archive' => true,
             'board' => $board,
             'mod' => $mod,
-            'token' => make_secure_link_token($config['board_prefix'] . 'channel/' . $board['uri'] . '/mod_archive/')
+			'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/mod_archive/')
         ],
         true
     );

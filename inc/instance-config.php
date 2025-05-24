@@ -79,9 +79,10 @@ $config['additional_javascript'][] = 'js/expand-audio.js';
 	// available stylesheets (or create your own).
 	$config['stylesheets'] = [
 		// Default; there is no additional/custom stylesheet for this.
-		'Yotsuba B' => '',
+		'Yotsuba B' => 'style.css',
 		'Yotsuba' => 'yotsuba.css',
-		'Tomorrow' => 'tomorrow.css'
+		'Tomorrow' => 'tomorrow.css',
+		'Hiki' => 'hiki.css'
 	];
 	// $config['stylesheets']['Futaba'] = 'futaba.css';
 	// $config['stylesheets']['Dark'] = 'dark.css';

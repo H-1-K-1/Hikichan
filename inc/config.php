@@ -1410,8 +1410,6 @@
 
 	// Board directory, followed by a forward-slash (/).
 	$config['board_path'] = 'channel/%s/';
-	// This is the path to the board directory, relative to the root directory. you need to change this if you change the board_path
-    $config['board_prefix'] = 'channel/';
 	// Misc directories.
 	$config['dir']['img'] = 'src/';
 	$config['dir']['thumb'] = 'thumb/';
@@ -1934,7 +1932,7 @@
 	// Public post search settings
 	$config['search'] = [
 		// Enable the search form
-		'enable' => false,
+		'enable' => true,
 		// Maximal number of queries per IP address per minutes
 		'queries_per_minutes' => [ 15, 2 ],
 		// Global maximal number of queries per minutes

@@ -214,7 +214,7 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
 			$thumb_url = sprintf(
 				'%s/%s/%s/archive/%s/thumb/%s',
 				rtrim($config['root'], '/'),
-				trim($config['board_prefix'], '/'),
+				trim($board['prefix'], '/'),
 				urlencode($_GET['board']),
 				$arch['path'],
 				$arch['first_image']
@@ -228,7 +228,7 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
        	$archive_url = sprintf(
 			'%s/%s/%s/archive/%s/res/%d.html',
 			rtrim($config['root'], '/'),
-			trim($config['board_prefix'], '/'),
+			trim($board['prefix'], '/'),
 			urlencode($_GET['board']),
 			$arch['path'],
 			$arch['original_thread_id']
