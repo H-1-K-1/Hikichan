@@ -2618,6 +2618,9 @@ function mod_rebuild(Context $ctx) {
     $config = $ctx->get('config');
     $cache = $ctx->get(CacheDriver::class);
 
+    // Unified batch size for both threads and replies
+    $batch_size = 25; // Change this value as needed
+
     if (!hasPermission($config['mod']['rebuild']))
         error($config['error']['noaccess']);
 
@@ -2630,7 +2633,10 @@ function mod_rebuild(Context $ctx) {
             'current_board' => null,
             'threads' => [],
             'thread_index' => 0,
-            'step' => 0
+            'step' => 0,
+            'replies' => [],
+            'reply_index' => 0,
+            'current_thread' => null
         ];
 
         foreach (listBoards() as $board) {
@@ -2643,7 +2649,6 @@ function mod_rebuild(Context $ctx) {
             'rebuild_cache' => isset($_POST['rebuild_cache']),
             'rebuild_javascript' => isset($_POST['rebuild_javascript']),
             'rebuild_index' => isset($_POST['rebuild_index']),
-            'rebuild_thread' => isset($_POST['rebuild_thread']),
             'rebuild_themes' => isset($_POST['rebuild_themes']),
             'rebuild_posts' => isset($_POST['rebuild_posts'])
         ];
@@ -2684,7 +2689,7 @@ function mod_rebuild(Context $ctx) {
         }
 
         // Check if all boards are processed
-        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads'])) {
+        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads']) && empty($progress['replies'])) {
             unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
             $log[] = 'All boards processed.';
             mod_page(_('Rebuild complete'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
@@ -2692,7 +2697,7 @@ function mod_rebuild(Context $ctx) {
         }
 
         // If no threads are queued for the current board, move to the next board
-        if (empty($progress['threads']) && $progress['step'] < count($progress['boards'])) {
+        if (empty($progress['threads']) && empty($progress['replies']) && $progress['step'] < count($progress['boards'])) {
             $board_uri = $progress['boards'][$progress['step']];
             $progress['current_board'] = $board_uri;
             openBoard($board_uri);
@@ -2737,70 +2742,79 @@ function mod_rebuild(Context $ctx) {
                 $progress['threads'][] = $post['id'];
             }
             $progress['thread_index'] = 0;
+            $progress['replies'] = [];
+            $progress['reply_index'] = 0;
+            $progress['current_thread'] = null;
 
             if (empty($progress['threads'])) {
                 $progress['step']++;
             }
         }
 
-        // Process threads
-        if (!empty($progress['threads'])) {
+        // Process replies in batches if requested
+        if ($options['rebuild_posts'] && !empty($progress['replies'])) {
             $board_uri = $progress['current_board'];
             openBoard($board_uri);
 
-            if ($options['rebuild_thread']) {
-                // Incremental rebuild (in steps)
-                $batch_size = 25;
-                $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
+            $replies_to_process = array_slice($progress['replies'], $progress['reply_index'], $batch_size);
 
-                foreach ($threads_to_process as $thread_id) {
-                    $log[] = 'Rebuilding thread #' . $thread_id;
-                    buildThread($thread_id);
+            foreach ($replies_to_process as $reply_id) {
+                $log[] = 'Rebuilding reply #' . $reply_id;
+                rebuildPost($reply_id);
+            }
 
-                    // Rebuild replies if requested
-                    if ($options['rebuild_posts']) {
-                        $reply_query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
-                        $reply_query->bindValue(':board', $board_uri);
-                        $reply_query->bindValue(':thread', $thread_id);
-                        $reply_query->execute() or error(db_error($reply_query));
-                        while ($reply = $reply_query->fetch(PDO::FETCH_ASSOC)) {
-                            $log[] = 'Rebuilding reply #' . $reply['id'];
-                            rebuildPost($reply['id']);
-                        }
+            $progress['reply_index'] += $batch_size;
+
+            // If all replies for the current thread are processed, clear and move to next thread
+            if ($progress['reply_index'] >= count($progress['replies'])) {
+                $progress['replies'] = [];
+                $progress['reply_index'] = 0;
+                $progress['current_thread'] = null;
+            }
+
+            // Optional: sleep to reduce server load
+            usleep(100000); // 0.1 second
+        }
+        // Always process threads in batches
+        elseif (!empty($progress['threads'])) {
+            $board_uri = $progress['current_board'];
+            openBoard($board_uri);
+
+            $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
+
+            foreach ($threads_to_process as $thread_id) {
+                $log[] = 'Rebuilding thread #' . $thread_id;
+                buildThread($thread_id);
+
+                // If rebuilding replies, queue them for batch processing
+                if ($options['rebuild_posts']) {
+                    $reply_query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
+                    $reply_query->bindValue(':board', $board_uri);
+                    $reply_query->bindValue(':thread', $thread_id);
+                    $reply_query->execute() or error(db_error($reply_query));
+                    $progress['replies'] = [];
+                    while ($reply = $reply_query->fetch(PDO::FETCH_ASSOC)) {
+                        $progress['replies'][] = $reply['id'];
                     }
-                }
+                    $progress['reply_index'] = 0;
+                    $progress['current_thread'] = $thread_id;
 
-                $progress['thread_index'] += $batch_size;
-
-                // If all threads for the current board are processed, move to the next board
-                if ($progress['thread_index'] >= count($progress['threads'])) {
-                    $progress['threads'] = [];
-                    $progress['thread_index'] = 0;
-                    $progress['step']++;
+                    // Stop here to process replies in the next request
+                    break;
                 }
-            } else {
-                // Rebuild all threads at once
-                foreach ($progress['threads'] as $thread_id) {
-                    $log[] = 'Rebuilding thread #' . $thread_id;
-                    buildThread($thread_id);
+            }
 
-                    // Rebuild replies if requested
-                    if ($options['rebuild_posts']) {
-                        $reply_query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
-                        $reply_query->bindValue(':board', $board_uri);
-                        $reply_query->bindValue(':thread', $thread_id);
-                        $reply_query->execute() or error(db_error($reply_query));
-                        while ($reply = $reply_query->fetch(PDO::FETCH_ASSOC)) {
-                            $log[] = 'Rebuilding reply #' . $reply['id'];
-                            rebuildPost($reply['id']);
-                        }
-                    }
-                }
-                // Clear threads and move to the next board
+            $progress['thread_index'] += $batch_size;
+
+            // If all threads for the current board are processed, move to the next board
+            if ($progress['thread_index'] >= count($progress['threads'])) {
                 $progress['threads'] = [];
                 $progress['thread_index'] = 0;
                 $progress['step']++;
             }
+
+            // Optional: sleep to reduce server load
+            usleep(100000); // 0.1 second
         }
 
         // Refresh for next batch or board
@@ -2819,8 +2833,6 @@ function mod_rebuild(Context $ctx) {
         'token' => make_secure_link_token('rebuild')
     ], $mod);
 }
-
-
 
 function mod_reports(Context $ctx) {
 	global $mod;
