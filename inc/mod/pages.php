@@ -2730,8 +2730,8 @@ function mod_rebuild(Context $ctx) {
             // Always fetch threads for the board
             $log[] = 'Fetching threads for ' . $board_uri;
             $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
-			$query->bindValue(':board', $board_uri);
-			$query->execute() or error(db_error($query));
+            $query->bindValue(':board', $board_uri);
+            $query->execute() or error(db_error($query));
             $progress['threads'] = [];
             while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
                 $progress['threads'][] = $post['id'];
@@ -2750,12 +2750,24 @@ function mod_rebuild(Context $ctx) {
 
             if ($options['rebuild_thread']) {
                 // Incremental rebuild (in steps)
-                $batch_size = 5;
+                $batch_size = 25;
                 $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
 
                 foreach ($threads_to_process as $thread_id) {
                     $log[] = 'Rebuilding thread #' . $thread_id;
                     buildThread($thread_id);
+
+                    // Rebuild replies if requested
+                    if ($options['rebuild_posts']) {
+                        $reply_query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
+                        $reply_query->bindValue(':board', $board_uri);
+                        $reply_query->bindValue(':thread', $thread_id);
+                        $reply_query->execute() or error(db_error($reply_query));
+                        while ($reply = $reply_query->fetch(PDO::FETCH_ASSOC)) {
+                            $log[] = 'Rebuilding reply #' . $reply['id'];
+                            rebuildPost($reply['id']);
+                        }
+                    }
                 }
 
                 $progress['thread_index'] += $batch_size;
@@ -2771,6 +2783,18 @@ function mod_rebuild(Context $ctx) {
                 foreach ($progress['threads'] as $thread_id) {
                     $log[] = 'Rebuilding thread #' . $thread_id;
                     buildThread($thread_id);
+
+                    // Rebuild replies if requested
+                    if ($options['rebuild_posts']) {
+                        $reply_query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
+                        $reply_query->bindValue(':board', $board_uri);
+                        $reply_query->bindValue(':thread', $thread_id);
+                        $reply_query->execute() or error(db_error($reply_query));
+                        while ($reply = $reply_query->fetch(PDO::FETCH_ASSOC)) {
+                            $log[] = 'Rebuilding reply #' . $reply['id'];
+                            rebuildPost($reply['id']);
+                        }
+                    }
                 }
                 // Clear threads and move to the next board
                 $progress['threads'] = [];
