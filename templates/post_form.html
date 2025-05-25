@@ -94,8 +94,7 @@
 			<td>
 				<input type="text" name="captcha" autocomplete="off" />
 				<p><br />
-				<img src="" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
-					onclick="this.src = '{{ config.root }}inc/captcha/captcha.php?' + Math.random();">
+				<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
 				</p>
 				<p>Click the image to refresh.</p>
 			</td>
@@ -109,8 +108,7 @@
 				<td>
 					<input type="text" name="captcha" />
 					<p><br />
-					<img src="" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
-						onclick="this.src = '{{ config.root }}inc/captcha/captcha.php?' + Math.random();">
+					<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
 					</p>
 					<p>Click the image to refresh.</p>
 				</td>

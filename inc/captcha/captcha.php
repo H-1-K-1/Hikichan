@@ -6,12 +6,19 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
 
-// Generate a random 5-character alphanumeric string
-$chars = 'ABCDEFGHJKLMNPRSTUVWXYZabcdefghjkmnprstuvwxyz23456789';
-$captcha_text = substr(str_shuffle($chars), 0, 5);
+// If ?refresh=1 is set, force a new captcha
+if (isset($_GET['refresh']) && $_GET['refresh'] == '1') {
+    unset($_SESSION['captcha']);
+}
 
-// Store it in the session
-$_SESSION['captcha'] = $captcha_text;
+// Generate a random 5-character alphanumeric string if not set
+if (!isset($_SESSION['captcha'])) {
+    $chars = 'ABCDEFGHJKLMNPRSTUVWXYZabcdefghjkmnprstuvwxyz23456789';
+    $captcha_text = substr(str_shuffle($chars), 0, 5);
+    $_SESSION['captcha'] = $captcha_text;
+} else {
+    $captcha_text = $_SESSION['captcha'];
+}
 
 // Create image
 $img = imagecreatetruecolor(120, 40);

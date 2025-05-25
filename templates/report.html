@@ -16,8 +16,7 @@
 		<p class="captcha">{% trans %}To submit your report, please fill out the CAPTCHA below.{% endtrans %}</p>
 		<input type="text" name="captcha" />
 		<p class="captcha"><br />
-		<img src="" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
-			onclick="this.src = 'inc/captcha/captcha.php?' + Math.random();">
+		<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
 		</p class="captcha">
 		<p>Click the image to refresh.</p>
 	{% endif %}
