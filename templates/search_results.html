@@ -1,0 +1,54 @@
+{% if posts|length > 0 %}
+    <fieldset>
+        <legend>{{ total_results }} result{{ total_results != 1 ? 's' : '' }}</legend>
+        {% for post in posts %}
+            <div class="postresult">{{ post|raw }}</div>
+            <hr>
+        {% endfor %}
+    </fieldset>
+    {% if total_pages > 1 %}
+        <div class="pagination">
+            {% for i in 1..total_pages %}
+                {% if i == current_page %}
+                    <strong>{{ i }}</strong>
+                {% else %}
+                    <a href="?search={{ search|url_encode }}&board={{ board|url_encode }}&page={{ i }}{% if search_archive %}&search_archive=1{% endif %}">{{ i }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endif %}
+
+{% if archive_results|length > 0 %}
+    <fieldset>
+        <legend>Archived Threads</legend>
+        {% for arch in archive_results %}
+            <div class="archiveresult" style="display:flex;align-items:center;">
+                {% if arch.thumb_url %}
+                    <img src="{{ arch.thumb_url|e }}" alt="thumb" style="max-width:100px;max-height:100px;margin-right:10px;">
+                {% endif %}
+                <div>
+                    <b>Archived Thread No.{{ arch.board_id|e }}</b>:
+                    {{ arch.snippet|raw }}
+                    <a href="{{ arch.url|e }}">[View]</a>
+                </div>
+            </div>
+            <hr>
+        {% endfor %}
+    </fieldset>
+    {% if archive_total_pages > 1 %}
+        <div class="pagination">
+            {% for i in 1..archive_total_pages %}
+                {% if i == archive_current_page %}
+                    <strong>{{ i }}</strong>
+                {% else %}
+                    <a href="?search={{ search|url_encode }}&board={{ board|url_encode }}&archive_page={{ i }}{% if search_archive %}&search_archive=1{% endif %}">{{ i }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endif %}
+
+{% if posts|length == 0 and archive_results|length == 0 %}
+    <p style="text-align:center" class="unimportant">(No results.)</p>
+{% endif %}
