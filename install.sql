@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `antispam` (
 
 CREATE TABLE IF NOT EXISTS `posts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `board_id` int(11) DEFAULT NULL,
+  `board_id` int(11) NOT NULL, -- Per-board post number
   `board` varchar(255) NOT NULL,
   `thread` int(11) DEFAULT NULL,
   `subject` varchar(100) DEFAULT NULL,
@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS `posts` (
   KEY `time` (`time`),
   KEY `board_board_id` (`board`, `board_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `board_counters`
+--
+
+CREATE TABLE IF NOT EXISTS `board_counters` (
+  `board` VARCHAR(32) NOT NULL PRIMARY KEY,
+  `last_board_id` INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB;
 
 -- --------------------------------------------------------
 

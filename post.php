@@ -1289,18 +1289,17 @@ if (isset($_POST['delete'])) {
 
 	$post['num_files'] = sizeof($post['files']);
 
-	// Insert the post first
+	// Assign per-board post number using board_counters table
+	$query = prepare("INSERT INTO `board_counters` (`board`, `last_board_id`) VALUES (:board, 1)
+		ON DUPLICATE KEY UPDATE `last_board_id` = LAST_INSERT_ID(`last_board_id` + 1)");
+	$query->bindValue(':board', $board['uri']);
+	$query->execute() or error(db_error($query));
+	$next_board_id = (int)$pdo->lastInsertId();
+	$post['board_id'] = $next_board_id;
+
+	// Now insert the post
 	$post['id'] = $id = post($post);
 	$post['slug'] = slugify($post);
-
-	// Now assign board_id to match the post id
-	$query = prepare("UPDATE ``posts`` SET `board_id` = :board_id WHERE `id` = :id AND `board` = :board");
-	$query->bindValue(':board_id', $id, PDO::PARAM_INT);
-	$query->bindValue(':id', $id, PDO::PARAM_INT);
-	$query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
-	$query->execute() or error(db_error($query));
-
-	$post['board_id'] = $id;
 
 	insertFloodPost($post);
 
