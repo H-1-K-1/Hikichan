@@ -9,13 +9,60 @@
  * Usage:
  *   $config['additional_javascript'][] = 'js/jquery.min.js';
  *   $config['additional_javascript'][] = 'js/jquery-ui.custom.min.js'; // Optional; if you want the form to be draggable.
+ *   $config['additional_javascript'][] = 'js/file-selector.js'; // for settings to show up.
  *   $config['additional_javascript'][] = 'js/quick-reply.js';
  *
  */
 
 (function() {
-	var settings = new script_settings('quick-reply');
-	
+	// Only add options if Options panel is present
+	$(function() {
+		// Set defaults if not present
+		if (typeof localStorage.quickReplyFloatingLink === 'undefined') localStorage.quickReplyFloatingLink = 'true';
+		if (typeof localStorage.quickReplyHideAtTop === 'undefined') localStorage.quickReplyHideAtTop = 'true';
+		if (typeof localStorage.quickReplyShowEmbed === 'undefined') localStorage.quickReplyShowEmbed = 'false';
+		if (typeof localStorage.quickReplyShowRemote === 'undefined') localStorage.quickReplyShowRemote = 'false';
+
+		if (window.Options && Options.get_tab('general')) {
+			// Wait for file-selector to add its option, then insert after
+			setTimeout(function() {
+				var $fileSelectorLabel = $("#file-drag-drop").closest('label');
+				var quickReplyFieldset = $(
+					"<fieldset id='quick-reply-fs'><legend>"+_("Quick Reply")+"</legend>"
+					+ ("<label class='quick-reply-setting' id='quickReplyFloatingLink'><input type='checkbox' /> "+_('Show floating Quick Reply button')+"</label>")
+					+ ("<label class='quick-reply-setting' id='quickReplyHideAtTop'><input type='checkbox' /> "+_('Hide Quick Reply at top of page')+"</label>")
+					+ ("<label class='quick-reply-setting' id='quickReplyShowEmbed'><input type='checkbox' /> "+_('Show embed field in Quick Reply')+"</label>")
+					+ ("<label class='quick-reply-setting' id='quickReplyShowRemote'><input type='checkbox' /> "+_('Show remote upload in Quick Reply')+"</label>")
+					+ "</fieldset>"
+				);
+				if ($fileSelectorLabel.length) {
+					$fileSelectorLabel.after(quickReplyFieldset);
+				} else {
+					// fallback: append to general tab
+					Options.get_tab('general').content.append(quickReplyFieldset[0]);
+				}
+				// Sync UI with localStorage
+				if (localStorage.quickReplyFloatingLink === 'true') $('#quickReplyFloatingLink>input').prop('checked', true);
+				if (localStorage.quickReplyHideAtTop === 'true') $('#quickReplyHideAtTop>input').prop('checked', true);
+				if (localStorage.quickReplyShowEmbed === 'true') $('#quickReplyShowEmbed>input').prop('checked', true);
+				if (localStorage.quickReplyShowRemote === 'true') $('#quickReplyShowRemote>input').prop('checked', true);
+
+				$('.quick-reply-setting').on('change', function() {
+					var setting = $(this).attr('id');
+					localStorage[setting] = $(this).children('input').is(':checked');
+				});
+			}, 0);
+		}
+	});
+
+	// Helper to get quick-reply option
+	function getQuickReplySetting(key, fallback) {
+		if (typeof localStorage[key] !== 'undefined') {
+			return localStorage[key] === 'true';
+		}
+		return fallback;
+	}
+
 	var do_css = function() {
 		$('#quick-reply-css').remove();
 		
@@ -219,7 +266,7 @@
 					if ($td.find('input[name="file_url"]').length) {
 						$file_url = $td.find('input[name="file_url"]');
 						
-						if (settings.get('show_remote', false)) {
+						if (getQuickReplySetting('quickReplyShowRemote', false)) {
 							// Make a new row for it
 							var $newRow = $('<tr><td colspan="2"></td></tr>');
 						
@@ -243,7 +290,7 @@
 				}
 
 				// Disable embedding if configured so
-				if (!settings.get('show_embed', false) && $td.find('input[name="embed"]').length) {
+				if (!getQuickReplySetting('quickReplyShowEmbed', false) && $td.find('input[name="embed"]').length) {
 					$(this).remove();
 				}
 
@@ -255,24 +302,6 @@
 				// Remove upload selection
 				if ($td.is('#upload_selection')) {
 					$(this).remove();
-				}
-				
-				// Remove mod controls, because it looks shit.
-				if ($td.find('input[type="checkbox"]').length) {
-					var tr = this;
-					$td.find('input[type="checkbox"]').each(function() {
-						if ($(this).attr('name') == 'spoiler') {
-							$td.find('label').remove();
-							$(this).attr('id', 'q-spoiler-image');
-							$postForm.find('input[type="file"]').parent()
-								.removeAttr('colspan')
-								.after($('<td class="spoiler"></td>').append(this, ' ', $('<label for="q-spoiler-image">').text(_('Spoiler Image'))));
-						} else if ($(this).attr('name') == 'no_country') {
-							$td.find('label,input[type="checkbox"]').remove();
-						} else {
-							$(tr).remove();
-						}
-					});
 				}
 				
 				$td.find('small').hide();
@@ -362,7 +391,7 @@
 		$(window).trigger('quick-reply');
 	
 		$(window).ready(function() {
-			if (settings.get('hide_at_top', false)) {
+			if (getQuickReplySetting('quickReplyHideAtTop', false)) {
 				$(window).scroll(function() {
 					if ($(this).width() <= 400)
 						return;
@@ -406,7 +435,7 @@
 	});
 	
 	var floating_link = function() {
-		if (!settings.get('floating_link', true))
+		if (!getQuickReplySetting('quickReplyFloatingLink', true))
 			return;
 		$('<a href="javascript:void(0)" class="quick-reply-btn">'+_('Quick Reply')+'</a>')
 			.click(function() {
@@ -419,7 +448,7 @@
 		});
 	};
 	
-	if (settings.get('floating_link', true)) {
+	if (getQuickReplySetting('quickReplyFloatingLink', true)) {
 		$(window).ready(function() {
 			if($('div.banner').length == 0)
 				return;
@@ -436,7 +465,7 @@
 			
 			floating_link();
 			
-			if (settings.get('hide_at_top', true)) {
+			if (getQuickReplySetting('quickReplyHideAtTop', true)) {
 				$('.quick-reply-btn').hide();
 				
 				$(window).scroll(function() {

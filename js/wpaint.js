@@ -24,9 +24,37 @@ window.oekaki = (function(){
 
 var oekaki = {};
 
-oekaki.settings = new script_settings('wpaint');
-oekaki.height = oekaki.settings.get("height", 250);
-oekaki.width = oekaki.settings.get("width", 500);
+// Add oekaki (wpaint) options to the Options panel at the bottom
+$(function() {
+	if (window.Options && Options.get_tab('general')) {
+		setTimeout(function() {
+			if (!document.getElementById('oekakiOptions')) {
+				var oekakiHeight = localStorage.oekakiHeight || '250';
+				var oekakiWidth = localStorage.oekakiWidth || '500';
+				var $oekakiFieldset = $('<fieldset id="oekakiOptions"><legend>'+_('Oekaki (wPaint)')+'</legend>'
+					+ '<label class="oekaki-setting">'+_('Oekaki Height:')+' <input type="number" id="oekakiHeight" min="100" max="2000" value="'+oekakiHeight+'" style="width:80px;" /></label> '
+					+ '<label class="oekaki-setting">'+_('Oekaki Width:')+' <input type="number" id="oekakiWidth" min="100" max="2000" value="'+oekakiWidth+'" style="width:80px;" /></label>'
+					+ '</fieldset>');
+
+				// Place at the bottom of the general tab
+				var $generalTab = Options.get_tab('general').content;
+				$generalTab.append($oekakiFieldset);
+
+				// Sync UI with localStorage
+				$('#oekakiHeight').on('change input', function() {
+					localStorage.oekakiHeight = $(this).val();
+				});
+				$('#oekakiWidth').on('change input', function() {
+					localStorage.oekakiWidth = $(this).val();
+				});
+			}
+		}, 0);
+	}
+});
+
+// Use localStorage for settings
+oekaki.height = parseInt(localStorage.oekakiHeight || 250, 10);
+oekaki.width = parseInt(localStorage.oekakiWidth || 500, 10);
 
 function dataURItoBlob(dataURI) {
     var binary = atob(dataURI.split(',')[1]);

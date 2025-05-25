@@ -76,7 +76,7 @@ $(window).ready(function() {
 						}
 					} else if (post_response.redirect && post_response.id) {
 						if (!$(form).find('input[name="thread"]').length
-							|| (!settings.get('always_noko_replies', true) && !post_response.noko)) {
+							|| (!getAlwaysNokoRepliesSetting(true) && !post_response.noko)) {
 							document.location = post_response.redirect;
 						} else {
 							$.ajax({
@@ -138,3 +138,38 @@ $(window).ready(function() {
 		setup_form($('form#quick-reply'));
 	});
 });
+
+// Replace settings.get('always_noko_replies', true) with a localStorage-based option
+// Add the option to the Options panel if not already present
+
+// At the top, after var settings = new script_settings('ajax');
+$(function() {
+	if (window.Options && Options.get_tab('general')) {
+		setTimeout(function() {
+			if (!document.getElementById('alwaysNokoReplies')) {
+				var $nokoLabel = $('<label id="alwaysNokoReplies"><input type="checkbox" /> '+_('Always noko replies')+'</label>');
+				var $generalTab = Options.get_tab('general').content;
+				// Insert after the first fieldset (usually after image hover, before file-drag-drop)
+				var $firstFieldset = $generalTab.find('fieldset').first();
+				if ($firstFieldset.length) {
+					$firstFieldset.after($nokoLabel);
+				} else {
+					$generalTab.append($nokoLabel[0]);
+				}
+				if (typeof localStorage.alwaysNokoReplies === 'undefined') localStorage.alwaysNokoReplies = 'true';
+				if (localStorage.alwaysNokoReplies === 'true') $('#alwaysNokoReplies>input').prop('checked', true);
+				$('#alwaysNokoReplies>input').on('change', function() {
+					localStorage.alwaysNokoReplies = $(this).is(':checked');
+				});
+			}
+		}, 0);
+	}
+});
+
+// Helper function
+function getAlwaysNokoRepliesSetting(fallback) {
+	if (typeof localStorage.alwaysNokoReplies !== 'undefined') {
+		return localStorage.alwaysNokoReplies === 'true';
+	}
+	return fallback;
+}
