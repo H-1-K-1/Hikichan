@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `antispam` (
 
 CREATE TABLE IF NOT EXISTS `posts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `board_id` int(11) NOT NULL, -- Per-board post number
+  `board_id` int(11) DEFAULT NULL,
   `board` varchar(255) NOT NULL,
   `thread` int(11) DEFAULT NULL,
   `subject` varchar(100) DEFAULT NULL,

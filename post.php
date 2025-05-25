@@ -1289,16 +1289,18 @@ if (isset($_POST['delete'])) {
 
 	$post['num_files'] = sizeof($post['files']);
 
-	// Assign per-board post number
-	$query = prepare("SELECT MAX(`board_id`) FROM ``posts`` WHERE `board` = :board");
-	$query->bindValue(':board', $board['uri']);
-	$query->execute() or error(db_error($query));
-	$next_board_id = (int)$query->fetchColumn() + 1;
-	$post['board_id'] = $next_board_id;
-
-	// Now insert the post
+	// Insert the post first
 	$post['id'] = $id = post($post);
 	$post['slug'] = slugify($post);
+
+	// Now assign board_id to match the post id
+	$query = prepare("UPDATE ``posts`` SET `board_id` = :board_id WHERE `id` = :id AND `board` = :board");
+	$query->bindValue(':board_id', $id, PDO::PARAM_INT);
+	$query->bindValue(':id', $id, PDO::PARAM_INT);
+	$query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+	$query->execute() or error(db_error($query));
+
+	$post['board_id'] = $id;
 
 	insertFloodPost($post);
 
