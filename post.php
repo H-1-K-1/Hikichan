@@ -1289,12 +1289,17 @@ if (isset($_POST['delete'])) {
 
 	$post['num_files'] = sizeof($post['files']);
 
-	// Assign per-board post number using board_counters table
 	$query = prepare("INSERT INTO `board_counters` (`board`, `last_board_id`) VALUES (:board, 1)
-		ON DUPLICATE KEY UPDATE `last_board_id` = LAST_INSERT_ID(`last_board_id` + 1)");
+		ON DUPLICATE KEY UPDATE `last_board_id` = `last_board_id` + 1");
 	$query->bindValue(':board', $board['uri']);
 	$query->execute() or error(db_error($query));
-	$next_board_id = (int)$pdo->lastInsertId();
+
+	// Now fetch the current last_board_id
+	$query = prepare("SELECT last_board_id FROM board_counters WHERE board = :board");
+	$query->bindValue(':board', $board['uri']);
+	$query->execute() or error(db_error($query));
+	$next_board_id = (int)$query->fetchColumn();
+
 	$post['board_id'] = $next_board_id;
 
 	// Now insert the post
