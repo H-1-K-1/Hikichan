@@ -590,7 +590,7 @@
 
 	// Allow users to mark their image as a "spoiler" when posting. The thumbnail will be replaced with a
 	// static spoiler image instead (see $config['spoiler_image']).
-	$config['spoiler_images'] = false;
+	$config['spoiler_images'] = true;
 
 	// With the following, you can disable certain superfluous fields or enable "forced anonymous".
 

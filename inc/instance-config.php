@@ -28,6 +28,7 @@ $config['additional_javascript'][] = 'js/quick-reply.js';
 $config['additional_javascript'][] = 'js/voice-record.js';
 $config['additional_javascript'][] = 'js/options.js';
 $config['additional_javascript'][] = 'js/options/general.js';
+$config['additional_javascript'][] = 'js/inline-expanding.js';
 $config['additional_javascript'][] = 'js/auto-reload.js';
 $config['additional_javascript'][] = 'js/expand.js';
 $config['additional_javascript'][] = 'js/expand-video.js';
