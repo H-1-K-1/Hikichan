@@ -25,11 +25,14 @@ class Archive {
         $thread_data['snippet'] .= $thread_data['snippet_body'];
 
         $date_path = date('Y/m/d');
-        $archive_path = $board['dir'] . $config['dir']['archive'] . $date_path . '/';
+        // New structure: archive/res/YYYY/MM/DD/
+        $archive_res_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $date_path . '/';
+        $archive_img_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . $date_path . '/';
+        $archive_thumb_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $date_path . '/';
 
-        @mkdir($archive_path . $config['dir']['res'], 0777, true);
-        @mkdir($archive_path . $config['dir']['img'], 0777, true);
-        @mkdir($archive_path . $config['dir']['thumb'], 0777, true);
+        @mkdir($archive_res_path, 0777, true);
+        @mkdir($archive_img_path, 0777, true);
+        @mkdir($archive_thumb_path, 0777, true);
 
         $query = prepare("SELECT `id`,`thread`,`files`,`slug` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
         $query->bindValue(':board', $board['uri']);
@@ -41,45 +44,50 @@ class Archive {
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
             if (!$post['thread']) {
                 $thread_file_content = @file_get_contents($board['dir'] . $config['dir']['res'] . link_for($post));
-                
+
+                // Update src/href for new archive structure
                 $thread_file_content = str_replace(
                     sprintf('src="'. $config['root'] . $config['board_path'], $board['uri']),
-                    sprintf('src="'. $config['root'] . $config['board_path'] . $config['dir']['archive'] . $date_path . '/', $board['uri']),
+                    sprintf('src="'. $config['root'] . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'] . $date_path . '/', $board['uri']),
                     $thread_file_content
                 );
                 $thread_file_content = str_replace(
                     sprintf('href="'. $config['root'] . $config['board_path'], $board['uri']),
-                    sprintf('href="'. $config['root'] . $config['board_path'] . $config['dir']['archive'] . $date_path . '/', $board['uri']),
+                    sprintf('href="'. $config['root'] . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'] . $date_path . '/', $board['uri']),
                     $thread_file_content
                 );
-                
+
                 $thread_file_content = str_replace('Posting mode: Reply', 'Archived thread', $thread_file_content);
                 $thread_file_content = preg_replace("/<form name=\"post\"(.*?)<\/form>/i", "", $thread_file_content);
-    
+
                 $thread_file_content = str_replace(sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['archive'], $board['uri']), sprintf('href="/' . $config['board_path'] . $config['dir']['archive'], $board['uri']), $thread_file_content);
-    
+
                 $thread_file_content = preg_replace("/<form(.*?)>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<\/form>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<input (.*?)>/i", "", $thread_file_content);
-    
+
                 $thread_file_content = preg_replace("/<div id=\"report\-fields\"(.*?)<\/div>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<div id=\"thread\-interactions\"(.*?)<\/div>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<a id=\"unimportant\" href=\"\/[a-zA-Z0-9]+\/archive\/catalog(.*?)<\/a>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/\b\/(archive)(\/featured\/)/i", "$2", $thread_file_content);
-    
-                @file_put_contents($archive_path . $config['dir']['res'] . sprintf($config['file_page'], $thread_id), $thread_file_content, LOCK_EX);
+
+                @file_put_contents($archive_res_path . sprintf($config['file_page'], $thread_id), $thread_file_content, LOCK_EX);
             }
-    
+
             $json_file_content = @file_get_contents($board['dir'] . $config['dir']['res'] . sprintf('%d.json', $thread_id));
-            $json_file_content = str_replace(substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1), substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['archive'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1), $json_file_content);
-            @file_put_contents($board['dir'] . $config['dir']['archive']. $date_path . '/' . $config['dir']['res'] .  sprintf('%d.json', $thread_id), $json_file_content, LOCK_EX);
-    
+            $json_file_content = str_replace(
+                substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1),
+                substr($board['dir'], 0, -1) . '\/' . substr($config['dir']['archive'], 0, -1) . '\/' . substr($config['dir']['res'], 0, -1),
+                $json_file_content
+            );
+            @file_put_contents($archive_res_path . sprintf('%d.json', $thread_id), $json_file_content, LOCK_EX);
+
             if ($post['files']) {
                 foreach (json_decode($post['files']) as $i => $f) {
                     if ($f->file !== 'deleted') {
-                        @copy($board['dir'] . $config['dir']['img'] . $f->file, $archive_path . $config['dir']['img'] . $f->file);
-                        @copy($board['dir'] . $config['dir']['thumb'] . $f->thumb, $archive_path . $config['dir']['thumb'] . $f->thumb);
-    
+                        @copy($board['dir'] . $config['dir']['img'] . $f->file, $archive_img_path . $f->file);
+                        @copy($board['dir'] . $config['dir']['thumb'] . $f->thumb, $archive_thumb_path . $f->thumb);
+
                         $file_list[] = $f;
                     }
                 }
@@ -137,18 +145,15 @@ class Archive {
         $query->execute() or error(db_error($query));
 
         while($thread = $query->fetch(PDO::FETCH_ASSOC)) {
-            $archive_path = $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/';
+            $archive_res_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/';
+            $archive_img_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . $thread['path'] . '/';
+            $archive_thumb_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/';
 
             foreach (json_decode($thread['files']) as $f) {
-                @unlink($archive_path . $config['dir']['img'] . $f->file);
-                @unlink($archive_path . $config['dir']['thumb'] . $f->thumb);
+                @unlink($archive_img_path . $f->file);
+                @unlink($archive_thumb_path . $f->thumb);
             }
-            @unlink($archive_path . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']));
-
-            $del_query = prepare("DELETE FROM `archive_votes` WHERE `board` = :board AND `thread_id` = :thread_id");
-            $del_query->bindValue(':board', $board_uri, PDO::PARAM_STR);
-            $del_query->bindValue(':thread_id', $thread['original_thread_id'], PDO::PARAM_INT);
-            $del_query->execute() or error(db_error($del_query));
+            @unlink($archive_res_path . sprintf($config['file_page'], $thread['original_thread_id']));
         }
 
         if($query->rowCount() != 0) {
@@ -165,7 +170,6 @@ class Archive {
 
     static public function featureThread($archive_entry_id, $board_uri, $mod_archive = false) {
         global $config, $mod;
-
         global $board;
         if (empty($board) || $board['uri'] !== $board_uri) {
             if (!openBoard($board_uri)) {
@@ -188,28 +192,35 @@ class Archive {
 
         $original_thread_id = $thread['original_thread_id'];
 
-        $featured_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $thread['path'] . '/';
+        $featured_res_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['res'] . $thread['path'] . '/';
+        $featured_img_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['img'] . $thread['path'] . '/';
+        $featured_thumb_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['thumb'] . $thread['path'] . '/';
 
-        @mkdir($featured_path . $config['dir']['res'], 0777, true);
-        @mkdir($featured_path . $config['dir']['img'], 0777, true);
-        @mkdir($featured_path . $config['dir']['thumb'], 0777, true);
+        @mkdir($featured_res_path, 0777, true);
+        @mkdir($featured_img_path, 0777, true);
+        @mkdir($featured_thumb_path, 0777, true);
 
-        $thread_file_content = @file_get_contents($board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $original_thread_id));
-        
-        $thread_file_content = str_replace(sprintf('src="/' . $config['board_path'] . $config['dir']['archive'], $board_uri), sprintf('src="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $thread['path'], $board_uri), $thread_file_content);
-        $thread_file_content = str_replace(sprintf('href="/' . $config['board_path'] . $config['dir']['archive'], $board_uri), sprintf('href="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $thread['path'], $board_uri), $thread_file_content);
+        $thread_file_content = @file_get_contents($board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $original_thread_id));
+
+        $thread_file_content = str_replace(
+            sprintf('src="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board_uri),
+            sprintf('src="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board_uri),
+            $thread_file_content
+        );
+        $thread_file_content = str_replace(
+            sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board_uri),
+            sprintf('href="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board_uri),
+            $thread_file_content
+        );
         $thread_file_content = str_replace('Archived thread', 'Featured thread', $thread_file_content);
 
-        @file_put_contents($featured_path . $config['dir']['res'] . sprintf($config['file_page'], $original_thread_id), $thread_file_content, LOCK_EX);
+        @file_put_contents($featured_res_path . sprintf($config['file_page'], $original_thread_id), $thread_file_content, LOCK_EX);
 
         foreach (json_decode($thread['files']) as $f) {
-            $source_img = $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['img'] . $f->file;
-            $dest_img = $featured_path . $config['dir']['img'] . $f->file;
-            $source_thumb = $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $f->thumb;
-            $dest_thumb = $featured_path . $config['dir']['thumb'] . $f->thumb;
-
-            error_log("Copying Image: $source_img to $dest_img");
-            error_log("Copying Thumbnail: $source_thumb to $dest_thumb");
+            $source_img = $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . $thread['path'] . '/' . $f->file;
+            $dest_img = $featured_img_path . $f->file;
+            $source_thumb = $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/' . $f->thumb;
+            $dest_thumb = $featured_thumb_path . $f->thumb;
 
             if (!@copy($source_img, $dest_img)) {
                 error_log("Failed to copy image: $source_img");
@@ -252,19 +263,17 @@ class Archive {
             error($config['error']['invalidpost']);
 
         $original_thread_id = $thread['original_thread_id'];
-        $featured_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $thread['path'] . '/';
+        $featured_res_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['res'] . $thread['path'] . '/';
+        $featured_img_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['img'] . $thread['path'] . '/';
+        $featured_thumb_path = $board['dir'] . ($mod_archive ? $config['dir']['mod_archive'] : $config['dir']['featured']) . $config['dir']['thumb'] . $thread['path'] . '/';
 
         foreach (json_decode($thread['files']) as $f) {
-            @unlink($featured_path . $config['dir']['img'] . $f->file);
-            @unlink($featured_path . $config['dir']['thumb'] . $f->thumb);
+            @unlink($featured_img_path . $f->file);
+            @unlink($featured_thumb_path . $f->thumb);
         }
-        @unlink($featured_path . $config['dir']['res'] . sprintf($config['file_page'], $original_thread_id));
+        @unlink($featured_res_path . sprintf($config['file_page'], $original_thread_id));
 
-        if($thread['lifetime'] != 0 && $thread['lifetime'] < strtotime("-" . $config['archive']['lifetime'])) {
-            $update_query = prepare("UPDATE `archive_threads` SET " . ($mod_archive?"`mod_archived`":"`featured`") . " = 0 WHERE `id` = :id AND `board_uri` = :board_uri");
-        } else {
-            $update_query = prepare("UPDATE `archive_threads` SET " . ($mod_archive?"`mod_archived`":"`featured`") . " = 0 WHERE `id` = :id AND `board_uri` = :board_uri");
-        }
+        $update_query = prepare("UPDATE `archive_threads` SET " . ($mod_archive?"`mod_archived`":"`featured`") . " = 0 WHERE `id` = :id AND `board_uri` = :board_uri");
         $update_query->bindValue(':id', $archive_entry_id, PDO::PARAM_INT);
         $update_query->bindValue(':board_uri', $board_uri, PDO::PARAM_STR);
         $update_query->execute() or error(db_error($update_query));
@@ -295,14 +304,16 @@ class Archive {
             error($config['error']['invalidpost']);
 
         $original_thread_id = $thread['original_thread_id'];
-        $archived_path = $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/';
+        $archived_res_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/';
+        $archived_img_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['img'] . $thread['path'] . '/';
+        $archived_thumb_path = $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/';
 
         foreach (json_decode($thread['files']) as $f) {
-            @unlink($archived_path . $config['dir']['img'] . $f->file);
-            @unlink($archived_path . $config['dir']['thumb'] . $f->thumb);
+            @unlink($archived_img_path . $f->file);
+            @unlink($archived_thumb_path . $f->thumb);
         }
-        @unlink($archived_path . $config['dir']['res'] . sprintf($config['file_page'], $original_thread_id));
-        @unlink($archived_path . $config['dir']['res'] . sprintf('%d.json', $original_thread_id));
+        @unlink($archived_res_path . sprintf($config['file_page'], $original_thread_id));
+        @unlink($archived_res_path . sprintf('%d.json', $original_thread_id));
 
         $delete_query = prepare("DELETE FROM `archive_threads` WHERE `id` = :id AND `board_uri` = :board_uri");
         $delete_query->bindValue(':id', $archive_entry_id, PDO::PARAM_INT);
@@ -374,9 +385,9 @@ class Archive {
             $archive = self::getArchiveListPaginated($board_uri, $page, $threads_per_page);
 
             foreach ($archive as &$thread) {
-                $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']);
+                $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
                 if ($thread['first_image']) {
-                    $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image'];
+                    $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image'];
                 } else {
                     $thread['image_url'] = null;
                 }
@@ -470,9 +481,9 @@ class Archive {
         $archive = self::getArchiveList($board_uri, true);
 
         foreach($archive as &$thread) {
-            $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']);
+            $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
             if ($thread['first_image']) {
-                $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image'];
+                $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image'];
             } else {
                 $thread['image_url'] = null;
             }
