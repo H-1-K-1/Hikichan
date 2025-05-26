@@ -328,7 +328,7 @@ function doPost(form) {
 	return form.elements['body'].value != "" || (form.elements['file'] && form.elements['file'].value != "") || (form.elements.file_url && form.elements['file_url'].value != "");
 }
 
-function citeReply(id, with_link) {
+function citeReply(id, board_id, with_link) {
 	let textarea = document.getElementById('body');
 	if (!textarea) {
 		return false;
@@ -337,7 +337,7 @@ function citeReply(id, with_link) {
 	if (textarea.selectionStart || textarea.selectionStart == '0') {
 		let start = textarea.selectionStart;
 		let end = textarea.selectionEnd;
-		textarea.value = textarea.value.substring(0, start) + '>>' + id + '\n' + textarea.value.substring(end, textarea.value.length);
+		textarea.value = textarea.value.substring(0, start) + '>>' + board_id + '\n' + textarea.value.substring(end, textarea.value.length);
 
 		textarea.selectionStart += ('>>' + id).length + 1;
 		textarea.selectionEnd = textarea.selectionStart;

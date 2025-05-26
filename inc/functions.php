@@ -2028,22 +2028,22 @@ function markup(&$body, $track_cites = false, $op = false) {
 
         $search_cites = array();
         foreach ($cites as $matches) {
-            $search_cites[] = '`id` = ' . $matches[2][0];
+            $search_cites[] = '`board_id` = ' . $matches[2][0];
         }
         $search_cites = array_unique($search_cites);
 
-        // Unified posts table: filter by board
-       $query = query('SELECT `thread`, `id`, `board_id` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
-			implode(' OR ', $search_cites) . ')') or error(db_error());
+        // Unified posts table: filter by board_id
+        $query = query('SELECT `thread`, `id`, `board_id` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
+            implode(' OR ', $search_cites) . ')') or error(db_error());
 
         $cited_posts = array();
-        $cited_posts = array();
-		while ($cited = $query->fetch(PDO::FETCH_ASSOC)) {
-			$cited_posts[$cited['id']] = [
-				'thread' => $cited['thread'] ? $cited['thread'] : false,
-				'board_id' => $cited['board_id']
-			];
-		}
+        while ($cited = $query->fetch(PDO::FETCH_ASSOC)) {
+            $cited_posts[$cited['board_id']] = [
+                'id' => $cited['id'],
+                'thread' => $cited['thread'] ? $cited['thread'] : false,
+                'board_id' => $cited['board_id']
+            ];
+        }
 
         foreach ($cites as $matches) {
             $cite = $matches[2][0];
@@ -2054,17 +2054,17 @@ function markup(&$body, $track_cites = false, $op = false) {
             }
 
             if (isset($cited_posts[$cite])) {
-                $replacement = '<a onclick="highlightReply(\'' . $cite . '\', event);" href="' .
-				$config['root'] . $board['dir'] . $config['dir']['res'] .
-				link_for(array('id' => $cite, 'thread' => $cited_posts[$cite]['thread'])) . '#' . $cite . '">' .
-				'&gt;&gt;' . $cited_posts[$cite]['board_id'] .
-				'</a>';
+                $replacement = '<a onclick="highlightReply(\'' . $cited_posts[$cite]['id'] . '\', event);" href="' .
+                    $config['root'] . $board['dir'] . $config['dir']['res'] .
+                    link_for(array('id' => $cited_posts[$cite]['id'], 'thread' => $cited_posts[$cite]['thread'])) . '#' . $cited_posts[$cite]['id'] . '">' .
+                    '&gt;&gt;' . $cited_posts[$cite]['board_id'] .
+                    '</a>';
 
                 $body = mb_substr_replace($body, $matches[1][0] . $replacement . $matches[3][0], $matches[0][1] + $skip_chars, mb_strlen($matches[0][0]));
                 $skip_chars += mb_strlen($matches[1][0] . $replacement . $matches[3][0]) - mb_strlen($matches[0][0]);
 
                 if ($track_cites && $config['track_cites'])
-                    $tracked_cites[] = array($board['uri'], $cite);
+                    $tracked_cites[] = array($board['uri'], $cited_posts[$cite]['id']);
             }
         }
     }
