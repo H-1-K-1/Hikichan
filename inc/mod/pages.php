@@ -3651,9 +3651,9 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
     $total_pages = ceil($total_threads / $threads_per_page);
 
     foreach ($archive_items as &$thread) {
-        $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']);
+        $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
         $thread['image_url'] = $thread['first_image']
-            ? $config['root'] . $board['dir'] . $config['dir']['archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image']
+            ? $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image']
             : null;
         $thread['display_id'] = $thread['original_thread_id'];
     }
@@ -3690,9 +3690,9 @@ function mod_view_archive_featured(Context $context, $boardName) {
     $archive_items = Archive::getArchiveList($board['uri'], true, false, true);
 
     foreach ($archive_items as &$thread) {
-        $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']);
+        $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['featured'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
         $thread['image_url'] = $thread['first_image']
-            ? $config['root'] . $board['dir'] . $config['dir']['featured'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image']
+            ? $config['root'] . $board['dir'] . $config['dir']['featured'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image']
             : null;
         $thread['display_id'] = $thread['original_thread_id'];
     }
@@ -3727,9 +3727,9 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
     $archive_items = Archive::getArchiveList($board['uri'], false, true, true);
 
     foreach ($archive_items as &$thread) {
-        $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['mod_archive'] . $thread['path'] . '/' . $config['dir']['res'] . sprintf($config['file_page'], $thread['original_thread_id']);
+        $thread['featured_url'] = $config['root'] . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
         $thread['image_url'] = $thread['first_image']
-            ? $config['root'] . $board['dir'] . $config['dir']['mod_archive'] . $thread['path'] . '/' . $config['dir']['thumb'] . $thread['first_image']
+            ? $config['root'] . $board['dir'] . $config['dir']['mod_archive'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image']
             : null;
         $thread['display_id'] = $thread['original_thread_id'];
     }
@@ -3742,7 +3742,7 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
             'is_mod_archive' => true,
             'board' => $board,
             'mod' => $mod,
-			'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/mod_archive/')
+            'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/mod_archive/')
         ],
         true
     );
