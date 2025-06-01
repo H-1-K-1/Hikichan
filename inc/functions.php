@@ -905,8 +905,12 @@ function insertFloodPost(array $post) {
 }
 
 function post(array $post) {
-	global $pdo, $board;
-	$query = prepare("INSERT INTO ``posts`` (`board`, `board_id`, `thread`, `subject`, `email`, `name`, `trip`, `capcode`, `body`, `body_nomarkup`, `time`, `bump`, `files`, `num_files`, `filehash`, `password`, `ip`, `sticky`, `locked`, `cycle`, `sage`, `embed`, `slug`) VALUES (:board, :board_id, :thread, :subject, :email, :name, :trip, :capcode, :body, :body_nomarkup, :time, :time, :files, :num_files, :filehash, :password, :ip, :sticky, :locked, :cycle, 0, :embed, :slug)");
+    global $pdo, $board, $config;
+
+     // Use the value passed in from post.php
+    $live_date_path = $post['live_date_path'];
+
+    $query = prepare("INSERT INTO ``posts`` (`board`, `board_id`, `thread`, `subject`, `email`, `name`, `trip`, `capcode`, `body`, `body_nomarkup`, `time`, `bump`, `live_date_path`, `files`, `num_files`, `filehash`, `password`, `ip`, `sticky`, `locked`, `cycle`, `sage`, `embed`, `slug`) VALUES (:board, :board_id, :thread, :subject, :email, :name, :trip, :capcode, :body, :body_nomarkup, :time, :time, :live_date_path, :files, :num_files, :filehash, :password, :ip, :sticky, :locked, :cycle, 0, :embed, :slug)");
 
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':board_id', $post['board_id'], PDO::PARAM_INT);
@@ -936,6 +940,7 @@ function post(array $post) {
 	$query->bindValue(':time', isset($post['time']) ? $post['time'] : time(), PDO::PARAM_INT);
 	$query->bindValue(':password', $post['password']);
 	$query->bindValue(':ip', isset($post['ip']) ? $post['ip'] : $_SERVER['REMOTE_ADDR']);
+	$query->bindValue(':live_date_path', $live_date_path);
 
 	if ($post['op'] && $post['mod'] && isset($post['sticky']) && $post['sticky']) {
 		$query->bindValue(':sticky', true, PDO::PARAM_INT);
@@ -1017,16 +1022,17 @@ function bumpThread($id) {
 }
 
 // Remove file from post
-function deleteFile($id, $remove_entirely_if_already=true, $file=null) {
+function deleteFile($id, $remove_entirely_if_already = true, $file = null) {
     global $board, $config;
 
-    // CHANGED: Use unified posts table and filter by board
-    $query = prepare("SELECT `thread`, `files`, `num_files` FROM ``posts`` WHERE `board` = :board AND `id` = :id LIMIT 1");
+    // Fetch post info including live_date_path
+    $query = prepare("SELECT `thread`, `files`, `num_files`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND `id` = :id LIMIT 1");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
     if (!$post = $query->fetch(PDO::FETCH_ASSOC))
         error($config['error']['invalidpost']);
+
     $files = json_decode($post['files']);
     $file_to_delete = $file !== false ? $files[(int)$file] : (object)array('file' => false);
 
@@ -1035,7 +1041,9 @@ function deleteFile($id, $remove_entirely_if_already=true, $file=null) {
     if ($files[0]->file == 'deleted' && $post['num_files'] == 1 && !$post['thread'])
         return; // Can't delete OP's image completely.
 
-    // CHANGED: Use unified posts table and filter by board
+    // Use live_date_path for correct file location
+    $live_date_path = $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
+
     $query = prepare("UPDATE ``posts`` SET `files` = :file WHERE `board` = :board AND `id` = :id");
     if (($file && $file_to_delete->file == 'deleted') && $remove_entirely_if_already) {
         // Already deleted; remove file fully
@@ -1044,13 +1052,13 @@ function deleteFile($id, $remove_entirely_if_already=true, $file=null) {
         foreach ($files as $i => $f) {
             if (($file !== false && $i == $file) || $file === null) {
                 // Delete thumbnail
-                if (isset ($f->thumb) && $f->thumb) {
-                    file_unlink($board['dir'] . $config['dir']['thumb'] . $f->thumb);
+                if (isset($f->thumb) && $f->thumb) {
+                    file_unlink($board['dir'] . $config['dir']['thumb'] . $live_date_path . $f->thumb);
                     unset($files[$i]->thumb);
                 }
 
                 // Delete file
-                file_unlink($board['dir'] . $config['dir']['img'] . $f->file);
+                file_unlink($board['dir'] . $config['dir']['img'] . $live_date_path . $f->file);
                 $files[$i]->file = 'deleted';
             }
         }
@@ -1102,7 +1110,7 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
     global $board, $config;
 
     // CHANGED: Use unified posts table and filter by board
-    $query = prepare("SELECT `id`,`thread`,`files`,`slug` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
+    $query = prepare("SELECT `id`,`thread`,`files`,`slug`,`live_date_path` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
@@ -1122,9 +1130,9 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
         $thread_id = $post['thread'];
         if (!$post['thread']) {
             // Delete thread HTML page
-            file_unlink($board['dir'] . $config['dir']['res'] . link_for($post) );
-            file_unlink($board['dir'] . $config['dir']['res'] . link_for($post, true) ); // noko50
-            file_unlink($board['dir'] . $config['dir']['res'] . sprintf('%d.json', $post['id']));
+            file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post));
+			file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post, true)); // noko50
+			file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . sprintf('%d.json', $post['id']));
 
             $antispam_query = prepare('DELETE FROM ``antispam`` WHERE `board` = :board AND `thread` = :thread');
             $antispam_query->bindValue(':board', $board['uri']);
@@ -1138,8 +1146,8 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
             // Delete file
             foreach (json_decode($post['files']) as $i => $f) {
                 if ($f->file !== 'deleted') {
-                    file_unlink($board['dir'] . $config['dir']['img'] . $f->file);
-                    file_unlink($board['dir'] . $config['dir']['thumb'] . $f->thumb);
+                    file_unlink($board['dir'] . $config['dir']['img'] . $post['live_date_path'] . '/' . $f->file);
+                    file_unlink($board['dir'] . $config['dir']['thumb'] . $post['live_date_path'] . '/' . $f->thumb);
                 }
             }
         }
@@ -2032,16 +2040,17 @@ function markup(&$body, $track_cites = false, $op = false) {
         }
         $search_cites = array_unique($search_cites);
 
-        // Unified posts table: filter by board_id
-        $query = query('SELECT `thread`, `id`, `board_id` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
-            implode(' OR ', $search_cites) . ')') or error(db_error());
+        /// Unified posts table: filter by board_id
+		$query = query('SELECT `thread`, `id`, `board_id`, `live_date_path` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
+			implode(' OR ', $search_cites) . ')') or error(db_error());
 
         $cited_posts = array();
         while ($cited = $query->fetch(PDO::FETCH_ASSOC)) {
             $cited_posts[$cited['board_id']] = [
                 'id' => $cited['id'],
                 'thread' => $cited['thread'] ? $cited['thread'] : false,
-                'board_id' => $cited['board_id']
+                'board_id' => $cited['board_id'],
+				'live_date_path' => $cited['live_date_path']
             ];
         }
 
@@ -2055,7 +2064,7 @@ function markup(&$body, $track_cites = false, $op = false) {
 
             if (isset($cited_posts[$cite])) {
                 $replacement = '<a onclick="highlightReply(\'' . $cited_posts[$cite]['id'] . '\', event);" href="' .
-                    $config['root'] . $board['dir'] . $config['dir']['res'] .
+                    $config['root'] . $board['dir'] . $config['dir']['res'] . $cited_posts[$cite]['live_date_path'] . '/' .
                     link_for(array('id' => $cited_posts[$cite]['id'], 'thread' => $cited_posts[$cite]['thread'])) . '#' . $cited_posts[$cite]['id'] . '">' .
                     '&gt;&gt;' . $cited_posts[$cite]['board_id'] .
                     '</a>';
@@ -2070,110 +2079,100 @@ function markup(&$body, $track_cites = false, $op = false) {
     }
 
     // Cross-board linking
-    if (preg_match_all('/(^|[\s(])&gt;&gt;&gt;\/(' . $config['board_regex'] . 'f?)\/(\d+)?((?=[\s,.)?!])|$)/um', $body, $cites, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
-        if (count($cites[0]) > $config['max_cites']) {
-            error($config['error']['toomanycross']);
-        }
+    if (preg_match_all('/(^|[\s(])&gt;&gt;&gt;\/(' . $config['board_regex'] . 'f?)\/(\d+)((?=[\s,.)?!])|$)/um', $body, $cites, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+		if (count($cites[0]) > $config['max_cites']) {
+			error($config['error']['toomanycross']);
+		}
 
-        $skip_chars = 0;
-        $body_tmp = $body;
+		$skip_chars = 0;
+		$body_tmp = $body;
 
-        if (isset($cited_posts)) {
-            // Carry found posts from local board >>X links
-            foreach ($cited_posts as $cite => $thread) {
-                $cited_posts[$cite] = $config['root'] . $board['dir'] . $config['dir']['res'] .
-                    ($thread ? $thread : $cite) . '.html#' . $cite;
-            }
+		$cited_posts = array();
+		$crossboard_indexes = array();
+		$search_cites_boards = array();
 
-            $cited_posts = array(
-                $board['uri'] => $cited_posts
-            );
-        } else
-            $cited_posts = array();
+		foreach ($cites as $matches) {
+			$_board = $matches[2][0];
+			$board_id = $matches[3][0];
 
-        $crossboard_indexes = array();
-        $search_cites_boards = array();
+			if (!isset($search_cites_boards[$_board]))
+				$search_cites_boards[$_board] = array();
+			$search_cites_boards[$_board][] = $board_id;
+		}
 
-        foreach ($cites as $matches) {
-            $_board = $matches[2][0];
-            $cite = @$matches[3][0];
+		$tmp_board = $board['uri'];
 
-            if (!isset($search_cites_boards[$_board]))
-                $search_cites_boards[$_board] = array();
-            $search_cites_boards[$_board][] = $cite;
-        }
+		foreach ($search_cites_boards as $_board => $search_cites) {
+			$clauses = array();
+			foreach ($search_cites as $board_id) {
+				if (!$board_id || isset($cited_posts[$_board][$board_id]))
+					continue;
+				$clauses[] = '`board_id` = ' . $board_id;
+			}
+			$clauses = array_unique($clauses);
 
-        $tmp_board = $board['uri'];
+			if ($board['uri'] != $_board) {
+				if (!openBoard($_board))
+					continue; // Unknown board
+			}
 
-        foreach ($search_cites_boards as $_board => $search_cites) {
-            $clauses = array();
-            foreach ($search_cites as $cite) {
-                if (!$cite || isset($cited_posts[$_board][$cite]))
-                    continue;
-                $clauses[] = '`id` = ' . $cite;
-            }
-            $clauses = array_unique($clauses);
+			if (!empty($clauses)) {
+				$cited_posts[$_board] = array();
 
-            if ($board['uri'] != $_board) {
-                if (!openBoard($_board))
-                    continue; // Unknown board
-            }
+				// Query to map board_id to id
+				$query = query('SELECT `id`, `board_id`, `thread`, `slug`, `live_date_path` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
+					implode(' OR ', $clauses) . ')') or error(db_error());
 
-            if (!empty($clauses)) {
-                $cited_posts[$_board] = array();
+				while ($cite = $query->fetch(PDO::FETCH_ASSOC)) {
+					$live_date_path = isset($cite['live_date_path']) && $cite['live_date_path'] ? $cite['live_date_path'] . '/' : '';
+					$cited_posts[$_board][$cite['board_id']] = [
+						'link' => $config['root'] . $board['dir'] . $config['dir']['res'] . $live_date_path . link_for($cite) . '#' . $cite['id'],
+						'id' => $cite['id']
+					];
+				}
+			}
 
-                // Unified posts table: filter by board
-                $query = query('SELECT `thread`, `id`, `slug` FROM ``posts`` WHERE `board` = ' . $pdo->quote($board['uri']) . ' AND (' .
-                    implode(' OR ', $clauses) . ')') or error(db_error());
+			$crossboard_indexes[$_board] = $config['root'] . $board['dir'] . $config['file_index'];
+		}
 
-                while ($cite = $query->fetch(PDO::FETCH_ASSOC)) {
-                    $cited_posts[$_board][$cite['id']] = $config['root'] . $board['dir'] . $config['dir']['res'] .
-                        link_for($cite) . '#' . $cite['id'];
-                }
-            }
+		// Restore old board
+		if ($board['uri'] != $tmp_board)
+			openBoard($tmp_board);
 
-            $crossboard_indexes[$_board] = $config['root'] . $board['dir'] . $config['file_index'];
-        }
+		foreach ($cites as $matches) {
+			$_board = $matches[2][0];
+			$board_id = $matches[3][0];
 
-        // Restore old board
-        if ($board['uri'] != $tmp_board)
-            openBoard($tmp_board);
+			// preg_match_all is not multibyte-safe
+			foreach ($matches as &$match) {
+				$match[1] = mb_strlen(substr($body_tmp, 0, $match[1]));
+			}
 
-        foreach ($cites as $matches) {
-            $_board = $matches[2][0];
-            $cite = @$matches[3][0];
+			if (isset($cited_posts[$_board][$board_id])) {
+				$link = $cited_posts[$_board][$board_id]['link'];
+				$id = $cited_posts[$_board][$board_id]['id'];
 
-            // preg_match_all is not multibyte-safe
-            foreach ($matches as &$match) {
-                $match[1] = mb_strlen(substr($body_tmp, 0, $match[1]));
-            }
+				$replacement = '<a ' .
+					($_board == $board['uri'] ?
+						'onclick="highlightReply(\'' . $id . '\', event);" '
+					: '') . 'href="' . $link . '">' .
+					'&gt;&gt;&gt;/' . $_board . '/' . $board_id .
+					'</a>';
 
-            if ($cite) {
-                if (isset($cited_posts[$_board][$cite])) {
-                    $link = $cited_posts[$_board][$cite];
+				$body = mb_substr_replace($body, $matches[1][0] . $replacement . $matches[4][0], $matches[0][1] + $skip_chars, mb_strlen($matches[0][0]));
+				$skip_chars += mb_strlen($matches[1][0] . $replacement . $matches[4][0]) - mb_strlen($matches[0][0]);
 
-                    $replacement = '<a ' .
-                        ($_board == $board['uri'] ?
-                            'onclick="highlightReply(\''.$cite.'\', event);" '
-                        : '') . 'href="' . $link . '">' .
-                        '&gt;&gt;&gt;/' . $_board . '/' . $cite .
-                        '</a>';
-
-                    $body = mb_substr_replace($body, $matches[1][0] . $replacement . $matches[4][0], $matches[0][1] + $skip_chars, mb_strlen($matches[0][0]));
-                    $skip_chars += mb_strlen($matches[1][0] . $replacement . $matches[4][0]) - mb_strlen($matches[0][0]);
-
-                    if ($track_cites && $config['track_cites'])
-                        $tracked_cites[] = array($_board, $cite);
-                }
-            } elseif(isset($crossboard_indexes[$_board])) {
-                $replacement = '<a href="' . $crossboard_indexes[$_board] . '">' .
-                        '&gt;&gt;&gt;/' . $_board . '/' .
-                        '</a>';
-                $body = mb_substr_replace($body, $matches[1][0] . $replacement . $matches[4][0], $matches[0][1] + $skip_chars, mb_strlen($matches[0][0]));
-                $skip_chars += mb_strlen($matches[1][0] . $replacement . $matches[4][0]) - mb_strlen($matches[0][0]);
-            }
-        }
-    }
+				if ($track_cites && $config['track_cites'])
+					$tracked_cites[] = array($_board, $id);
+			} elseif (isset($crossboard_indexes[$_board])) {
+				$replacement = '<a href="' . $crossboard_indexes[$_board] . '">' .
+					'&gt;&gt;&gt;/' . $_board . '/' .
+					'</a>';
+				$body = mb_substr_replace($body, $matches[1][0] . $replacement . $matches[4][0], $matches[0][1] + $skip_chars, mb_strlen($matches[0][0]));
+				$skip_chars += mb_strlen($matches[1][0] . $replacement . $matches[4][0]) - mb_strlen($matches[0][0]);
+			}
+		}
+	}
 
     $tracked_cites = array_unique($tracked_cites, SORT_REGULAR);
 
@@ -2288,13 +2287,25 @@ function strip_combining_chars($str) {
 
 function buildThread($id, $return = false, $mod = false) {
     global $board, $config, $build_pages;
+
+    // If $id is a date string, look up the thread ID for that date
+    if (is_string($id) && preg_match('/^\d{4}\/\d{2}\/\d{2}$/', $id)) {
+        $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `live_date_path` = :date AND `thread` IS NULL LIMIT 1");
+        $query->bindValue(':board', $board['uri']);
+        $query->bindValue(':date', $id);
+        $query->execute() or error(db_error($query));
+        $id = $query->fetchColumn();
+        if (!$id) {
+            error('No thread found for date ' . htmlspecialchars($id));
+        }
+    }
+
     $id = round($id);
 
     if (event('build-thread', $id))
         return;
 
     if ($config['cache']['enabled'] && !$mod) {
-        // Clear cache
         cache::delete("thread_index_{$board['uri']}_{$id}");
         cache::delete("thread_{$board['uri']}_{$id}");
     }
@@ -2313,20 +2324,17 @@ function buildThread($id, $return = false, $mod = false) {
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
             if (!isset($thread)) {
                 $thread = new Thread($post, $mod ? '?/' : $config['root'], $mod);
+                $live_date_path = $post['live_date_path'];
             } else {
                 $thread->add(new Post($post, $mod ? '?/' : $config['root'], $mod));
             }
         }
 
-        // Check if any posts were found
         if (!isset($thread))
             error($config['error']['nonexistant']);
 
         $hasnoko50 = $thread->postCount() >= $config['noko50_min'];
-
-        // ─── Add poll support ───────────────────────────────
         $poll = get_poll($id);
-        // ────────────────────────────────────────────────────
 
         $options = [
             'board' => $board,
@@ -2348,8 +2356,8 @@ function buildThread($id, $return = false, $mod = false) {
 
         $body = Element($config['file_thread'], $options);
 
-        // Write HTML file
-        file_write($board['dir'] . $config['dir']['res'] . link_for($thread), $body);
+        // Write HTML file using live_date_path
+        file_write($board['dir'] . $config['dir']['res'] . $live_date_path . '/' . link_for($thread), $body);
 
         // json api
         if ($config['api']['enabled'] && !$mod) {
@@ -2359,14 +2367,14 @@ function buildThread($id, $return = false, $mod = false) {
                 $config['country_flags']
             );
             $json = json_encode($api->translateThread($thread));
-            $jsonFilename = $board['dir'] . $config['dir']['res'] . $id . '.json';
+            $jsonFilename = $board['dir'] . $config['dir']['res'] . $live_date_path . '/' . $id . '.json';
             file_write($jsonFilename, $json);
         }
 
         // noko50
-        $noko50fn = $board['dir'] . $config['dir']['res'] . link_for($thread, true);
+        $noko50fn = $board['dir'] . $config['dir']['res'] . $live_date_path . '/' . link_for($thread, true);
         if ($hasnoko50 || file_exists($noko50fn)) {
-            buildThread50($id, $return, $mod, $thread);
+            buildThread50($id, $return, $mod, $thread, $live_date_path);
         }
 
         if ($return) {
@@ -2374,16 +2382,23 @@ function buildThread($id, $return = false, $mod = false) {
         }
     }
     elseif($action == 'delete') {
-        $jsonFilename = $board['dir'] . $config['dir']['res'] . $id . '.json';
+        // Use live_date_path to delete files
+        $query = prepare("SELECT `live_date_path` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
+        $query->bindValue(':board', $board['uri']);
+        $query->bindValue(':id', $id, PDO::PARAM_INT);
+        $query->execute() or error(db_error($query));
+        $live_date_path = $query->fetchColumn();
+
+        $jsonFilename = $board['dir'] . $config['dir']['res'] . $live_date_path . '/' . $id . '.json';
         file_unlink($jsonFilename);
 
-        file_unlink($board['dir'] . $config['dir']['res'] . link_for(array('id' => $id), true));
-        file_unlink($board['dir'] . $config['dir']['res'] . link_for(array('id' => $id)));
+        file_unlink($board['dir'] . $config['dir']['res'] . $live_date_path . '/' . link_for(array('id' => $id), true));
+        file_unlink($board['dir'] . $config['dir']['res'] . $live_date_path . '/' . link_for(array('id' => $id)));
     }
 }
 
 
-function buildThread50($id, $return = false, $mod = false, $thread = null) {
+function buildThread50($id, $return = false, $mod = false, $thread = null, $live_date_path = null) {
     global $board, $config;
     $id = round($id);
 
@@ -2398,18 +2413,16 @@ function buildThread50($id, $return = false, $mod = false, $thread = null) {
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
             if (!isset($thread)) {
                 $thread = new Thread($post, $mod ? '?/' : $config['root'], $mod);
+                $live_date_path = $post['live_date_path'];
             } else {
                 if ($post['files'])
                     $num_images += $post['num_files'];
-
                 $thread->add(new Post($post, $mod ? '?/' : $config['root'], $mod));
             }
         }
 
-        // Check if any posts were found
         if (!isset($thread))
             error($config['error']['nonexistant']);
-
 
         if ($query->rowCount() == $config['noko50_count']+1) {
             $count = prepare("SELECT COUNT(`id`) as `num` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread UNION ALL
@@ -2426,17 +2439,8 @@ function buildThread50($id, $return = false, $mod = false, $thread = null) {
         }
 
         $thread->posts = array_reverse($thread->posts);
-    } else {
-        $allPosts = $thread->posts;
-
-        $thread->posts = array_slice($allPosts, -$config['noko50_count']);
-        $thread->omitted += count($allPosts) - count($thread->posts);
-        foreach ($allPosts as $index => $post) {
-            if ($index == count($allPosts)-count($thread->posts))
-                break;
-            if ($post->files)
-                $thread->omitted_images += $post->num_files;
-        }
+    } else if (!$live_date_path && isset($thread->posts[0]->live_date_path)) {
+        $live_date_path = $thread->posts[0]->live_date_path;
     }
 
     $hasnoko50 = $thread->postCount() >= $config['noko50_min'];
@@ -2462,7 +2466,8 @@ function buildThread50($id, $return = false, $mod = false, $thread = null) {
     if ($return) {
         return $body;
     } else {
-        file_write($board['dir'] . $config['dir']['res'] . link_for($thread, true), $body);
+        // Write noko50 file using live_date_path
+        file_write($board['dir'] . $config['dir']['res'] . $live_date_path . '/' . link_for($thread, true), $body);
     }
 }
 
@@ -2530,8 +2535,8 @@ function generate_tripcode($name) {
 
 function getPostByHash($hash) {
     global $board;
-    // CHANGED: Use unified posts table and filter by board
-    $query = prepare("SELECT `id`,`thread` FROM ``posts`` WHERE `board` = :board AND `filehash` = :hash");
+    // Include live_date_path for correct URL generation
+    $query = prepare("SELECT `id`, `thread`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND `filehash` = :hash");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':hash', $hash, PDO::PARAM_STR);
     $query->execute() or error(db_error($query));
@@ -2545,8 +2550,8 @@ function getPostByHash($hash) {
 
 function getPostByHashInThread($hash, $thread) {
     global $board;
-    // CHANGED: Use unified posts table and filter by board
-    $query = prepare("SELECT `id`,`thread` FROM ``posts`` WHERE `board` = :board AND `filehash` = :hash AND ( `thread` = :thread OR `id` = :thread )");
+    // Include live_date_path for correct URL generation
+    $query = prepare("SELECT `id`, `thread`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND `filehash` = :hash AND ( `thread` = :thread OR `id` = :thread )");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':hash', $hash, PDO::PARAM_STR);
     $query->bindValue(':thread', $thread, PDO::PARAM_INT);
@@ -2693,7 +2698,6 @@ function link_for($post, $page50 = false, $foreignlink = false, $thread = false)
 
     $post = (array)$post;
 
-    // Where do we need to look for OP?
     $b = $foreignlink ? $foreignlink : (isset($post['board']) ? array('uri' => $post['board']) : $board);
 
     $id = (isset($post['thread']) && $post['thread']) ? $post['thread'] : $post['id'];
@@ -2706,7 +2710,6 @@ function link_for($post, $page50 = false, $foreignlink = false, $thread = false)
             $slug = Cache::get($cvar);
 
             if ($slug === false) {
-                // UNIFIED TABLE: Use board filter
                 $query = prepare("SELECT `slug` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
                 $query->bindValue(':board', $b['uri']);
                 $query->bindValue(':id', $id, PDO::PARAM_INT);
@@ -2727,13 +2730,19 @@ function link_for($post, $page50 = false, $foreignlink = false, $thread = false)
         $slug = $post['slug'];
     }
 
-
-         if ( $page50 &&  $slug)  $tpl = $config['file_page50_slug'];
+    if ( $page50 &&  $slug)  $tpl = $config['file_page50_slug'];
     else if (!$page50 &&  $slug)  $tpl = $config['file_page_slug'];
     else if ( $page50 && !$slug)  $tpl = $config['file_page50'];
     else if (!$page50 && !$slug)  $tpl = $config['file_page'];
 
-    return sprintf($tpl, $id, $slug);
+    $path = sprintf($tpl, $id, $slug);
+
+    // REMOVE this block:
+    // if (isset($post['live_date_path']) && $post['live_date_path']) {
+    //     $path = $post['live_date_path'] . '/' . $path;
+    // }
+
+    return $path;
 }
 
 function prettify_textarea($s){

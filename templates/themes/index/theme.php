@@ -69,7 +69,8 @@
                 if (!$files || $files[0]->file == 'deleted' || $files[0]->thumb == 'file')
                     continue;
 
-                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . link_for($post) . '#' . $post['id'];
+                $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
+                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . $post_date_path . link_for($post) . '#' . $post['id'];
 
                 if ($files[0]->thumb == 'spoiler') {
                     $tn_size = @getimagesize($config['spoiler_image']);

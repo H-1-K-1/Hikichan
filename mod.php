@@ -11,7 +11,6 @@ if ($config['debug']) {
 
 require_once 'inc/mod/pages.php';
 
-
 $ctx = Vichan\build_context($config);
 
 check_login($ctx, true);
@@ -110,7 +109,13 @@ $pages = [
 	//'/debug/recent'				=> 'debug_recent_posts',
 	//'/debug/sql'				=> 'secure_POST debug_sql',
 
-	// This should always be at the end:
+	// Date-based thread URLs (must be above old style)
+	'/(\%b)/' . preg_quote($config['dir']['res'], '!') . '([0-9]{4}/[0-9]{2}/[0-9]{2})/' .
+		str_replace('%d', '(\d+)', preg_quote($config['file_page'], '!')) => 'view_thread',
+	'/(\%b)/' . preg_quote($config['dir']['res'], '!') . '([0-9]{4}/[0-9]{2}/[0-9]{2})/' .
+		str_replace([ '%d','%s' ], [ '(\d+)', '[a-z0-9-]+' ], preg_quote($config['file_page_slug'], '!')) => 'view_thread',
+
+	// Old style thread URLs
 	'/(\%b)/'										=> 'view_board',
 	'/(\%b)/' . preg_quote($config['file_index'], '!')					=> 'view_board',
 	'/(\%b)/' . preg_quote($config['file_catalog'], '!')					=> 'view_catalog',
@@ -125,7 +130,6 @@ $pages = [
 	'/(\%b)/' . preg_quote($config['dir']['res'], '!') .
 			str_replace([ '%d','%s' ], [ '(\d+)', '[a-z0-9-]+' ], preg_quote($config['file_page_slug'], '!'))	=> 'view_thread',
 ];
-
 
 if (!$mod) {
 	$pages = [

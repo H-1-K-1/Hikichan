@@ -79,30 +79,34 @@ class Catalog {
         //
         // ─── FETCH THREADS ───────────────────────────────────────────────────────
         //
-        $table = "posts_" . $board_name;
-        $sql   = "
+        $sql = "
             SELECT
               *,
               `id` AS `thread_id`,
-              (SELECT COUNT(`id`) FROM `{$table}` WHERE `thread` = `thread_id`) AS `reply_count`,
-              (SELECT SUM(`num_files`) FROM `{$table}` WHERE `thread` = `thread_id` AND `num_files` IS NOT NULL) AS `image_count`,
-              '{$board_name}' AS `board`
-            FROM `{$table}`
-            WHERE `thread` IS NULL
+              (SELECT COUNT(`id`) FROM `posts` WHERE `board` = :board AND `thread` = `thread_id`) AS `reply_count`,
+              (SELECT SUM(`num_files`) FROM `posts` WHERE `board` = :board AND `thread` = `thread_id` AND `num_files` IS NOT NULL) AS `image_count`,
+              :board AS `board`
+            FROM `posts`
+            WHERE `board` = :board AND `thread` IS NULL
             ORDER BY `bump` DESC
         ";
-        $query = query($sql) or error(db_error());
+        $query = prepare($sql);
+        $query->bindValue(':board', $board_name);
+        $query->execute() or error(db_error());
 
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
             // ─── Build thread link ───────────────────────────────────────────────
+            $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
             if ($mod) {
                 $post['link'] = $config['root']
                               . $config['file_mod'] . '?/'
                               . $board['dir'] . $config['dir']['res']
+                              . $post_date_path
                               . link_for($post);
             } else {
                 $post['link'] = $config['root']
                               . $board['dir'] . $config['dir']['res']
+                              . $post_date_path
                               . link_for($post);
             }
 

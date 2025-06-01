@@ -314,7 +314,7 @@ if (isset($_POST['delete'])) {
         error($config['error']['nodelete']);
 
     foreach ($delete as &$id) {
-        $query = prepare("SELECT `id`,`thread`,`time`,`password` FROM `posts` WHERE `board` = :board AND `id` = :id");
+        $query = prepare("SELECT `id`,`thread`,`time`,`password`,`live_date_path` FROM `posts` WHERE `board` = :board AND `id` = :id");
         $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
         $query->bindValue(':id', $id, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
@@ -356,7 +356,7 @@ if (isset($_POST['delete'])) {
 
             $context->get(LogDriver::class)->log(
                 LogDriver::INFO,
-                'Deleted post: /' . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
+                'Deleted post: /' . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . ($post['thread'] ? '#' . $id : '')
             );
         }
     }
@@ -531,7 +531,7 @@ if (isset($_POST['delete'])) {
     }
 
     foreach ($report as &$id) {
-        $query = prepare("SELECT `id`, `thread` FROM `posts` WHERE `board` = :board AND `id` = :id");
+        $query = prepare("SELECT `id`, `thread`, `live_date_path` FROM `posts` WHERE `board` = :board AND `id` = :id");
         $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
         $query->bindValue(':id', $id, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
@@ -550,7 +550,7 @@ if (isset($_POST['delete'])) {
         $context->get(LogDriver::class)->log(
             LogDriver::INFO,
             'Reported post: /'
-                 . $board['dir'] . $config['dir']['res'] . link_for($post) . ($post['thread'] ? '#' . $id : '')
+                 . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . ($post['thread'] ? '#' . $id : '')
                  . " for \"$reason\""
         );
         $query = prepare("INSERT INTO ``reports`` VALUES (NULL, :time, :ip, :board, :post, :reason)");
@@ -765,6 +765,23 @@ if (isset($_POST['delete'])) {
 	$post['body'] = $_POST['body'];
 	$post['password'] = hashPassword($_POST['password']);
 	$post['has_file'] = (!isset($post['embed']) && (($post['op'] && !isset($post['no_longer_require_an_image_for_op']) && $config['force_image_op']) || count($_FILES) > 0));
+	// Set the live date path ONCE for this post
+	$live_date_path = date('Y/m/d');
+	$post['live_date_path'] = $live_date_path;
+
+	// Ensure image directory for this date exists
+	$live_img_dir = $board['dir'] . $config['dir']['img'] . $live_date_path . '/';
+	if (!file_exists($live_img_dir)) {
+		mkdir($live_img_dir, 0777, true);
+	}
+	$live_thumb_dir = $board['dir'] . $config['dir']['thumb'] . $live_date_path . '/';
+	if (!file_exists($live_thumb_dir)) {
+		mkdir($live_thumb_dir, 0777, true);
+	}
+	$live_res_dir = $board['dir'] . $config['dir']['res'] . $live_date_path . '/';
+	if (!file_exists($live_res_dir)) {
+		mkdir($live_res_dir, 0777, true);
+	}
 
 	if (!$dropped_post) {
 
@@ -875,9 +892,9 @@ if (isset($_POST['delete'])) {
 					error($config['error']['nomove']);
 				}
 
-				// Final filename + paths
+				// Final filename + paths (include live_date_path)
 				$filename = time() . rand(1000, 9999) . '.webm';
-				$path     = $board['dir'] . $config['dir']['img'] . $filename;
+				$path     = $board['dir'] . $config['dir']['img'] . $live_date_path . '/' . $filename;
 
 				// Thumbnail icon + size (generic file icon)
 				$icon      = isset($config['file_icons']['webm'])
@@ -892,7 +909,7 @@ if (isset($_POST['delete'])) {
 				$post['files'][] = array(
 					'name'        => 'voice.webm',
 					'tmp_name'    => $tmpname,
-					'file_tmp'    => true,            // ← ensures rename() is used
+					'file_tmp'    => true,
 					'filename'    => 'voice.webm',
 					'extension'   => 'webm',
 					'type'        => 'audio/webm',
@@ -928,9 +945,8 @@ if (isset($_POST['delete'])) {
 
 				if (sizeof($_FILES) > 1)
 					$file['file_id'] .= "-$i";
-
-				$file['file'] = $board['dir'] . $config['dir']['img'] . $file['file_id'] . '.' . $file['extension'];
-				$file['thumb'] = $board['dir'] . $config['dir']['thumb'] . $file['file_id'] . '.' . ($config['thumb_ext'] ? $config['thumb_ext'] : $file['extension']);
+				$file['file'] = $board['dir'] . $config['dir']['img'] . $live_date_path . '/' . $file['file_id'] . '.' . $file['extension'];
+				$file['thumb'] = $board['dir'] . $config['dir']['thumb'] . $live_date_path . '/' . $file['file_id'] . '.' . ($config['thumb_ext'] ? $config['thumb_ext'] : $file['extension']);
 				$post['files'][] = $file;
 				$i++;
 			}
@@ -1225,12 +1241,12 @@ if (isset($_POST['delete'])) {
 				undoImage($post);
 				error(sprintf($config['error']['fileexists'],
 					($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
-					($board['dir'] . $config['dir']['res'] .
-						($p['thread'] ?
-							$p['thread'] . '.html#' . $p['id']
-						:
-							$p['id'] . '.html'
-						))
+					$board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
+					($p['thread'] ?
+						$p['thread'] . '.html#' . $p['id']
+					:
+						$p['id'] . '.html'
+					)
 				));
 			}
 		} else if (!$post['op'] && $config['image_reject_repost_in_thread']) {
@@ -1238,16 +1254,16 @@ if (isset($_POST['delete'])) {
 				undoImage($post);
 				error(sprintf($config['error']['fileexistsinthread'],
 					($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
-					($board['dir'] . $config['dir']['res'] .
-						($p['thread'] ?
-							$p['thread'] . '.html#' . $p['id']
-						:
-							$p['id'] . '.html'
-						))
+					$board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
+					($p['thread'] ?
+						$p['thread'] . '.html#' . $p['id']
+					:
+						$p['id'] . '.html'
+					)
 				));
 			}
 		}
-		}
+	}
 
 	// Do filters again if OCRing
 	if ($config['tesseract_ocr'] && !hasPermission($config['mod']['bypass_filters'], $board['uri']) && !$dropped_post) {
@@ -1305,6 +1321,13 @@ if (isset($_POST['delete'])) {
 	// Now insert the post
 	$post['id'] = $id = post($post);
 	$post['slug'] = slugify($post);
+
+	// Now fetch live_date_path for the new post
+	$query = prepare("SELECT `live_date_path` FROM `posts` WHERE `board` = :board AND `id` = :id");
+	$query->bindValue(':board', $board['uri']);
+	$query->bindValue(':id', $id, PDO::PARAM_INT);
+	$query->execute() or error(db_error($query));
+	$post['live_date_path'] = $query->fetchColumn();
 
 	insertFloodPost($post);
 
@@ -1370,10 +1393,10 @@ if (isset($_POST['delete'])) {
 
 	if ($post['op']) {
 		// Redirect to the newly created thread
-		$redirect = $root . $board['dir'] . $config['dir']['res'] . link_for($post, false, false, $thread);
-	} else if ($noko) {
-		$redirect = $root . $board['dir'] . $config['dir']['res'] .
-			link_for($post, false, false, $thread) . (!$post['op'] ? '#' . $id : '');
+		$redirect = $root . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post, false, false, $thread);
+    } else if ($noko) {
+        $redirect = $root . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' .
+            link_for($post, false, false, $thread) . (!$post['op'] ? '#' . $id : '');
 	
 		if (!$post['op'] && isset($_SERVER['HTTP_REFERER'])) {
 			$regex = array(
@@ -1385,7 +1408,7 @@ if (isset($_POST['delete'])) {
 			);
 	
 			if (preg_match('/\/' . $regex['board'] . $regex['res'] . $regex['page50'] . '([?&].*)?$/', $_SERVER['HTTP_REFERER'])) {
-				$redirect = $root . $board['dir'] . $config['dir']['res'] .
+				$redirect = $root . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' .
 					link_for($post, true, false, $thread) . (!$post['op'] ? '#' . $id : '');
 			}
 		}
@@ -1397,8 +1420,8 @@ if (isset($_POST['delete'])) {
 
 	$context->get(LogDriver::class)->log(
 		LogDriver::INFO,
-		'New post: /' . $board['dir'] . $config['dir']['res'] . link_for($post) . (!$post['op'] ? '#' . $id : '')
-	);
+		'New post: /' . $board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . (!$post['op'] ? '#' . $id : '')
+    );
 
 	if (!$post['mod']) header('X-Associated-Content: "' . $redirect . '"');
 

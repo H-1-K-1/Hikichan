@@ -1,4 +1,4 @@
-{% verbatim %}
+﻿{% verbatim %}
 
 /* gettext-compatible _ function, example of usage:
  *
@@ -339,17 +339,17 @@ function citeReply(id, board_id, with_link) {
 		let end = textarea.selectionEnd;
 		textarea.value = textarea.value.substring(0, start) + '>>' + board_id + '\n' + textarea.value.substring(end, textarea.value.length);
 
-		textarea.selectionStart += ('>>' + id).length + 1;
+		textarea.selectionStart += ('>>' + board_id).length + 1; // Adjusted to board_id length
 		textarea.selectionEnd = textarea.selectionStart;
 	} else {
-		// ???
-		textarea.value += '>>' + id + '\n';
+		textarea.value += '>>' + board_id + '\n'; // Adjusted to use board_id only
 	}
+
 	if (typeof $ != 'undefined') {
 		let select = document.getSelection().toString();
 		if (select) {
-			let body = $('#reply_' + id + ', #op_' + id).find('div.body');  // TODO: support for OPs
-			let index = body.text().indexOf(select.replace('\n', ''));  // for some reason this only works like this
+			let body = $('#reply_' + id + ', #op_' + id).find('div.body');
+			let index = body.text().indexOf(select.replace('\n', ''));
 			if (index > -1) {
 				textarea.value += '>' + select + '\n';
 			}
@@ -378,19 +378,23 @@ function rememberStuff() {
 		}
 
 		if (window.location.hash.indexOf('q') == 1) {
-			citeReply(window.location.hash.substring(2), true);
+			let hash = window.location.hash.substring(2); // e.g., "123-b456"
+			let [post_id, board_id] = hash.split('-b'); // Split into post_id and board_id
+			if (post_id && board_id) {
+				citeReply(post_id, board_id, true);
+			} else {
+				console.error('Invalid hash format: ' + window.location.hash);
+			}
 		}
 
 		if (sessionStorage.body) {
 			let saved = JSON.parse(sessionStorage.body);
 			if (getCookie('{% endverbatim %}{{ config.cookies.js }}{% verbatim %}')) {
-				// Remove successful posts
 				let successful = JSON.parse(getCookie('{% endverbatim %}{{ config.cookies.js }}{% verbatim %}'));
 				for (let url in successful) {
 					saved[url] = null;
 				}
 				sessionStorage.body = JSON.stringify(saved);
-
 				document.cookie = '{% endverbatim %}{{ config.cookies.js }}{% verbatim %}={};expires=0;path=/;';
 			}
 			if (saved[document.location]) {

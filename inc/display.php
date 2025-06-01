@@ -351,7 +351,7 @@ class Post {
 		if (isset($this->files) && $this->files) {
 			$this->files = is_string($this->files) ? json_decode($this->files) : $this->files;
 			// Compatibility for posts before individual file hashing
-						foreach ($this->files as $i => &$file) {
+			foreach ($this->files as $i => &$file) {
 				if (empty($file)) {
 					unset($this->files[$i]);
 					continue;
@@ -394,8 +394,10 @@ class Post {
 	}
 	public function link($pre = '', $page = false) {
 		global $config, $board;
-
-		return $this->root . $board['dir'] . $config['dir']['res'] . link_for((array)$this, $page == '50') . '#' . $pre . $this->id;
+		$live_date_path = isset($this->live_date_path) && $this->live_date_path !== '' ? $this->live_date_path . '/' : '';
+		// Only append $this->id if $pre is not a full hash (e.g., not starting with 'q')
+		$hash = $pre && strpos($pre, 'q') === 0 ? $pre : $pre . $this->id;
+		return $this->root . $board['dir'] . $config['dir']['res'] . $live_date_path . link_for((array)$this, $page == '50') . '#' . $hash;
 	}
 
 	public function build($index=false) {
@@ -460,8 +462,10 @@ class Thread {
 	}
 	public function link($pre = '', $page = false) {
 		global $config, $board;
-
-		return $this->root . $board['dir'] . $config['dir']['res'] . link_for((array)$this, $page == '50') . '#' . $pre . $this->id;
+		$live_date_path = isset($this->live_date_path) && $this->live_date_path !== '' ? $this->live_date_path . '/' : '';
+		// Only append $this->id if $pre is not a full hash (e.g., not starting with 'q')
+		$hash = $pre && strpos($pre, 'q') === 0 ? $pre : $pre . $this->id;
+		return $this->root . $board['dir'] . $config['dir']['res'] . $live_date_path . link_for((array)$this, $page == '50') . '#' . $hash;
 	}
 	public function add(Post $post) {
 		$this->posts[] = $post;

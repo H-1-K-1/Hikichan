@@ -55,6 +55,7 @@ function postHandler($post) {
                     $file = set_thumbnail_dimensions($post, $file);
                     $tn_path = $board['dir']
                              . $config['dir']['thumb']
+							 . $post->live_date_path . '/'
                              . $file->file_id . '.jpg';
 
                     if (make_webm_thumbnail(
@@ -91,6 +92,7 @@ function postHandler($post) {
                 elseif (isset($videoDetails['frame'])) {
                     $thumbName = $board['dir']
                                . $config['dir']['thumb']
+							   . $post->live_date_path . '/'
                                . $file->file_id . '.webm';
 
                     if ($thumbFile = fopen($thumbName, 'wb')) {

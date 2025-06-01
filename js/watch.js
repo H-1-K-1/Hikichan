@@ -89,69 +89,82 @@ $(function(){
     storage_save(st);
     return bc.watched;
   };
-  var toggle_threadwatched = function(board, thread) {
+var toggle_threadwatched = function (board, thread) {
     var st = storage();
     var bc = st[board] || {};
     if (is_threadwatched(bc, thread)) {
-      delete bc.threads[thread];
+        delete bc.threads[thread];
+        if (bc.live_date_paths) delete bc.live_date_paths[thread];
     }
     else {
-      bc.threads = bc.threads || {};
-      bc.threads[thread] = Date.now();
+        bc.threads = bc.threads || {};
+        bc.threads[thread] = Date.now();
 
-      bc.slugs = bc.slugs || {};
-      bc.slugs[thread] = document.location.pathname + document.location.search;
+        bc.slugs = bc.slugs || {};
+        bc.slugs[thread] = document.location.pathname + document.location.search;
+
+        // Store live_date_path from DOM
+        bc.live_date_paths = bc.live_date_paths || {};
+        var live_date_path = $('[data-thread="' + thread + '"]').data('live-date-path');
+        if (live_date_path) bc.live_date_paths[thread] = live_date_path;
     }
     st[board] = bc;
     storage_save(st);
     return is_threadwatched(bc, thread);
-  };
+};
   var construct_watchlist_for = function(board, variant) {
     var list = $("<div class='boardlist top cb-menu watch-menu'></div>");
     list.attr("data-board", board);
 
     if (storage()[board] && storage()[board].threads)
-    for (var tid in storage()[board].threads) {
-      var newposts = "(0)";
-      if (status && status[board] && status[board].threads && status[board].threads[tid]) {
-        if (status[board].threads[tid] == -404) {
-          newposts = "<i class='fa fa-ban-circle'></i>";
-        }
-        else {
-          newposts = "("+status[board].threads[tid]+")";
-        }
-      }
+        for (var tid in storage()[board].threads) {
+            var newposts = "(0)";
+            if (status && status[board] && status[board].threads && status[board].threads[tid]) {
+                if (status[board].threads[tid] == -404) {
+                    newposts = "<i class='fa fa-ban-circle'></i>";
+                }
+                else {
+                    newposts = "(" + status[board].threads[tid] + ")";
+                }
+            }
 
-      var tag;
-      if (variant == 'desktop') {
-        tag = $("<a href='"+((storage()[board].slugs && storage()[board].slugs[tid]) || (modRoot+board+"/res/"+tid+".html"))+"'><span>#"+tid+"</span><span class='cb-uri watch-remove'>"+newposts+"</span>");
-	tag.find(".watch-remove").mouseenter(function() {
-          this.oldval = $(this).html();
-          $(this).css("min-width", $(this).width());
-          $(this).html("<i class='fa fa-minus'></i>");
-        })
-        .mouseleave(function() {
-          $(this).html(this.oldval);
-        })
-      }
-      else if (variant == 'mobile') {
-        tag = $("<a href='"+((storage()[board].slugs && storage()[board].slugs[tid]) || (modRoot+board+"/res/"+tid+".html"))+"'><span>#"+tid+"</span><span class='cb-uri'>"+newposts+"</span>"
-               +"<span class='cb-uri watch-remove'><i class='fa fa-minus'></i></span>");	
-      }
+            // Get live_date_path for this thread
+            var live_date_path = (storage()[board].live_date_paths && storage()[board].live_date_paths[tid]) || '';
+            if (live_date_path && !live_date_path.endsWith('/')) live_date_path += '/';
 
-      tag.attr('data-thread', tid)
-        .addClass("cb-menuitem")
-        .appendTo(list)
-        .find(".watch-remove")
-        .click(function() {
-          var b = $(this).parent().parent().attr("data-board");
-          var t = $(this).parent().attr("data-thread");
-          toggle_threadwatched(b, t);
-          $(this).parent().parent().parent().mouseleave();
-	  $(this).parent().remove();
-          return false;
-        });
-    }
+            var threadLink = (storage()[board].slugs && storage()[board].slugs[tid])
+                || (modRoot + board + "/res/" + live_date_path + tid + ".html");
+
+            var tag;
+            if (variant == 'desktop') {
+                tag = $("<a href='" + threadLink + "'><span>#" + tid + "</span><span class='cb-uri watch-remove'>" + newposts + "</span>");
+                tag.find(".watch-remove").mouseenter(function () {
+                    this.oldval = $(this).html();
+                    $(this).css("min-width", $(this).width());
+                    $(this).html("<i class='fa fa-minus'></i>");
+                })
+                    .mouseleave(function () {
+                        $(this).html(this.oldval);
+                    })
+            }
+            else if (variant == 'mobile') {
+                tag = $("<a href='" + threadLink + "'><span>#" + tid + "</span><span class='cb-uri'>" + newposts + "</span>"
+                    + "<span class='cb-uri watch-remove'><i class='fa fa-minus'></i></span>");
+            }
+
+            tag.attr('data-thread', tid)
+                .addClass("cb-menuitem")
+                .appendTo(list)
+                .find(".watch-remove")
+                .click(function () {
+                    var b = $(this).parent().parent().attr("data-board");
+                    var t = $(this).parent().attr("data-thread");
+                    toggle_threadwatched(b, t);
+                    $(this).parent().parent().parent().mouseleave();
+                    $(this).parent().remove();
+                    return false;
+                });
+        }
     return list;
   };
 

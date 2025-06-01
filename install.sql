@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
   `body_nomarkup` text NOT NULL,
   `time` int(11) NOT NULL,
   `bump` int(11) NOT NULL,
+  `live_date_path` VARCHAR(255) DEFAULT NULL,
   `files` text,
   `num_files` int(11) NOT NULL DEFAULT '0',
   `filehash` varchar(40) DEFAULT NULL,

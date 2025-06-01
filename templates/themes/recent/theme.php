@@ -36,11 +36,11 @@
         
         public function homepage($settings) {
             global $config, $board, $pdo;
-            
+
             $recent_images = Array();
             $recent_posts = Array();
             $stats = Array();
-            
+
             $boards = listBoards();
             $board_uris = [];
             foreach ($boards as &$_board) {
@@ -56,7 +56,7 @@
             $query = prepare('SELECT * FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ') AND `files` IS NOT NULL ORDER BY `time` DESC LIMIT :limit');
             $query->bindValue(':limit', (int)$settings['limit_images'], PDO::PARAM_INT);
             $query->execute() or error(db_error($query));
-            
+
             while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
                 openBoard($post['board']);
 
@@ -64,9 +64,9 @@
                     $files = json_decode($post['files']);
 
                 if (!$files || $files[0]->file == 'deleted' || $files[0]->thumb == 'file') continue;
-                
-                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res']
-                  . link_for($post) . '#' . $post['id'];
+
+                $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
+                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . $post_date_path . link_for($post) . '#' . $post['id'];
 
                 if ($files) {
                     if ($files[0]->thumb == 'spoiler') {
@@ -81,38 +81,39 @@
                         $post['thumbheight'] = $files[0]->thumbheight;
                     }
                 }
-                
+
                 $recent_images[] = $post;
             }
-            
+
             // Recent posts
             $query = prepare('SELECT * FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ') ORDER BY `time` DESC LIMIT :limit');
             $query->bindValue(':limit', (int)$settings['limit_posts'], PDO::PARAM_INT);
             $query->execute() or error(db_error($query));
-            
+
             while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
                 openBoard($post['board']);
-                
-                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . link_for($post) . '#' . $post['id'];
+
+                $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
+                $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . $post_date_path . link_for($post) . '#' . $post['id'];
                 if ($post['body'] != "")
                     $post['snippet'] = pm_snippet($post['body'], 30);
                 else
                     $post['snippet'] = "<em>" . _("(no comment)") . "</em>";
                 $post['board_name'] = $board['name'];
-                
+
                 $recent_posts[] = $post;
             }
-            
+
             // Total posts
             $query = prepare('SELECT COUNT(*) FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ')');
             $query->execute() or error(db_error($query));
             $stats['total_posts'] = number_format($query->fetchColumn());
-            
+
             // Unique IPs
             $query = prepare('SELECT COUNT(DISTINCT(`ip`)) FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ')');
             $query->execute() or error(db_error($query));
             $stats['unique_posters'] = number_format($query->fetchColumn());
-            
+
             // Active content
             $query = prepare('SELECT `files` FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ') AND `num_files` > 0');
             $query->execute() or error(db_error($query));
@@ -122,7 +123,7 @@
                 preg_match_all('/"size":([0-9]*)/', $file[0], $matches);
                 $stats['active_content'] += array_sum($matches[1]);
             }
-            
+
             return Element('themes/recent/recent.html', Array(
                 'settings' => $settings,
                 'config' => $config,

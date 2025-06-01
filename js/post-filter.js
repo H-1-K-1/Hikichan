@@ -76,6 +76,14 @@ if (active_page === 'thread' || active_page === 'index' || active_page === 'cata
 			return s.trim();
 		}
 
+		// Add this utility function
+		function getLiveDatePath(boardId, threadId) {
+			// Try to find the thread container and get its data-live-date-path
+			var $thread = $('.thread[data-board="' + boardId + '"][data-thread="' + threadId + '"]');
+			var path = $thread.data('live-date-path');
+			return path ? path : '';
+		}
+
 		var blacklist = {
 			add: {
 				post: function (boardId, threadId, postId, hideReplies) {
@@ -83,6 +91,11 @@ if (active_page === 'thread' || active_page === 'index' || active_page === 'cata
 					var filter = list.postFilter;
 
 					initList(list, boardId, threadId);
+
+					// Store live_date_path for this thread
+					list.liveDatePaths = list.liveDatePaths || {};
+					list.liveDatePaths[boardId] = list.liveDatePaths[boardId] || {};
+					list.liveDatePaths[boardId][threadId] = getLiveDatePath(boardId, threadId);
 
 					for (var i in filter[boardId][threadId]) {
 						if (filter[boardId][threadId][i].post == postId) return;
@@ -98,6 +111,11 @@ if (active_page === 'thread' || active_page === 'index' || active_page === 'cata
 					var filter = list.postFilter;
 
 					initList(list, boardId, threadId);
+
+					// Store live_date_path for this thread
+					list.liveDatePaths = list.liveDatePaths || {};
+					list.liveDatePaths[boardId] = list.liveDatePaths[boardId] || {};
+					list.liveDatePaths[boardId][threadId] = getLiveDatePath(boardId, threadId);
 
 					for (var i in filter[boardId][threadId]) {
 						if (filter[boardId][threadId][i].uid == uniqueId) return;
@@ -786,10 +804,12 @@ if (active_page === 'thread' || active_page === 'index' || active_page === 'cata
 				for (threadId in board) {
 					thread = board[threadId];
 					if (timestamp() > (thread.timestamp + thread.interval)) {
+						// get live_date_path for this thread
+						var live_date_path = (list.liveDatePaths && list.liveDatePaths[boardId] && list.liveDatePaths[boardId][threadId]) ? list.liveDatePaths[boardId][threadId] + '/' : '';
 						// check if thread is pruned
 						deferred = $.ajax({
 							cache: false,
-							url: '/'+ boardId +'/res/'+ threadId +'.json',
+							url: '/' + boardId + '/res/' + live_date_path + threadId + '.json',
 							success: successHandler(boardId, threadId),
 							error: errorHandler(boardId, threadId)
 						});
