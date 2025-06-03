@@ -1490,9 +1490,9 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $post['live_date_path'] . '/' . $file['file'];
+                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
                 if (isset($file['thumb']) && $file['thumb'] && $file['thumb'] !== 'deleted') {
-                    $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $post['live_date_path'] . '/' . $file['thumb'];
+                    $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
                 }
             }
         } else {
@@ -1522,10 +1522,10 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $new_live_date_path . '/' . $file['file'];
+                $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file'];
                 @rename($file['file_path'], $target_img_path);
                 if (isset($file['thumb']) && $file['thumb'] && $file['thumb'] !== 'deleted' && $file['thumb'] !== 'spoiler') {
-                    $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $new_live_date_path . '/' . $file['thumb'];
+                    $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
                     @rename($file['thumb_path'], $target_thumb_path);
                 }
             }
@@ -1551,15 +1551,33 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
         // Open the target board for redirect
         openBoard($targetBoard);
 
-        // Find the new thread and live_date_path on the target board
-        $query = prepare('SELECT thread, live_date_path FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-        $query->bindValue(':board', $targetBoard);
-        $query->bindValue(':id', $newID);
-        $query->execute() or error(db_error($query));
-        $post = $query->fetch(PDO::FETCH_ASSOC);
+        // Find the new reply's thread and its live_date_path
+		$query = prepare('SELECT thread FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+		$query->bindValue(':board', $targetBoard);
+		$query->bindValue(':id', $newID);
+		$query->execute() or error(db_error($query));
+		$thread_id = $query->fetchColumn();
 
-        // Redirect
-        header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . '#' . $newID, true, $config['redirect_http']);
+		// If this is a reply, fetch the OP post for the thread
+		if ($thread_id) {
+			$query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+			$query->bindValue(':board', $targetBoard);
+			$query->bindValue(':id', $thread_id);
+			$query->execute() or error(db_error($query));
+			$thread_post = $query->fetch(PDO::FETCH_ASSOC);
+
+			// Redirect to the thread, anchored to the reply
+			header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
+		} else {
+			// If this is a new thread, redirect to it
+			$query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+			$query->bindValue(':board', $targetBoard);
+			$query->bindValue(':id', $newID);
+			$query->execute() or error(db_error($query));
+			$thread_post = $query->fetch(PDO::FETCH_ASSOC);
+
+			header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
+		}
     } else {
         $boards = listBoards();
 
@@ -1584,6 +1602,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
     global $board, $config, $pdo, $mod;
 
     $originBoardURI = basename($originBoard);
+    error_log("mod_move: Starting with originBoardURI=$originBoardURI, postID=$postID");
 
     if (!openBoard($originBoardURI)) {
         error($config['error']['noboard']);
@@ -1601,10 +1620,12 @@ function mod_move(Context $ctx, $originBoard, $postID) {
     if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
         error($config['error']['404']);
     }
+    error_log("mod_move: Fetched OP post with ID=$postID, live_date_path={$post['live_date_path']}");
 
     if (isset($_POST['board'])) {
         $targetBoard = basename($_POST['board']);
         $shadow = isset($_POST['shadow']);
+        error_log("mod_move: Target board=$targetBoard, shadow=" . ($shadow ? 'true' : 'false'));
 
         if ($targetBoard === $originBoardURI) {
             error(_('Target and source board are the same.'));
@@ -1621,8 +1642,9 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $post['live_date_path'] . '/' . $file['file'];
-                $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $post['live_date_path'] . '/' . $file['thumb'];
+                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                error_log("mod_move: OP file path={$file['file_path']}, thumb path={$file['thumb_path']}");
             }
         } else {
             $post['has_file'] = false;
@@ -1636,6 +1658,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
 
         // Create the new thread
         $newID = post($post);
+        error_log("mod_move: Created new thread on target board with newID=$newID");
 
         // Fetch live_date_path for the new thread on the target board
         $op = $post;
@@ -1645,16 +1668,29 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         $query->bindValue(':id', $newID);
         $query->execute() or error(db_error($query));
         $op['live_date_path'] = $query->fetchColumn();
+        error_log("mod_move: New thread live_date_path={$op['live_date_path']}");
 
         // Move/copy files for OP
         if ($post['has_file']) {
             foreach ($post['files'] as $i => &$file) {
                 if ($file['file'] !== 'deleted') {
-                    $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $op['live_date_path'] . '/' . $file['file'];
-                    $clone($file['file_path'], $target_img_path);
+                    $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file'];
+                    $target_img_dir = dirname($target_img_path);
+                    if (!is_dir($target_img_dir)) {
+                        mkdir($target_img_dir, 0775, true);
+                    }
+                    if (!$clone($file['file_path'], $target_img_path)) {
+                        error_log("mod_move: Failed to move/copy image: {$file['file_path']} -> $target_img_path");
+                    }
                     if (isset($file['thumb']) && !in_array($file['thumb'], ['spoiler', 'deleted', 'file'])) {
-                        $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $op['live_date_path'] . '/' . $file['thumb'];
-                        $clone($file['thumb_path'], $target_thumb_path);
+                        $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
+                        $target_thumb_dir = dirname($target_thumb_path);
+                        if (!is_dir($target_thumb_dir)) {
+                            mkdir($target_thumb_dir, 0775, true);
+                        }
+                        if (!$clone($file['thumb_path'], $target_thumb_path)) {
+                            error_log("mod_move: Failed to move/copy thumb: {$file['thumb_path']} -> $target_thumb_path");
+                        }
                     }
                 }
             }
@@ -1671,18 +1707,18 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         while ($reply = $query->fetch(PDO::FETCH_ASSOC)) {
             $reply['mod'] = true;
             $reply['thread'] = $newID;
-
-            // Fetch live_date_path for each reply
             $reply_live_date_path = $reply['live_date_path'];
+            error_log("mod_move: Reply ID={$reply['id']}, live_date_path=$reply_live_date_path");
 
             if ($reply['files']) {
                 $reply['files'] = json_decode($reply['files'], true);
                 $reply['has_file'] = true;
                 foreach ($reply['files'] as $i => &$file) {
-                    $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $reply_live_date_path . '/' . $file['file'];
+                    $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
                     if (isset($file['thumb'])) {
-                        $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $reply_live_date_path . '/' . $file['thumb'];
+                        $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
                     }
+                    error_log("mod_move: Reply file path={$file['file_path']}, thumb path=" . (isset($file['thumb_path']) ? $file['thumb_path'] : 'none'));
                 }
             } else {
                 $reply['has_file'] = false;
@@ -1696,9 +1732,6 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         openBoard($targetBoard);
 
         foreach ($replies as &$reply) {
-            // Correct >>X links (omitted for brevity, keep your existing logic here)
-
-            // Fetch live_date_path for the reply on the target board after posting
             $reply['op'] = false;
             $reply['tracked_cites'] = markup($reply['body'], true);
 
@@ -1706,21 +1739,50 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                 foreach ($reply['files'] as $i => &$file) {
                     if ($file['file'] !== 'deleted') {
                         $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $reply['live_date_path'] . '/' . $file['file'];
-                        $clone($file['file_path'], $target_img_path);
+                        $target_img_dir = dirname($target_img_path);
+                        if (!is_dir($target_img_dir)) {
+                            mkdir($target_img_dir, 0775, true);
+                        }
+                        if (!$clone($file['file_path'], $target_img_path)) {
+                            error_log("mod_move: Failed to move/copy reply image: {$file['file_path']} -> $target_img_path");
+                        }
                         if (isset($file['thumb']) && !in_array($file['thumb'], ['spoiler', 'deleted', 'file'])) {
                             $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $reply['live_date_path'] . '/' . $file['thumb'];
-                            $clone($file['thumb_path'], $target_thumb_path);
+                            $target_thumb_dir = dirname($target_thumb_path);
+                            if (!is_dir($target_thumb_dir)) {
+                                mkdir($target_thumb_dir, 0775, true);
+                            }
+                            if (!$clone($file['thumb_path'], $target_thumb_path)) {
+                                error_log("mod_move: Failed to move/copy reply thumb: {$file['thumb_path']} -> $target_thumb_path");
+                            }
                         }
                     }
                 }
             }
             // Insert reply
             $newIDs[$reply['id']] = $newPostID = post($reply);
-
-            // (Omitted: tracked cites logic)
+            error_log("mod_move: Posted reply with new ID=$newPostID");
         }
 
         modLog("Moved thread #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoardURI);
+
+        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $op['live_date_path'];
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0775, true);
+            error_log("mod_move: Created directory $target_dir");
+        }
+
+        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $op['live_date_path'];
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0775, true);
+            error_log("mod_move: Created directory $target_dir");
+        }
+
+        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $op['live_date_path'];
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0775, true);
+            error_log("mod_move: Created directory $target_dir");
+        }
 
         // Build new thread
         buildThread($newID);
@@ -1729,6 +1791,8 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
 
         $newboard = $board;
+        error_log("mod_move: New board context set to " . print_r($newboard, true));
+
         openBoard($originBoardURI);
 
         if ($shadow) {
@@ -1736,16 +1800,30 @@ function mod_move(Context $ctx, $originBoard, $postID) {
             $query->bindValue(':board', $originBoardURI);
             $query->bindValue(':id', $postID, PDO::PARAM_INT);
             $query->execute() or error(db_error($query));
-
-            // Leave a reply, linking to the new thread (omitted for brevity)
-            // ... (keep your existing logic here)
+            error_log("mod_move: Locked original thread ID=$postID on $originBoardURI");
         } else {
             deletePost($postID);
             buildIndex();
-
-            openBoard($targetBoard);
-            header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $op['live_date_path'] . '/' . link_for($op, false, $newboard), true, $config['redirect_http']);
+            error_log("mod_move: Deleted original thread ID=$postID on $originBoardURI");
         }
+
+        // Construct and log redirect URL
+        openBoard($targetBoard);
+        $newboard = $board; // Ensure $newboard reflects target board
+        $board_path = rtrim(sprintf($config['board_path'], $targetBoard), '/');
+        $res_dir = rtrim($config['dir']['res'], '/');
+        $live_date_path = trim($op['live_date_path'], '/');
+        $link = link_for($op, false, $newboard);
+        $redirect_url = "/mod.php?/{$board_path}/{$res_dir}/{$live_date_path}/{$link}";
+        if (isset($config['root'])) {
+            $redirect_url = rtrim($config['root'], '/') . $redirect_url;
+        }
+        error_log("mod_move: Config board_path=" . sprintf($config['board_path'], $targetBoard) . ", res_dir={$config['dir']['res']}");
+        error_log("mod_move: Redirect URL components: board_path=$board_path, res_dir=$res_dir, live_date_path=$live_date_path, link=$link");
+        error_log("mod_move: Final redirect URL: $redirect_url");
+
+        // Perform redirect
+        header('Location: ' . $redirect_url, true, $config['redirect_http']);
         return;
     }
 
@@ -1756,6 +1834,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
 
     $board_path = rtrim(sprintf($config['board_path'], $originBoardURI), '/');
     $security_token = make_secure_link_token("{$board_path}/move/{$postID}");
+    error_log("mod_move: Displaying move thread page for postID=$postID, originBoardURI=$originBoardURI");
 
     mod_page(
         _('Move thread'),

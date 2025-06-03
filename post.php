@@ -1088,182 +1088,181 @@ if (isset($_POST['delete'])) {
 	}
 
 	if ($post['has_file']) {
-		foreach ($post['files'] as $key => &$file) {
-		if ($file['is_an_image']) {
-			if ($config['ie_mime_type_detection'] !== false) {
-				// Check IE MIME type detection XSS exploit
-				$buffer = file_get_contents($upload, false, null, 0, 255);
-				if (preg_match($config['ie_mime_type_detection'], $buffer)) {
-					undoImage($post);
-					error($config['error']['mime_exploit']);
-				}
-			}
+        foreach ($post['files'] as $key => &$file) {
+            if ($file['is_an_image']) {
+                if ($config['ie_mime_type_detection'] !== false) {
+                    // Check IE MIME type detection XSS exploit
+                    $buffer = file_get_contents($file['tmp_name'], false, null, 0, 255);
+                    if (preg_match($config['ie_mime_type_detection'], $buffer)) {
+                        error($config['error']['mime_exploit']);
+                    }
+                }
 
-			require_once 'inc/image.php';
+                require_once 'inc/image.php';
 
-			// find dimensions of an image using GD
-			if (!$size = @getimagesize($file['tmp_name'])) {
-				error($config['error']['invalidimg']);
-			}
-			if (!in_array($size[2], array(IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_JPEG, IMAGETYPE_BMP, IMAGETYPE_WEBP))) {
-				error($config['error']['invalidimg']);
-			}
-			if ($size[0] > $config['max_width'] || $size[1] > $config['max_height']) {
-				error($config['error']['maxsize']);
-			}
+                // Find dimensions of an image using GD
+                if (!$size = @getimagesize($file['tmp_name'])) {
+                    error($config['error']['invalidimg']);
+                }
+                if (!in_array($size[2], array(IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_JPEG, IMAGETYPE_BMP, IMAGETYPE_WEBP))) {
+                    error($config['error']['invalidimg']);
+                }
+                if ($size[0] > $config['max_width'] || $size[1] > $config['max_height']) {
+                    error($config['error']['maxsize']);
+                }
 
-			$file['exif_stripped'] = false;
+                $file['exif_stripped'] = false;
 
-			if ($file_image_has_operable_metadata && $config['convert_auto_orient']) {
-				// The following code corrects the image orientation.
-				// Currently only works with the 'convert' option selected but it could easily be expanded to work with the rest if you can be bothered.
-				if (!($config['redraw_image'] || (($config['strip_exif'] && !$config['use_exiftool'])))) {
-					if (in_array($config['thumb_method'], array('convert', 'convert+gifsicle', 'gm', 'gm+gifsicle'))) {
-						$exif = @exif_read_data($file['tmp_name']);
-						$gm = in_array($config['thumb_method'], array('gm', 'gm+gifsicle'));
-						if (isset($exif['Orientation']) && $exif['Orientation'] != 1) {
-							$error = shell_exec_error(($gm ? 'gm ' : '') . 'convert ' .
-									escapeshellarg($file['tmp_name']) . ' -auto-orient ' . escapeshellarg($upload));
+                if ($file_image_has_operable_metadata && $config['convert_auto_orient']) {
+                    // Auto-orient image if needed
+                    if (!($config['redraw_image'] || (($config['strip_exif'] && !$config['use_exiftool'])))) {
+                        if (in_array($config['thumb_method'], array('convert', 'convert+gifsicle', 'gm', 'gm+gifsicle'))) {
+                            $exif = @exif_read_data($file['tmp_name']);
+                            $gm = in_array($config['thumb_method'], array('gm', 'gm+gifsicle'));
+                            if (isset($exif['Orientation']) && $exif['Orientation'] != 1) {
+                                $error = shell_exec_error(($gm ? 'gm ' : '') . 'convert ' .
+                                        escapeshellarg($file['tmp_name']) . ' -auto-orient ' . escapeshellarg($file['tmp_name']));
+                                if ($error)
+                                    error(_('Could not auto-orient image!'), null, $error);
+                                $size = @getimagesize($file['tmp_name']);
+                                if ($config['strip_exif'])
+                                    $file['exif_stripped'] = true;
+                            }
+                        }
+                    }
+                }
 
-							if ($error)
-								error(_('Could not auto-orient image!'), null, $error);
-							$size = @getimagesize($file['tmp_name']);
-							if ($config['strip_exif'])
-								$file['exif_stripped'] = true;
-						}
-					}
-				}
-			}
+                // Create image object
+                $image = new Image($file['tmp_name'], $file['extension'], $size);
+                if ($image->size->width > $config['max_width'] || $image->size->height > $config['max_height']) {
+                    $image->delete();
+                    error($config['error']['maxsize']);
+                }
 
-			// create image object
-			$image = new Image($file['tmp_name'], $file['extension'], $size);
-			if ($image->size->width > $config['max_width'] || $image->size->height > $config['max_height']) {
-				$image->delete();
-				error($config['error']['maxsize']);
-			}
+                $file['width'] = $image->size->width;
+                $file['height'] = $image->size->height;
 
-			$file['width'] = $image->size->width;
-			$file['height'] = $image->size->height;
+                if ($config['spoiler_images'] && isset($_POST['spoiler'])) {
+                    $file['thumb'] = 'spoiler';
+                    $size = @getimagesize($config['spoiler_image']);
+                    $file['thumbwidth'] = $size[0];
+                    $file['thumbheight'] = $size[1];
+                } elseif ($config['minimum_copy_resize'] &&
+                    $image->size->width <= $config['thumb_width'] &&
+                    $image->size->height <= $config['thumb_height'] &&
+                    $file['extension'] == ($config['thumb_ext'] ? $config['thumb_ext'] : $file['extension'])) {
+                    // Copy, because there's nothing to resize
+                    copy($file['tmp_name'], $file['thumb']);
+                    $file['thumbwidth'] = $image->size->width;
+                    $file['thumbheight'] = $image->size->height;
+                } else {
+                    $thumb = $image->resize(
+                        $config['thumb_ext'] ? $config['thumb_ext'] : $file['extension'],
+                        $post['op'] ? $config['thumb_op_width'] : $config['thumb_width'],
+                        $post['op'] ? $config['thumb_op_height'] : $config['thumb_height']
+                    );
+                    $thumb->to($file['thumb']);
+                    $file['thumbwidth'] = $thumb->width;
+                    $file['thumbheight'] = $thumb->height;
+                    $thumb->_destroy();
+                }
 
-			if ($config['spoiler_images'] && isset($_POST['spoiler'])) {
-				$file['thumb'] = 'spoiler';
+                $dont_copy_file = false;
 
-				$size = @getimagesize($config['spoiler_image']);
-				$file['thumbwidth'] = $size[0];
-				$file['thumbheight'] = $size[1];
-			} elseif ($config['minimum_copy_resize'] &&
-				$image->size->width <= $config['thumb_width'] &&
-				$image->size->height <= $config['thumb_height'] &&
-				$file['extension'] == ($config['thumb_ext'] ? $config['thumb_ext'] : $file['extension'])) {
+                if ($config['redraw_image'] || ($file_image_has_operable_metadata && !$file['exif_stripped'] && $config['strip_exif'])) {
+                    if (!$config['redraw_image'] && $config['use_exiftool']) {
+                        try {
+                            $file['size'] = strip_image_metadata($file['tmp_name']);
+                        } catch (RuntimeException $e) {
+                            $context->get(LogDriver::class)->log(LogDriver::ERROR, "Could not strip image metadata: {$e->getMessage()}");
+                            error(_('Could not strip EXIF metadata!'), null, $e->getMessage());
+                        }
+                    } else {
+                        $image->to($file['file']);
+                        $dont_copy_file = true;
+                    }
+                }
+                $image->destroy();
+            } else {
+                // Not an image
+                $file['thumb'] = 'file';
+                $size = @getimagesize(sprintf($config['file_thumb'],
+                    isset($config['file_icons'][$file['extension']]) ?
+                        $config['file_icons'][$file['extension']] : $config['file_icons']['default']));
+                $file['thumbwidth'] = $size[0];
+                $file['thumbheight'] = $size[1];
+                $dont_copy_file = false;
+            }
 
-				// Copy, because there's nothing to resize
-				copy($file['tmp_name'], $file['thumb']);
+            if ($config['tesseract_ocr'] && $file['thumb'] != 'file') {
+                $fname = $file['tmp_name'];
+                if ($file['height'] > 500 || $file['width'] > 500) {
+                    $fname = $file['thumb'];
+                }
+                if ($fname !== 'spoiler') {
+                    try {
+                        $txt = ocr_image($config, $fname);
+                        if ($txt !== '') {
+                            $post['body_nomarkup'] .= "<tinyboard ocr image $key>" . htmlspecialchars($txt) . "</tinyboard>";
+                        }
+                    } catch (RuntimeException $e) {
+                        $context->get(LogDriver::class)->log(LogDriver::ERROR, "Could not OCR image: {$e->getMessage()}");
+                    }
+                }
+            }
 
-				$file['thumbwidth'] = $image->size->width;
-				$file['thumbheight'] = $image->size->height;
-			} else {
-				$thumb = $image->resize(
-					$config['thumb_ext'] ? $config['thumb_ext'] : $file['extension'],
-					$post['op'] ? $config['thumb_op_width'] : $config['thumb_width'],
-					$post['op'] ? $config['thumb_op_height'] : $config['thumb_height']
-				);
+            // Check for duplicates before uploading the file
+            if ($config['image_reject_repost']) {
+                if ($p = getPostByHash($post['filehash'])) {
+                    if ($file['is_an_image'] && $file['thumb'] != 'spoiler' && file_exists($file['thumb'])) {
+                        @unlink($file['thumb']); // Clean up thumbnail if it was created
+                    }
+                    error(sprintf($config['error']['fileexists'],
+                        ($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
+                        $board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
+                        ($p['thread'] ?
+                            $p['thread'] . '.html#' . $p['id']
+                        :
+                            $p['id'] . '.html'
+                        )
+                    ));
+                }
+            } else if (!$post['op'] && $config['image_reject_repost_in_thread']) {
+                if ($p = getPostByHashInThread($post['filehash'], $post['thread'])) {
+                    if ($file['is_an_image'] && $file['thumb'] != 'spoiler' && file_exists($file['thumb'])) {
+                        @unlink($file['thumb']); // Clean up thumbnail if it was created
+                    }
+                    error(sprintf($config['error']['fileexistsinthread'],
+                        ($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
+                        $board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
+                        ($p['thread'] ?
+                            $p['thread'] . '.html#' . $p['id']
+                        :
+                            $p['id'] . '.html'
+                        )
+                    ));
+                }
+            }
 
-				$thumb->to($file['thumb']);
-
-				$file['thumbwidth'] = $thumb->width;
-				$file['thumbheight'] = $thumb->height;
-
-				$thumb->_destroy();
-			}
-
-			$dont_copy_file = false;
-
-			if ($config['redraw_image'] || ($file_image_has_operable_metadata && !$file['exif_stripped'] && $config['strip_exif'])) {
-				if (!$config['redraw_image'] && $config['use_exiftool']) {
-					try {
-						$file['size'] = strip_image_metadata($file['tmp_name']);
-					} catch (RuntimeException $e) {
-						$context->get(LogDriver::class)->log(LogDriver::ERROR, "Could not strip image metadata: {$e->getMessage()}");
-						// Since EXIF metadata can countain sensible info, fail the request.
-						error(_('Could not strip EXIF metadata!'), null, $error);
-					}
-				} else {
-					$image->to($file['file']);
-					$dont_copy_file = true;
-				}
-			}
-			$image->destroy();
-		} else {
-			// not an image
-			$file['thumb'] = 'file';
-
-			$size = @getimagesize(sprintf($config['file_thumb'],
-				isset($config['file_icons'][$file['extension']]) ?
-					$config['file_icons'][$file['extension']] : $config['file_icons']['default']));
-			$file['thumbwidth'] = $size[0];
-			$file['thumbheight'] = $size[1];
-			$dont_copy_file = false;
-		}
-
-		if ($config['tesseract_ocr'] && $file['thumb'] != 'file') { // Let's OCR it!
-			$fname = $file['tmp_name'];
-
-			if ($file['height'] > 500 || $file['width'] > 500) {
-				$fname = $file['thumb'];
-			}
-
-			if ($fname !== 'spoiler') { // We don't have that much CPU time, do we?
-				try {
-					$txt = ocr_image($config, $fname);
-					if ($txt !== '') {
-						// This one has an effect, that the body is appended to a post body. So you can write a correct
-						// spamfilter.
-						$post['body_nomarkup'] .= "<tinyboard ocr image $key>" . htmlspecialchars($txt) . "</tinyboard>";
-					}
-				} catch (RuntimeException $e) {
-					$context->get(LogDriver::class)->log(LogDriver::ERROR, "Could not OCR image: {$e->getMessage()}");
-				}
-			}
-		}
-
-		if (!$dont_copy_file) {
-			if (isset($file['file_tmp'])) {
-				if (!@rename($file['tmp_name'], $file['file']))
-					error($config['error']['nomove']);
-				chmod($file['file'], 0644);
-			} elseif (!@move_uploaded_file($file['tmp_name'], $file['file']))
-				error($config['error']['nomove']);
-			}
-		}
-
-		if ($config['image_reject_repost']) {
-			if ($p = getPostByHash($post['filehash'])) {
-				undoImage($post);
-				error(sprintf($config['error']['fileexists'],
-					($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
-					$board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
-					($p['thread'] ?
-						$p['thread'] . '.html#' . $p['id']
-					:
-						$p['id'] . '.html'
-					)
-				));
-			}
-		} else if (!$post['op'] && $config['image_reject_repost_in_thread']) {
-			if ($p = getPostByHashInThread($post['filehash'], $post['thread'])) {
-				undoImage($post);
-				error(sprintf($config['error']['fileexistsinthread'],
-					($post['mod'] ? $config['root'] . $config['file_mod'] . '?/' : $config['root']) .
-					$board['dir'] . $config['dir']['res'] . $p['live_date_path'] . '/' .
-					($p['thread'] ?
-						$p['thread'] . '.html#' . $p['id']
-					:
-						$p['id'] . '.html'
-					)
-				));
-			}
-		}
-	}
+            // If no duplicates, proceed with file upload
+            if (!$dont_copy_file) {
+                if (isset($file['file_tmp'])) {
+                    if (!@rename($file['tmp_name'], $file['file'])) {
+                        if ($file['is_an_image'] && $file['thumb'] != 'spoiler' && file_exists($file['thumb'])) {
+                            @unlink($file['thumb']); // Clean up thumbnail on failure
+                        }
+                        error($config['error']['nomove']);
+                    }
+                    chmod($file['file'], 0644);
+                } elseif (!@move_uploaded_file($file['tmp_name'], $file['file'])) {
+                    if ($file['is_an_image'] && $file['thumb'] != 'spoiler' && file_exists($file['thumb'])) {
+                        @unlink($file['thumb']); // Clean up thumbnail on failure
+                    }
+                    error($config['error']['nomove']);
+                }
+            }
+        }
+    }
 
 	// Do filters again if OCRing
 	if ($config['tesseract_ocr'] && !hasPermission($config['mod']['bypass_filters'], $board['uri']) && !$dropped_post) {

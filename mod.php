@@ -163,7 +163,7 @@ foreach ($pages as $uri => $handler) {
 			$board_match = $matches['board'];
 			unset($matches['board']);
 			$key = array_search($board_match, $matches);
-			if (preg_match('/^' . sprintf(substr($config['board_path'], 0, -1), '(' . $config['board_regex'] . ')') . '$/u', $matches[$key], $board_match)) {
+			if (preg_match('!^' . sprintf(substr($config['board_path'], 0, -1), '(' . $config['board_regex'] . ')') . '$!u', $matches[$key], $board_match)) {
 				$matches[$key] = $board_match[1];
 			}
 		}

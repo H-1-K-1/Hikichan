@@ -1041,9 +1041,6 @@ function deleteFile($id, $remove_entirely_if_already = true, $file = null) {
     if ($files[0]->file == 'deleted' && $post['num_files'] == 1 && !$post['thread'])
         return; // Can't delete OP's image completely.
 
-    // Use live_date_path for correct file location
-    $live_date_path = $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
-
     $query = prepare("UPDATE ``posts`` SET `files` = :file WHERE `board` = :board AND `id` = :id");
     if (($file && $file_to_delete->file == 'deleted') && $remove_entirely_if_already) {
         // Already deleted; remove file fully
@@ -1053,21 +1050,13 @@ function deleteFile($id, $remove_entirely_if_already = true, $file = null) {
             if (($file !== false && $i == $file) || $file === null) {
                 // Delete thumbnail
                 if (isset($f->thumb) && $f->thumb) {
-                    $thumb_path = $board['dir'] . $config['dir']['thumb'];
-                    if ($live_date_path && strpos($f->thumb, $live_date_path) === false) {
-                        $thumb_path .= $live_date_path;
-                    }
-                    file_unlink($thumb_path . $f->thumb);
+                    file_unlink($board['dir'] . $config['dir']['thumb'] . $f->thumb);
                     unset($files[$i]->thumb);
                 }
 
                 // Delete file
                 if ($f->file !== 'deleted') {
-                    $file_path = $board['dir'] . $config['dir']['img'];
-                    if ($live_date_path && strpos($f->file, $live_date_path) === false) {
-                        $file_path .= $live_date_path;
-                    }
-                    file_unlink($file_path . $f->file);
+                    file_unlink($board['dir'] . $config['dir']['img'] . $f->file);
                     $files[$i]->file = 'deleted';
                 }
             }
@@ -1119,7 +1108,6 @@ function rebuildPost($id) {
 function deletePost($id, $error_if_doesnt_exist = true, $rebuild_after = true) {
     global $board, $config;
 
-    // CHANGED: Use unified posts table and filter by board
     $query = prepare("SELECT `id`, `thread`, `files`, `slug`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
@@ -1156,20 +1144,10 @@ function deletePost($id, $error_if_doesnt_exist = true, $rebuild_after = true) {
             $rebuild = &$post['thread'];
         }
         if ($post['files']) {
-            // Delete files
             foreach (json_decode($post['files']) as $i => $f) {
                 if ($f->file !== 'deleted') {
-                    $img_path = $board['dir'] . $config['dir']['img'];
-                    $thumb_path = $board['dir'] . $config['dir']['thumb'];
-                    // Only prepend live_date_path if file/thumb doesn't already contain it
-                    if ($live_date_path && strpos($f->file, $live_date_path) === false) {
-                        $img_path .= $live_date_path;
-                    }
-                    if ($live_date_path && strpos($f->thumb, $live_date_path) === false) {
-                        $thumb_path .= $live_date_path;
-                    }
-                    file_unlink($img_path . $f->file);
-                    file_unlink($thumb_path . $f->thumb);
+                    file_unlink($board['dir'] . $config['dir']['img'] . $f->file);
+                    file_unlink($board['dir'] . $config['dir']['thumb'] . $f->thumb);
                 }
             }
         }
@@ -1177,7 +1155,6 @@ function deletePost($id, $error_if_doesnt_exist = true, $rebuild_after = true) {
         $ids[] = (int)$post['id'];
     }
 
-    // CHANGED: Use unified posts table and filter by board
     $query = prepare("DELETE FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
