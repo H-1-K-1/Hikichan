@@ -8,7 +8,6 @@
  *
  * Usage:
  *   $config['additional_javascript'][] = 'js/jquery.min.js';
- *   //$config['additional_javascript'][] = 'js/options.js';
  *   //$config['additional_javascript'][] = 'js/style-select.js';
  *   //$config['additional_javascript'][] = 'js/options/general.js';
  *   $config['additional_javascript'][] = 'js/forced-anon.js';
