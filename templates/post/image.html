@@ -1,48 +1,52 @@
 {% set is_video = post.file|extension in ['webm', 'mp4'] %}
 {% set is_video_thumb = post.thumb|extension in ['webm', 'mp4'] %}
+{% set is_audio = post.file|extension == 'mp3' %}
 {% set is_file_class = post.thumb == 'file' or post.modifiers['is_file'] == '1' or post.filename|extension in ['webm', 'mp4'] %}
 {% set file_icon = config.file_icons[post.filename|extension] ?? config.file_icons.default %}
 {% set file_icon_thumb = config.file_thumb|sprintf(file_icon) %}
 {% set use_ffmpeg = config.webm.use_ffmpeg %}
 
-
+{% if is_audio %}
+<audio class="post-audio"
+	   src="{{ config.uri_img }}{{ post.file }}"
+	   style="width:240px;max-width:100%;"
+	   controls>
+	Your browser does not support the audio element.
+</audio>
+{% else %}
 <a href="
-	{{ is_video
-		? config.root ~ 'player.php?v=' ~ config.uri_img ~ post.file ~ '&amp;t=' ~ (config.show_filename ? post.filename|e('url') : post.file) ~ '&amp;loop=1'
-		: config.uri_img ~ post.file }}
-	"
-	target="_blank"
-	{% if is_file_class %}class="file"{% endif %}
->
+    {{ is_video
+      ? config.root ~ 'player.php?v=' ~ config.uri_img ~ post.file ~ '&amp;t=' ~ (config.show_filename ? post.filename|e('url') : post.file) ~ '&amp;loop=1'
+      : config.uri_img ~ post.file }}
+    "
+   target="_blank"
+   {% if is_file_class %}class="file" {% endif %}>
 	{% if is_video and not use_ffmpeg %}
-		<video preload="metadata" class="post-image"
-			src="{{ config.uri_img }}{{ post.file }}"
-			style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
-			{% if config.content_lazy_loading %}loading="lazy"{% endif %}
-			controls
-		></video>
+	<video preload="metadata" class="post-image"
+		   src="{{ config.uri_img }}{{ post.file }}"
+		   style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
+		   {% if config.content_lazy_loading %}loading="lazy" {% endif %}
+		   controls></video>
 	{% elseif is_video_thumb %}
-		<video autoplay class="post-image"
-			src="{{ config.uri_thumb }}{{ post.thumb }}"
-			poster="{{ config.root }}{{ file_icon_thumb }}"
-			style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
-			{% if config.content_lazy_loading %}loading="lazy"{% endif %}
-		></video>
+	<video autoplay class="post-image"
+		   src="{{ config.uri_thumb }}{{ post.thumb }}"
+		   poster="{{ config.root }}{{ file_icon_thumb }}"
+		   style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
+		   {% if config.content_lazy_loading %}loading="lazy" {% endif %}></video>
 	{% else %}
-		<img class="post-image"
-			src="
-				{% if post.thumb == 'file' %}
-					{{ config.root }}{{ file_icon_thumb }}
-				{% elseif post.thumb == 'spoiler' %}
-					{{ config.root }}{{ config.spoiler_image }}
-				{% else %}
-					{{ config.uri_thumb }}{{ post.thumb }}
-				{% endif %}
-			"
-			style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
-			{% if config.content_lazy_loading %}loading="lazy"{% endif %}
-			alt=""
-		/>
+	<img class="post-image"
+		 src="
+              {% if post.thumb == 'file' %}
+                {{ config.root }}{{ file_icon_thumb }}
+              {% elseif post.thumb == 'spoiler' %}
+                {{ config.root }}{{ config.spoiler_image }}
+              {% else %}
+                {{ config.uri_thumb }}{{ post.thumb }}
+              {% endif %}
+           "
+		 style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
+		 {% if config.content_lazy_loading %}loading="lazy" {% endif %}
+		 alt="" />
 	{% endif %}
 </a>
-
+{% endif %}
