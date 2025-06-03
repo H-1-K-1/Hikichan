@@ -1053,13 +1053,23 @@ function deleteFile($id, $remove_entirely_if_already = true, $file = null) {
             if (($file !== false && $i == $file) || $file === null) {
                 // Delete thumbnail
                 if (isset($f->thumb) && $f->thumb) {
-                    file_unlink($board['dir'] . $config['dir']['thumb'] . $live_date_path . $f->thumb);
+                    $thumb_path = $board['dir'] . $config['dir']['thumb'];
+                    if ($live_date_path && strpos($f->thumb, $live_date_path) === false) {
+                        $thumb_path .= $live_date_path;
+                    }
+                    file_unlink($thumb_path . $f->thumb);
                     unset($files[$i]->thumb);
                 }
 
                 // Delete file
-                file_unlink($board['dir'] . $config['dir']['img'] . $live_date_path . $f->file);
-                $files[$i]->file = 'deleted';
+                if ($f->file !== 'deleted') {
+                    $file_path = $board['dir'] . $config['dir']['img'];
+                    if ($live_date_path && strpos($f->file, $live_date_path) === false) {
+                        $file_path .= $live_date_path;
+                    }
+                    file_unlink($file_path . $f->file);
+                    $files[$i]->file = 'deleted';
+                }
             }
         }
     }
@@ -1106,11 +1116,11 @@ function rebuildPost($id) {
 }
 
 // Delete a post (reply or thread)
-function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
+function deletePost($id, $error_if_doesnt_exist = true, $rebuild_after = true) {
     global $board, $config;
 
     // CHANGED: Use unified posts table and filter by board
-    $query = prepare("SELECT `id`,`thread`,`files`,`slug`,`live_date_path` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
+    $query = prepare("SELECT `id`, `thread`, `files`, `slug`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND (`id` = :id OR `thread` = :id)");
     $query->bindValue(':board', $board['uri']);
     $query->bindValue(':id', $id, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
@@ -1118,7 +1128,8 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
     if ($query->rowCount() < 1) {
         if ($error_if_doesnt_exist)
             error($config['error']['invalidpost']);
-        else return false;
+        else
+            return false;
     }
 
     $ids = array();
@@ -1128,11 +1139,13 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
         event('delete', $post);
 
         $thread_id = $post['thread'];
+        $live_date_path = $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
+
         if (!$post['thread']) {
             // Delete thread HTML page
             file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post));
-			file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post, true)); // noko50
-			file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . sprintf('%d.json', $post['id']));
+            file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post, true)); // noko50
+            file_unlink($board['dir'] . $config['dir']['res'] . $post['live_date_path'] . '/' . sprintf('%d.json', $post['id']));
 
             $antispam_query = prepare('DELETE FROM ``antispam`` WHERE `board` = :board AND `thread` = :thread');
             $antispam_query->bindValue(':board', $board['uri']);
@@ -1143,17 +1156,25 @@ function deletePost($id, $error_if_doesnt_exist=true, $rebuild_after=true) {
             $rebuild = &$post['thread'];
         }
         if ($post['files']) {
-            // Delete file
+            // Delete files
             foreach (json_decode($post['files']) as $i => $f) {
                 if ($f->file !== 'deleted') {
-                    file_unlink($board['dir'] . $config['dir']['img'] . $post['live_date_path'] . '/' . $f->file);
-                    file_unlink($board['dir'] . $config['dir']['thumb'] . $post['live_date_path'] . '/' . $f->thumb);
+                    $img_path = $board['dir'] . $config['dir']['img'];
+                    $thumb_path = $board['dir'] . $config['dir']['thumb'];
+                    // Only prepend live_date_path if file/thumb doesn't already contain it
+                    if ($live_date_path && strpos($f->file, $live_date_path) === false) {
+                        $img_path .= $live_date_path;
+                    }
+                    if ($live_date_path && strpos($f->thumb, $live_date_path) === false) {
+                        $thumb_path .= $live_date_path;
+                    }
+                    file_unlink($img_path . $f->file);
+                    file_unlink($thumb_path . $f->thumb);
                 }
             }
         }
 
         $ids[] = (int)$post['id'];
-
     }
 
     // CHANGED: Use unified posts table and filter by board
