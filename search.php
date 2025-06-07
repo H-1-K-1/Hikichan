@@ -129,7 +129,7 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
             $thumb_url = '';
             if (!empty($arch['first_image'])) {
                 $thumb_url = sprintf(
-                    '%s/%s/%s/archive/%s/thumb/%s',
+                    '%s/%s/%s/archive/thumb/%s/%s',
                     rtrim($config['root'], '/'),
                     trim($board['prefix'], '/'),
                     urlencode($_GET['board']),
@@ -138,7 +138,7 @@ if(isset($_GET['search']) && !empty($_GET['search']) && isset($_GET['board']) &&
                 );
             }
             $archive_url = sprintf(
-                '%s/%s/%s/archive/%s/res/%d.html',
+                '%s/%s/%s/archive/res/%s/%d.html',
                 rtrim($config['root'], '/'),
                 trim($board['prefix'], '/'),
                 urlencode($_GET['board']),

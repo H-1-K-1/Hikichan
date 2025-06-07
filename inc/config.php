@@ -491,7 +491,7 @@
     $config['max_combining_chars'] = 3;
 
 	// Maximum numbers of threads that can be created every hour on a board.
-	$config['max_threads_per_hour'] = 30;
+	$config['max_threads_per_hour'] = 300;
 	// Maximum post body length.
 	$config['max_body'] = 100000;
 	// Maximum number of lines allowed in a post.
@@ -847,6 +847,7 @@
 	$config['allowed_ext_files'][] = 'zip';
 	$config['allowed_ext_files'][] = 'mp4';
 	$config['allowed_ext_files'][] = 'webm';
+	$config['allowed_ext_files'][] = 'mp3';
 
 
 	// An alternative function for generating image filenames, instead of the default UNIX timestamp.

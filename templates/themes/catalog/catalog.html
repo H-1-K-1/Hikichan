@@ -11,20 +11,30 @@
 	<title>{{ board }} - Catalog</title>
 </head>
 <body class="8chan vichan {% if mod %}is-moderator{% else %}is-not-moderator{% endif %} theme-catalog active-catalog"
-	data-stylesheet="{% if config.default_stylesheet.1 != '' %}{{ config.default_stylesheet.1 }}{% else %}default{% endif %}">
-	
+	  data-stylesheet="{% if config.default_stylesheet.1 != '' %}{{ config.default_stylesheet.1 }}{% else %}default{% endif %}">
+
 	{{ boardlist.top }}
 	<header>
 		<h1>{{ settings.title }} (<a href="{{link}}">/{{ board }}/</a>)</h1>
 		<div class="subtitle">
 			{{ settings.subtitle }}
 			{% if mod %}
-				<p><a href="?/">{% trans %}Return to dashboard{% endtrans %}</a></p>
+			<p><a href="?/">{% trans %}Return to dashboard{% endtrans %}</a></p>
 			{% endif %}
 		</div>
 	</header>
 	{% include 'post_form.html' %}
-	
+	{% if config.board_search %}
+	<!-- Start Search Form -->
+	<form style="display:inline" action="{{ config.root }}search.php" method="get">
+		<p style="margin: 10px; text-align: center;">
+			<input type="text" name="search" placeholder="{{ board.uri }} search">
+			<input type="hidden" name="board" value="{{ board.uri }}">
+			<input type="submit" value="Search">
+		</p>
+	</form>
+	<!-- End Search Form -->
+	{% endif %}
 	<span>{% trans 'Sort by' %}: </span>
 	<select id="sort_by" style="display: inline-block">
 		<option selected value="bump:desc">{% trans 'Bump order' %}</option>
@@ -43,58 +53,58 @@
 	{% if total_pages > 1 %}
 	<div class="catalog-pagination">
 		{% for p in 1..total_pages %}
-			{% if p == current_page %}
-				<strong>[{{ p }}]</strong>
-			{% else %}
-				<a href="{{ link }}/catalog{% if p > 1 %}_page_{{ p }}{% endif %}.html">[{{ p }}]</a>
-			{% endif %}
+		{% if p == current_page %}
+		<strong>[{{ p }}]</strong>
+		{% else %}
+		<a href="{{ link }}/catalog{% if p > 1 %}_page_{{ p }}{% endif %}.html">[{{ p }}]</a>
+		{% endif %}
 		{% endfor %}
 	</div>
 	{% endif %}
 
 	<div class="threads">
 		<div id="Grid">
-		{% for post in recent_posts %}
+			{% for post in recent_posts %}
 			<div class="mix"
-				id="thread-{{ post.thread_id }}"
-				data-reply="{{ post.reply_count }}"
-				data-bump="{{ post.bump }}"
-				data-time="{{ post.time }}"
-				data-id="{{ post.id }}"
-				data-sticky="{% if post.sticky %}true{% else %}false{% endif %}"
-				data-locked="{% if post.locked %}true{% else %}false{% endif %}">
+				 id="thread-{{ post.thread_id }}"
+				 data-reply="{{ post.reply_count }}"
+				 data-bump="{{ post.bump }}"
+				 data-time="{{ post.time }}"
+				 data-id="{{ post.id }}"
+				 data-sticky="{% if post.sticky %}true{% else %}false{% endif %}"
+				 data-locked="{% if post.locked %}true{% else %}false{% endif %}">
 				<div class="thread grid-li grid-size-small">
 					<a href="{{ post.link }}">
 						{% if post.youtube %}
-							<img src="//img.youtube.com/vi/{{ post.youtube }}/0.jpg"
-						{% else %}
-							<img src="{{ post.file }}"
-						{% endif %}
-						id="img-{{ post.id }}" data-subject="{% if post.subject %}{{ post.subject|e }}{% endif %}"
-						data-name="{{ post.name|e }}" class="{{ post.board }} thread-image"
-						title="{{ post.bump|date('%b %d %H:%M') }}"
-						{% if config.content_lazy_loading %}loading="lazy"{% endif %}>
+						<img src="//img.youtube.com/vi/{{ post.youtube }}/0.jpg"
+							 {% else %}
+						<img src="{{ post.file }}"
+							 {% endif %}
+							 id="img-{{ post.id }}" data-subject="{% if post.subject %}{{ post.subject|e }}{% endif %}"
+							 data-name="{{ post.name|e }}" class="{{ post.board }} thread-image"
+							 title="{{ post.bump|date('%b %d %H:%M') }}"
+							 {% if config.content_lazy_loading %}loading="lazy" {% endif %}>
 					</a>
 					<div class="replies">
 						<strong>R: {{ post.reply_count }} / I: {{ post.image_count }}{% if post.sticky %} (sticky){% endif %}</strong>
 						{% if post.subject %}
-							<p class="intro">
-								<span class="subject">{{ post.subject|e }}</span>
-							</p>
+						<p class="intro">
+							<span class="subject">{{ post.subject|e }}</span>
+						</p>
 						{% else %}
-							<br />
+						<br />
 						{% endif %}
 						{{ post.body }}
 					</div>
 				</div>
 			</div>
-		{% endfor %}
+			{% endfor %}
 		</div>
 	</div>
 
-	<hr/>
+	<hr />
 	{% include 'footer.html' %}
-	
+
 	<script type="text/javascript">{% verbatim %}
 		var styles = {
 	{% endverbatim %}
@@ -103,9 +113,10 @@
 		}; onReady(init);
 	{% endverbatim %}</script>
 
-	<script type="text/javascript">{% verbatim %}
+	<script type="text/javascript">
+	{% verbatim %}
 		ready();
-	{% endverbatim %}</script>
+		{% endverbatim %}</script>
 </body>
 </html>
 {% endapply %}

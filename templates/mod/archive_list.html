@@ -9,10 +9,22 @@
 </p>
 {% endif %}
 <p style="text-align: center">
-    <b>{% trans 'Displaying' %} {{ thread_count }} {% trans 'expired threads' %}{% if config.archive.lifetime %} {% trans 'from the past' %} {{ config.archive.lifetime }}{% endif %}</b><br/>
+    <b>{% trans 'Displaying' %} {{ thread_count }} {% trans 'expired threads' %}{% if config.archive.lifetime %} {% trans 'from the past' %} {{ config.archive.lifetime }}{% endif %}</b><br />
     <small>Vote for a thread to be added to the featured archive</small>
 </p>
-<input type="text" id="search-input" placeholder="{% trans %}Search{% endtrans %}..." style="margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
+<!--
+ Old search only searches one page
+ <input type="text" id="search-input" placeholder="{% trans %}Search{% endtrans %}..." style="margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
+-->
+{% if config.board_search %}
+<form style="display:inline" action="{{ config.root }}search.php" method="get">
+    <p style="margin: 10px; text-align: center;">
+        <input type="text" name="search" placeholder="{{ board.uri }} search">
+        <input type="hidden" name="board" value="{{ board.uri }}">
+        <input type="submit" value="Search">
+    </p>
+</form>
+{% endif %}
 <table id="archive-list" class="archive-list modlog">
     <thead>
         <tr>
@@ -22,100 +34,100 @@
             <th width='50px'></th>
             <th width='50px'>Votes</th>
             {% if mod and post.mod|hasPermission(config.mod.feature_archived_threads, board.uri) %}
-                <th width='80px'></th>
+            <th width='80px'></th>
             {% endif %}
             {% if mod and post.mod|hasPermission(config.mod.add_to_mod_archive, board.uri) %}
-                <th width='80px'></th>
+            <th width='80px'></th>
             {% endif %}
             {% if mod and post.mod|hasPermission(config.mod.delete_archived_threads, board.uri) %}
-                <th width='80px'></th>
+            <th width='80px'></th>
             {% endif %}
         </tr>
     </thead>
     <tbody>
         {% for thread in archive %}
-            <tr>
-                <td>{{ thread.board_id }}</td>
-                <td>
-                    {% if thread.image_url %}
-                        <img src="{{ thread.image_url }}" alt="Thread Image" style="max-width: 80px; max-height: 80px;" />
-                    {% else %}
-                        No Image
-                    {% endif %}
-                </td>
-                <td>{{ thread.snippet }}</td>
-                <td><a href="{{ thread.archived_url }}">[{% trans 'View' %}]</a></td>
-                <td>
-                    {% if not mod %}
-                        {% if not thread.featured %}
-                            {{ thread.votes }}
-                            <form action="{{ config.post_url }}" method="post" class="archiveForm" style="float: right">
-                                <input type="hidden" name="board" value="{{ board.uri }}" />
-                                <input type="hidden" name="thread_id" value="{{ thread.original_thread_id }}">
-                                <input type="hidden" name="archive_vote" value="1">
-                                <a href="#" onclick="confirm('Press OK to vote for this thread to be added to featured archive.')?this.parentNode.submit():false;">[+]</a>
-                            </form>
-                        {% else %}
-                            <strong>Featured</strong>
-                        {% endif %}
-                    {% else %}
-                        {{ thread.votes }}
-                    {% endif %}
-                </td>
-                {% if mod and post.mod|hasPermission(config.mod.feature_archived_threads, board.uri) %}
-                    <td>
-                        {% if not thread.featured %}
-                            <form action="" method="post" class="archiveForm">
-                                <input type="hidden" name="token" value="{{ token }}">
-                                <input type="hidden" name="id" value="{{ thread.id }}">
-                                <input type="hidden" name="feature" value="1">
-                                <a href="#" onclick="confirm('Are you sure you want to add thread to featured archive?')?this.parentNode.submit():false;">[{% trans 'Feature' %}]</a>
-                            </form>
-                        {% else %}
-                            <b>{% trans 'Featured' %}</b>
-                        {% endif %}
-                    </td>
+        <tr>
+            <td>{{ thread.board_id }}</td>
+            <td>
+                {% if thread.image_url %}
+                <img src="{{ thread.image_url }}" alt="Thread Image" style="max-width: 80px; max-height: 80px;" />
+                {% else %}
+                No Image
                 {% endif %}
-                {% if mod and post.mod|hasPermission(config.mod.add_to_mod_archive, board.uri) %}
-                    <td>
-                        {% if not thread.mod_archived %}
-                            <form action="" method="post" class="archiveForm">
-                                <input type="hidden" name="token" value="{{ token }}">
-                                <input type="hidden" name="id" value="{{ thread.id }}">
-                                <input type="hidden" name="mod_archive" value="1">
-                                <a href="#" onclick="confirm('Are you sure you want to add thread to mod archive?')?this.parentNode.submit():false;">[{% trans 'Mod Archive' %}]</a>
-                            </form>
-                        {% else %}
-                            <b>{% trans 'Mod Archived' %}</b>
-                        {% endif %}
-                    </td>
+            </td>
+            <td>{{ thread.snippet }}</td>
+            <td><a href="{{ thread.archived_url }}">[{% trans 'View' %}]</a></td>
+            <td>
+                {% if not mod %}
+                {% if not thread.featured %}
+                {{ thread.votes }}
+                <form action="{{ config.post_url }}" method="post" class="archiveForm" style="float: right">
+                    <input type="hidden" name="board" value="{{ board.uri }}" />
+                    <input type="hidden" name="thread_id" value="{{ thread.original_thread_id }}">
+                    <input type="hidden" name="archive_vote" value="1">
+                    <a href="#" onclick="confirm('Press OK to vote for this thread to be added to featured archive.')?this.parentNode.submit():false;">[+]</a>
+                </form>
+                {% else %}
+                <strong>Featured</strong>
                 {% endif %}
-                {% if mod and post.mod|hasPermission(config.mod.delete_archived_threads, board.uri) %}
-                    <td>
-                        <form action="" method="post" class="archiveForm">
-                            <input type="hidden" name="token" value="{{ token }}">
-                            <input type="hidden" name="id" value="{{ thread.id }}">
-                            <input type="hidden" name="delete" value="1">
-                            <a href="#" onclick="return confirm('Are you sure you want to permanently delete this archived thread?') ? this.parentNode.submit() : false;">[{% trans 'Delete' %}]</a>
-                        </form>
-                    </td>
+                {% else %}
+                {{ thread.votes }}
                 {% endif %}
-            </tr>
+            </td>
+            {% if mod and post.mod|hasPermission(config.mod.feature_archived_threads, board.uri) %}
+            <td>
+                {% if not thread.featured %}
+                <form action="" method="post" class="archiveForm">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <input type="hidden" name="id" value="{{ thread.id }}">
+                    <input type="hidden" name="feature" value="1">
+                    <a href="#" onclick="confirm('Are you sure you want to add thread to featured archive?')?this.parentNode.submit():false;">[{% trans 'Feature' %}]</a>
+                </form>
+                {% else %}
+                <b>{% trans 'Featured' %}</b>
+                {% endif %}
+            </td>
+            {% endif %}
+            {% if mod and post.mod|hasPermission(config.mod.add_to_mod_archive, board.uri) %}
+            <td>
+                {% if not thread.mod_archived %}
+                <form action="" method="post" class="archiveForm">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <input type="hidden" name="id" value="{{ thread.id }}">
+                    <input type="hidden" name="mod_archive" value="1">
+                    <a href="#" onclick="confirm('Are you sure you want to add thread to mod archive?')?this.parentNode.submit():false;">[{% trans 'Mod Archive' %}]</a>
+                </form>
+                {% else %}
+                <b>{% trans 'Mod Archived' %}</b>
+                {% endif %}
+            </td>
+            {% endif %}
+            {% if mod and post.mod|hasPermission(config.mod.delete_archived_threads, board.uri) %}
+            <td>
+                <form action="" method="post" class="archiveForm">
+                    <input type="hidden" name="token" value="{{ token }}">
+                    <input type="hidden" name="id" value="{{ thread.id }}">
+                    <input type="hidden" name="delete" value="1">
+                    <a href="#" onclick="return confirm('Are you sure you want to permanently delete this archived thread?') ? this.parentNode.submit() : false;">[{% trans 'Delete' %}]</a>
+                </form>
+            </td>
+            {% endif %}
+        </tr>
         {% endfor %}
     </tbody>
 </table>
 <div style="text-align: center; margin-top: 20px;">
     {% if current_page > 1 %}
-        <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% else %}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% endif %}">« Previous</a>
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% else %}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% endif %}">« Previous</a>
     {% endif %}
     {% for page in 1..total_pages %}
-        {% if page == current_page %}
-            <strong>{{ page }}</strong>
-        {% else %}
-            <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}{% else %}{{ page == 1 ? '' : page ~ '.html' }}{% endif %}">{{ page }}</a>
-        {% endif %}
+    {% if page == current_page %}
+    <strong>{{ page }}</strong>
+    {% else %}
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}{% else %}{{ page == 1 ? '' : page ~ '.html' }}{% endif %}">{{ page }}</a>
+    {% endif %}
     {% endfor %}
     {% if current_page < total_pages %}
-        <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% else %}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% endif %}">Next »</a>
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% else %}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% endif %}">Next »</a>
     {% endif %}
 </div>
