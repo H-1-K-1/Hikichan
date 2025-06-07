@@ -1483,6 +1483,8 @@
 
 	// Number of chars in snippet
 	$config['archive']['snippet_len'] = 400;
+
+	$config['archive']['threads_per_page'] = 10;
 	
 	// If any is set to run in crom both will be run in cron regardless
 	// Archiving is run in cron job

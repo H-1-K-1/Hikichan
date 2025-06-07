@@ -391,7 +391,7 @@ class Archive {
         }
     }
 
-    static public function buildArchiveIndex($board_uri, $threads_per_page = 5) {
+    static public function buildArchiveIndex($board_uri, $threads_per_page = null) {
         global $config;
         global $board;
 
@@ -402,6 +402,11 @@ class Archive {
                 error_log("buildArchiveIndex: Failed to open board: " . $board_uri);
                 return;
             }
+        }
+
+        // Use config value if not explicitly set
+        if ($threads_per_page === null) {
+            $threads_per_page = isset($config['archive']['threads_per_page']) ? $config['archive']['threads_per_page'] : 5;
         }
 
         $total_threads = self::getArchiveCount($board_uri);

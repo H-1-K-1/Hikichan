@@ -3700,7 +3700,7 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
         }
     }
 
-    $threads_per_page = 5;
+    $threads_per_page = isset($config['archive']['threads_per_page']) ? $config['archive']['threads_per_page'] : 5;
     $archive_items = Archive::getArchiveListPaginated($board['uri'], $page_no, $threads_per_page);
     $total_threads = Archive::getArchiveCount($board['uri']);
     $total_pages = ceil($total_threads / $threads_per_page);
