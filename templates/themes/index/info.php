@@ -47,7 +47,7 @@
 		'type'  => 'textarea',
 		'rows'  => 10, 
     	'cols'  => 50,
-		'default' => '<strong>Global</strong><div class="global-link"><a href="/hikichan/b">Random</a></div>'
+		'default' => '<strong>Global</strong><div class="global-link"><a href="/hikichan/channel/b">Random</a></div>'
 	);
 	
 	$theme['config'][] = Array(
@@ -76,7 +76,7 @@
 		'title' => 'Video embed',
 		'name' => 'video_embed',
 		'type' => 'text',
-		'default' => 'https://www.youtube.com/embed/YbaTur4A1OU',
+		'default' => 'https://rumble.com/embed/v33njzd/?pub=4lths9',
 		'size' => 50
 	);
 	
