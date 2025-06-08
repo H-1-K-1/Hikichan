@@ -2,7 +2,7 @@
 	<input type="hidden" name="token" value="{{ token }}">
 	<ul id="rebuild">
 		<li style="margin-bottom:8px">
-			<input type="checkbox" name="rebuild_all" id="rebuild_all" onchange="toggleall(this.checked)"> 
+			<input type="checkbox" name="rebuild_all" id="rebuild_all" onchange="toggleall(this.checked)">
 			<label for="rebuild_all"><strong>{% trans 'Toggle all' %}</strong></label>
 			<script>
 				function toggleall(val) {
@@ -13,18 +13,36 @@
 				}
 			</script>
 		</li>
-		<li><input type="checkbox" name="rebuild_cache" id="rebuild_cache" checked> 
-			<label for="rebuild_cache">{% trans 'Flush cache' %}</label></li>
-		<li><input type="checkbox" name="rebuild_javascript" id="rebuild_javascript" checked> 
-			<label for="rebuild_javascript">{% trans 'Rebuild Javascript' %}</label></li>
-		<li><input type="checkbox" name="rebuild_index" id="rebuild_index" checked> 
-			<label for="rebuild_index">{% trans 'Rebuild index pages' %}</label></li>
-		<li><input type="checkbox" name="rebuild_posts" id="rebuild_posts"> 
-			<label for="rebuild_posts">{% trans 'Rebuild replies' %}</label></li>
-		<li><input type="checkbox" name="rebuild_themes" id="rebuild_themes" checked> 
-			<label for="rebuild_themes">{% trans 'Rebuild themes' %}</label></li>
-		<li><input type="checkbox" name="rebuild_thread" id="rebuild_thread" checked> 
-			<label for="rebuild_thread">{% trans 'Rebuild thread pages incrementally (uncheck for all at once)' %}</label></li>
+		<li>
+			<input type="checkbox" name="rebuild_cache" id="rebuild_cache" checked>
+			<label for="rebuild_cache">{% trans 'Flush cache' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_javascript" id="rebuild_javascript" checked>
+			<label for="rebuild_javascript">{% trans 'Rebuild Javascript' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_index" id="rebuild_index" checked>
+			<label for="rebuild_index">{% trans 'Rebuild index pages' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_posts" id="rebuild_posts">
+			<label for="rebuild_posts">{% trans 'Rebuild replies' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_themes" id="rebuild_themes" checked>
+			<label for="rebuild_themes">{% trans 'Rebuild themes' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_thread" id="rebuild_thread" checked>
+			<label for="rebuild_thread">{% trans 'Rebuild thread pages incrementally (uncheck for all at once)' %}</label>
+		</li>
+		<li>
+			<input type="checkbox" name="rebuild_replies_incremental" id="rebuild_replies_incremental">
+			<label for="rebuild_replies_incremental">
+				{% trans 'Rebuild replies incrementally (uncheck for all at once)' %}
+			</label>
+		</li>
 	</ul>
 
 	<hr>

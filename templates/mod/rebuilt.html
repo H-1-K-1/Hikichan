@@ -1,18 +1,22 @@
 <div class="ban">
-	<h2>{% trans 'Rebuilt' %}</h2>
+	<h2>{% trans 'Rebuild' %}</h2>
 	<p>
 		<a href="?/rebuild">{% trans 'Go back and rebuild again' %}</a>.
 	</p>
 
 	{% if in_progress %}
-		<!-- Auto-refresh while rebuilding -->
-		<meta http-equiv="refresh" content="1;URL=?/rebuild">
-		<p><em>{% trans 'Continuing rebuild automatically…' %}</em></p>
+	<!-- Auto-refresh while rebuilding -->
+	<meta http-equiv="refresh" content="1;URL=?/rebuild">
+	<p><em>{% trans 'Continuing rebuild automatically…' %}</em></p>
+	<form action="?/rebuild" method="post">
+		<input type="hidden" name="token" value="{{ token }}">
+		<input type="submit" name="cancel" value="{% trans 'Cancel Rebuild' %}">
+	</form>
 	{% endif %}
 
 	<ul>
 		{% for log in logs %}
-			<li>{{ log }}</li>
+		<li>{{ log|raw }}</li>
 		{% endfor %}
 	</ul>
 </div>

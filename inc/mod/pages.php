@@ -2678,14 +2678,36 @@ function mod_rebuild(Context $ctx) {
 
     session_start();
 
+    // Handle cancel request
+    if (isset($_POST['cancel'])) {
+        // Verify CSRF token
+        if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
+            error($config['error']['invalidtoken']);
+        }
+
+        // Clear rebuild session data
+        unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
+        $log = ['Rebuild cancelled.'];
+        mod_page(_('Rebuild cancelled'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
+        return;
+    }
+
     // Start new rebuild session
     if (isset($_POST['rebuild'])) {
+        // Verify CSRF token for rebuild start
+        if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
+            error($config['error']['invalidtoken']);
+        }
+
         $_SESSION['rebuild_progress'] = [
             'boards' => [],
             'current_board' => null,
             'threads' => [],
             'thread_index' => 0,
-            'step' => 0
+            'step' => 0,
+            'replies' => [],
+            'reply_index' => 0,
+            'current_thread' => null
         ];
 
         foreach (listBoards() as $board) {
@@ -2700,7 +2722,8 @@ function mod_rebuild(Context $ctx) {
             'rebuild_index' => isset($_POST['rebuild_index']),
             'rebuild_thread' => isset($_POST['rebuild_thread']),
             'rebuild_themes' => isset($_POST['rebuild_themes']),
-            'rebuild_posts' => isset($_POST['rebuild_posts'])
+            'rebuild_posts' => isset($_POST['rebuild_posts']),
+            'rebuild_replies_incremental' => isset($_POST['rebuild_replies_incremental'])
         ];
 
         // First run
@@ -2739,7 +2762,7 @@ function mod_rebuild(Context $ctx) {
         }
 
         // Check if all boards are processed
-        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads'])) {
+        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads']) && empty($progress['replies'])) {
             unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
             $log[] = 'All boards processed.';
             mod_page(_('Rebuild complete'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
@@ -2747,7 +2770,7 @@ function mod_rebuild(Context $ctx) {
         }
 
         // If no threads are queued for the current board, move to the next board
-        if (empty($progress['threads']) && $progress['step'] < count($progress['boards'])) {
+        if (empty($progress['threads']) && empty($progress['replies']) && $progress['step'] < count($progress['boards'])) {
             $board_uri = $progress['boards'][$progress['step']];
             $progress['current_board'] = $board_uri;
             openBoard($board_uri);
@@ -2785,63 +2808,130 @@ function mod_rebuild(Context $ctx) {
             // Always fetch threads for the board
             $log[] = 'Fetching threads for ' . $board_uri;
             $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
-			$query->bindValue(':board', $board_uri);
-			$query->execute() or error(db_error($query));
+            $query->bindValue(':board', $board_uri);
+            $query->execute() or error(db_error($query));
             $progress['threads'] = [];
             while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
                 $progress['threads'][] = $post['id'];
             }
             $progress['thread_index'] = 0;
+            $progress['replies'] = [];
+            $progress['reply_index'] = 0;
+            $progress['current_thread'] = null;
 
             if (empty($progress['threads'])) {
                 $progress['step']++;
             }
         }
 
-        // Process threads
-        if (!empty($progress['threads'])) {
+        // Process threads and replies
+        if (!empty($progress['threads']) || !empty($progress['replies'])) {
             $board_uri = $progress['current_board'];
             openBoard($board_uri);
 
-            if ($options['rebuild_thread']) {
-                // Incremental rebuild (in steps)
-                $batch_size = 5;
-                $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
+            $batch_size = 5;
+
+            // If we are processing replies for a thread
+            while ($options['rebuild_posts'] && !empty($progress['replies'])) {
+                if ($options['rebuild_replies_incremental']) {
+                    $replies_to_process = array_slice($progress['replies'], $progress['reply_index'], $batch_size);
+                    foreach ($replies_to_process as $reply_id) {
+                        $log[] = 'Rebuilding reply #' . $reply_id;
+                        rebuildPost($reply_id);
+                    }
+                    $progress['reply_index'] += $batch_size;
+                } else {
+                    foreach ($progress['replies'] as $reply_id) {
+                        $log[] = 'Rebuilding reply #' . $reply_id;
+                        rebuildPost($reply_id);
+                    }
+                    $progress['reply_index'] = count($progress['replies']);
+                }
+
+                // If all replies for the current thread are processed, move to next thread
+                if ($progress['reply_index'] >= count($progress['replies'])) {
+                    $progress['replies'] = [];
+                    $progress['reply_index'] = 0;
+                    $progress['current_thread'] = null;
+                    $progress['thread_index']++;
+                } else {
+                    // Still have replies to process, so stop here for this refresh
+                    mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+                        'logs' => $log,
+                        'in_progress' => true,
+                        'token' => make_secure_link_token('rebuild') // Pass token for cancel form
+                    ], $mod);
+                    header("Refresh: 1; URL=?/rebuild");
+                    exit;
+                }
+            }
+
+            // Process threads
+            if (!empty($progress['threads'])) {
+                $threads_to_process = $options['rebuild_thread']
+                    ? array_slice($progress['threads'], $progress['thread_index'], $batch_size)
+                    : array_slice($progress['threads'], $progress['thread_index']); // all remaining threads
 
                 foreach ($threads_to_process as $thread_id) {
                     $log[] = 'Rebuilding thread #' . $thread_id;
                     buildThread($thread_id);
+
+                    // If rebuild_posts is enabled, fetch replies for this thread
+                    if ($options['rebuild_posts']) {
+                        $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
+                        $query->bindValue(':board', $board_uri);
+                        $query->bindValue(':thread', $thread_id);
+                        $query->execute() or error(db_error($query));
+                        $progress['replies'] = [];
+                        while ($reply = $query->fetch(PDO::FETCH_ASSOC)) {
+                            $progress['replies'][] = $reply['id'];
+                        }
+                        $progress['reply_index'] = 0;
+                        $progress['current_thread'] = $thread_id;
+
+                        // If incremental replies, break to process them in the next refresh
+                        if ($options['rebuild_replies_incremental'] && !empty($progress['replies'])) {
+                            // Do not advance thread_index here, it will be advanced after replies are done
+                            break;
+                        } else if (!empty($progress['replies'])) {
+                            // If not incremental, process all replies now
+                            foreach ($progress['replies'] as $reply_id) {
+                                $log[] = 'Rebuilding reply #' . $reply_id;
+                                rebuildPost($reply_id);
+                            }
+                            $progress['replies'] = [];
+                            $progress['reply_index'] = 0;
+                            $progress['current_thread'] = null;
+                            $progress['thread_index']++;
+                            // Continue to next thread in this batch
+                        } else {
+                            // No replies, continue to next thread in this batch
+                            $progress['thread_index']++;
+                        }
+                    } else {
+                        // Not rebuilding replies, just advance thread_index
+                        $progress['thread_index']++;
+                    }
                 }
 
-                $progress['thread_index'] += $batch_size;
-
                 // If all threads for the current board are processed, move to the next board
-                if ($progress['thread_index'] >= count($progress['threads'])) {
+                if ($progress['thread_index'] >= count($progress['threads']) && empty($progress['replies'])) {
                     $progress['threads'] = [];
                     $progress['thread_index'] = 0;
                     $progress['step']++;
                 }
-            } else {
-                // Rebuild all threads at once
-                foreach ($progress['threads'] as $thread_id) {
-                    $log[] = 'Rebuilding thread #' . $thread_id;
-                    buildThread($thread_id);
-                }
-                // Clear threads and move to the next board
-                $progress['threads'] = [];
-                $progress['thread_index'] = 0;
-                $progress['step']++;
             }
+
+            // Refresh for next batch or board
+            mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+                'logs' => $log,
+                'in_progress' => true,
+                'token' => make_secure_link_token('rebuild') // Pass token for cancel form
+            ], $mod);
+
+            header("Refresh: 1; URL=?/rebuild");
+            exit;
         }
-
-        // Refresh for next batch or board
-        mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-            'logs' => $log,
-            'in_progress' => true
-        ], $mod);
-
-        header("Refresh: 1; URL=?/rebuild");
-        exit;
     }
 
     // Initial rebuild form
