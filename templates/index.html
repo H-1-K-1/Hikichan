@@ -72,15 +72,13 @@
 	{% if config.global_message %}<hr /><div class="blotter">{{ config.global_message }}</div>{% endif %}
 	<hr />
 	{% if config.board_search %}
-	<!-- Start Search Form -->
-		<form style="display:inline" action="{{ config.root }}search.php">
-				<p style="margin: 10px;">
-						<input type="text" name="search" placeholder="{{ board.uri }} search">
-						<input type="hidden" name="board" value="{{ board.uri }}">
-						<input type="submit" value="Search">
-				</p>
-		</form>
-	<!-- End Search Form -->
+	<form style="display:inline" action="{{ config.root }}search.php">
+			<p style="margin: 10px;">
+					<input type="text" name="search" placeholder="{{ board.uri }} search">
+					<input type="hidden" name="board" value="{{ board.uri }}">
+					<input type="submit" value="Search">
+			</p>
+	</form>
 	{% endif %}
     <span id="thread-links-top">
 		<a id="thread-return-top" href="{{ return }}">[{% trans %}Refresh{% endtrans %}]</a>

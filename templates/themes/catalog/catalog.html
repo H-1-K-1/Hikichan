@@ -25,15 +25,13 @@
 	</header>
 	{% include 'post_form.html' %}
 	{% if config.board_search %}
-	<!-- Start Search Form -->
-	<form style="display:inline" action="{{ config.root }}search.php" method="get">
-		<p style="margin: 10px; text-align: center;">
-			<input type="text" name="search" placeholder="{{ board.uri }} search">
-			<input type="hidden" name="board" value="{{ board.uri }}">
+	<form style="display:inline" action="{{ config.root }}search.php">
+		<p style="margin: 10px;">
+			<input type="text" name="search" placeholder="{{ board }} search">
+			<input type="hidden" name="board" value="{{ board }}">
 			<input type="submit" value="Search">
 		</p>
 	</form>
-	<!-- End Search Form -->
 	{% endif %}
 	<span>{% trans 'Sort by' %}: </span>
 	<select id="sort_by" style="display: inline-block">
@@ -114,7 +112,7 @@
 	{% endverbatim %}</script>
 
 	<script type="text/javascript">
-	{% verbatim %}
+		{% verbatim %}
 		ready();
 		{% endverbatim %}</script>
 </body>
