@@ -175,9 +175,11 @@ class Catalog {
         //
         // ─── PAGINATION ─────────────────────────────────────────────────────────
         //
-        $per_page    = $settings['items_per_page'];
-        $total       = count($recent_posts);
-        $total_pages = (int)ceil($total / $per_page);
+        $per_page = isset($settings['items_per_page']) && (int)$settings['items_per_page'] > 0
+            ? (int)$settings['items_per_page']
+            : 15; // Default value if not set or invalid
+        $total = count($recent_posts);
+        $total_pages = $per_page > 0 ? (int)ceil($total / $per_page) : 1;
 
         for ($page = 1; $page <= $total_pages; $page++) {
             $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
