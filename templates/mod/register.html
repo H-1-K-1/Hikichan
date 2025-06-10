@@ -1,44 +1,44 @@
 <form action="" method="post">
-    <table style="margin-top:25px;">
-        <tr>
-            <th>{% trans 'Username' %}</th>
-            <td><input type="text" name="username" size="20" maxlength="30" value="{{ username|e }}" autofocus></td>
-        </tr>
-        <tr>
-            <th>{% trans 'Password' %}</th>
-            <td><input type="password" name="password" size="20" maxlength="30" value=""></td>
-        </tr>
-        <tr>
-            <th>{% trans 'Confirm Password' %}</th>
-            <td><input type="password" name="confirm_password" size="20" maxlength="30" value=""></td>
-        </tr>
+	<table style="margin-top:25px;">
+		<tr>
+			<th>{% trans 'Username' %}</th>
+			<td><input type="text" name="username" size="20" maxlength="30" value="{{ username|e }}" autofocus></td>
+		</tr>
+		<tr>
+			<th>{% trans 'Password' %}</th>
+			<td><input type="password" name="password" size="20" maxlength="30" value=""></td>
+		</tr>
+		<tr>
+			<th>{% trans 'Confirm Password' %}</th>
+			<td><input type="password" name="confirm_password" size="20" maxlength="30" value=""></td>
+		</tr>
 		{% if config.captcha.provider == 'hcaptcha' %}
-			<tr>
-				<th>{% trans %}Verification{% endtrans %}</th>
-				<td>
-					<!-- Correctly inject the hCaptcha sitekey using Twig syntax -->
-					<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
-				</td>
-			</tr>
-			<tr>
-		{% endif %}
+		<tr>
+			<th>{% trans %}Verification{% endtrans %}</th>
+			<td>
+				<!-- Correctly inject the hCaptcha sitekey using Twig syntax -->
+				<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
+			</td>
+		</tr>
+		<tr>
+			{% endif %}
 		{% if config.captcha.provider == 'native' %}
 		<tr class="captcha">
 			<th>
 				{% trans %}Verification{% endtrans %}
 			</th>
 			<td>
-				<input type="text" name="captcha" />
-				<p><br />
-				<img src="inc/captcha/captcha.php?{{ random() }}" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
-					 onclick="this.src = 'inc/captcha/captcha.php?' + Math.random();">
+				<input type="text" name="captcha" autocomplete="off" />
+				<p>
+					<br />
+					<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
 				</p>
 				<p>Click the image to refresh.</p>
 			</td>
-        <tr>
+		</tr>
 		{% endif %}
-            <td></td>
-            <td><input type="submit" name="register" value="{% trans %}Register{% endtrans %}" /></td>
-        </tr>
-    </table>
+		<td></td>
+		<td><input type="submit" name="register" value="{% trans %}Register{% endtrans %}" /></td>
+		</tr>
+	</table>
 </form>

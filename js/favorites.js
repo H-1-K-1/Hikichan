@@ -34,7 +34,7 @@ function handle_boards(data) {
 	data = JSON.parse(data);
 
 	$.each(data, function(k, v) {
-		boards.push('<a href="/'+v+'">'+v+'</a>');
+		boards.push('<a href="' + window.location.origin + '/' + configRoot + boardFolder + v + '">' + v + '</a>');
 	})
 
 	if (boards[0]) {
@@ -44,11 +44,17 @@ function handle_boards(data) {
 
 function add_favorites() {
 	$('.favorite-boards').remove();
-	
+
 	var boards = handle_boards(localStorage.favorites);
 
-	$('.boardlist').append(boards);
-};
+	// Try to insert before the options button if it exists, otherwise append
+	var $optionsBtn = $(".boardlist a:contains('Options'), .boardlist .cb-item.cb-right, .boardlist a[title='Options']").first();
+	if ($optionsBtn.length) {
+		$optionsBtn.before(boards);
+	} else {
+		$('.boardlist').append(boards);
+	}
+}
 
 if (active_page == 'thread' || active_page == 'index' || active_page == 'catalog' || active_page == 'ukko') {
 	$(document).ready(function(){

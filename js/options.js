@@ -1,11 +1,9 @@
 /*
- * options.js - allow users choose board options as they wish
+ * options.js - allow users to choose board options as they wish
  *
  * Copyright (c) 2014 Marcin Łabanowski <marcin@6irc.net>
  *
- * Usage:
- *   $config['additional_javascript'][] = 'js/jquery.min.js';
- *   $config['additional_javascript'][] = 'js/options.js';
+ * Modified to integrate options button into mobile menu
  */
 
 +function(){
@@ -29,6 +27,7 @@ Options.show = function() {
   }
   options_handler.fadeIn();
 };
+
 Options.hide = function() {
   options_handler.fadeOut();
 };
@@ -97,30 +96,39 @@ Options.select_tab = function(id, quick) {
 options_handler = $("<div id='options_handler'></div>").css("display", "none");
 options_background = $("<div id='options_background'></div>").on("click", Options.hide).appendTo(options_handler);
 options_div = $("<div id='options_div'></div>").appendTo(options_handler);
-options_close = $("<a id='options_close' href='javascript:void(0)'><i class='fa fa-times'></i></div>")
+options_close = $("<a id='options_close' href='javascript:void(0)'><i class='fa fa-times'></i></a>")
   .on("click", Options.hide).appendTo(options_div);
 options_tablist = $("<div id='options_tablist'></div>").appendTo(options_div);
 
-
 $(function(){
-  options_button = $("<a href='javascript:void(0)' title='"+_("Options")+"'>["+_("Options")+"]</a>").css("float", "right");
+  options_button = $("<a href='javascript:void(0)' title='"+_("Options")+"'>["+_("Options")+"]</a>");
 
-  if ($(".boardlist.compact-boardlist").length) {
-    options_button.addClass("cb-item cb-fa").html("<i class='fa fa-gear'></i>");
+  // Check if mobile menu (hamburger) is active
+  if ($(".cb-hamburger").length) {
+    // For mobile: Add options button to mobile menu when it opens
+    $(document).on("click", ".cb-hamburger", function() {
+      var $mobileMenu = $(".cb-mobile-menu");
+      if ($mobileMenu.length && !$mobileMenu.find(".cb-mobile-options").length) {
+        var mobileOptionsButton = $("<a class='cb-mobile-item cb-mobile-options' href='javascript:void(0)'><i class='fa fa-gear'></i> "+_("Options")+"</a>")
+          .on("click", Options.show);
+        mobileOptionsButton.appendTo($mobileMenu);
+      }
+    });
   }
-
-  if ($(".boardlist:first").length) {
+  else if ($(".boardlist.compact-boardlist").length) {
+    // Desktop: Add gear icon to boardlist
+    options_button.addClass("cb-item cb-fa cb-right").html("<i class='fa fa-gear'></i>");
     options_button.appendTo($(".boardlist:first"));
   }
   else {
+    // Fallback: Prepend to body if no boardlist
     options_button.prependTo($(document.body));
   }
 
+  // Bind click handler for non-mobile button
   options_button.on("click", Options.show);
 
   options_handler.appendTo($(document.body));
 });
-
-
 
 }();

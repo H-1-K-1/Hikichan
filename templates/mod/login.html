@@ -34,27 +34,27 @@
             <td colspan="2">
                 <div class="hcaptcha">
                     <!-- Correctly inject the hCaptcha sitekey using Twig syntax -->
-					<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
+                    <div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
                 </div>
             </td>
         </tr>
         {% endif %}
-		{% if config.captcha.provider == 'native' %}
-		<tr class="captcha">
-			<th>
-				{% trans %}Verification{% endtrans %}
-			</th>
-			<td>
-				<input type="text" name="captcha" />
-				<p><br />
-				<img src="inc/captcha/captcha.php?{{ random() }}" id="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh"
-					 onclick="this.src = 'inc/captcha/captcha.php?' + Math.random();">
-				</p>
-				<p>Click the image to refresh.</p>
-			</td>
+        {% if config.captcha.provider == 'native' %}
+        <tr class="captcha">
+            <th>
+                {% trans %}Verification{% endtrans %}
+            </th>
+            <td>
+                <input type="text" name="captcha" autocomplete="off" />
+                <p>
+                    <br />
+                    <img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
+                </p>
+                <p>Click the image to refresh.</p>
+            </td>
         </tr>
-		{% endif %}
-		<tr>
+        {% endif %}
+        <tr>
             <td></td>
             <td>
                 <input type="submit" name="login" value="{% trans %}Continue{% endtrans %}" />

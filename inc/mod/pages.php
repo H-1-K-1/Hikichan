@@ -2820,8 +2820,10 @@ function mod_rebuild(Context $ctx) {
             $progress['current_thread'] = null;
 
             if (empty($progress['threads'])) {
-                $progress['step']++;
-            }
+				$progress['step']++;
+				header("Refresh: 0; URL=?/rebuild");
+				exit;
+			}
         }
 
         // Process threads and replies

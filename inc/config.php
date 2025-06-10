@@ -1052,11 +1052,11 @@
 	// );
 
 	$config['boards'] = array(
-		"icon_vichan" => array('/hikichan/static/icons/vichan.png'), # would refer to /static/icons/vichan.png
+		"icon_hikichan" => array("index" => "index.html"), # would refer to /static/icons/vichan.png
 		"Boards" => array('b'),
-		"Linkage" => array('sci', "Offsite board name" => '//int.vichan.net/s/'),
+		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
 		"d_Mod" => array("mod" => "?/"),
-		"fa_search" => array("search" => "/search.php"),# would refer to a search 
+		"fa_search" => array("Search" => "/search.php"),# would refer to a search 
 														# font-awesome icon
 	   );
 
