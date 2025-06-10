@@ -48,3 +48,6 @@ favicon.ico
 /local-instances
 
 /vendor/
+
+!static/icons/
+!static/icons/**
