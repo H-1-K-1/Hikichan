@@ -2704,12 +2704,10 @@ function mod_rebuild(Context $ctx) {
 
     // Handle cancel request
     if (isset($_POST['cancel'])) {
-        // Verify CSRF token
         if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
             error($config['error']['invalidtoken']);
         }
 
-        // Clear rebuild session data
         unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
         $log = ['Rebuild cancelled.'];
         mod_page(_('Rebuild cancelled'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
@@ -2718,7 +2716,6 @@ function mod_rebuild(Context $ctx) {
 
     // Start new rebuild session
     if (isset($_POST['rebuild'])) {
-        // Verify CSRF token for rebuild start
         if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
             error($config['error']['invalidtoken']);
         }
@@ -2731,7 +2728,10 @@ function mod_rebuild(Context $ctx) {
             'step' => 0,
             'replies' => [],
             'reply_index' => 0,
-            'current_thread' => null
+            'current_thread' => null,
+            'index_batch' => 0,
+            'archive_batch' => 0,
+            'archive_boards' => []
         ];
 
         foreach (listBoards() as $board) {
@@ -2740,17 +2740,24 @@ function mod_rebuild(Context $ctx) {
             }
         }
 
+        // Populate archive boards if archive rebuilding is enabled
+        if (isset($_POST['rebuild_archive']) && $config['archive']['threads']) {
+            $query = query("SELECT DISTINCT `board_uri` FROM `archive_threads`");
+            while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
+                $_SESSION['rebuild_progress']['archive_boards'][] = $row['board_uri'];
+            }
+        }
+
         $_SESSION['rebuild_options'] = [
             'rebuild_cache' => isset($_POST['rebuild_cache']),
             'rebuild_javascript' => isset($_POST['rebuild_javascript']),
             'rebuild_index' => isset($_POST['rebuild_index']),
-            'rebuild_thread' => isset($_POST['rebuild_thread']),
-            'rebuild_themes' => isset($_POST['rebuild_themes']),
+            'rebuild_threads' => isset($_POST['rebuild_threads']), // New option
             'rebuild_posts' => isset($_POST['rebuild_posts']),
-            'rebuild_replies_incremental' => isset($_POST['rebuild_replies_incremental'])
+            'rebuild_themes' => isset($_POST['rebuild_themes']),
+            'rebuild_archive' => isset($_POST['rebuild_archive'])
         ];
 
-        // First run
         header('Location: ?/rebuild'); exit;
     }
 
@@ -2761,13 +2768,13 @@ function mod_rebuild(Context $ctx) {
         $progress = &$_SESSION['rebuild_progress'];
         $options = $_SESSION['rebuild_options'];
 
-        // Global rebuild tasks (run once)
+        // Global rebuild tasks
         if (!isset($progress['global_tasks_done'])) {
             $progress['global_tasks_done'] = true;
 
             if ($options['rebuild_cache']) {
                 if ($config['cache']['enabled']) {
-                    $log[] = 'Flushing cache';
+                    $log[] = 'Clearing system cache';
                     $cache->flush();
                 }
                 load_twig();
@@ -2775,62 +2782,81 @@ function mod_rebuild(Context $ctx) {
             }
 
             if ($options['rebuild_javascript']) {
-                $log[] = 'Rebuilding <strong>' . $config['file_script'] . '</strong>';
+                $log[] = 'Regenerating JavaScript file <strong>' . $config['file_script'] . '</strong>';
                 buildJavascript();
             }
 
             if ($options['rebuild_themes']) {
-                $log[] = 'Regenerating theme files';
+                $log[] = 'Regenerating all theme files';
                 Vichan\Functions\Theme\rebuild_themes('all');
             }
         }
 
-        // Check if all boards are processed
-        if ($progress['step'] >= count($progress['boards']) && empty($progress['threads']) && empty($progress['replies'])) {
+        // Check if all tasks are complete
+        if ($progress['step'] >= count($progress['boards']) &&
+            empty($progress['threads']) &&
+            empty($progress['replies']) &&
+            (!isset($progress['archive_boards']) || $progress['archive_batch'] * 10 >= count($progress['archive_boards']))
+        ) {
             unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
-            $log[] = 'All boards processed.';
+            $log[] = 'All rebuild tasks completed successfully.';
             mod_page(_('Rebuild complete'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
             return;
         }
 
-        // If no threads are queued for the current board, move to the next board
+        // Move to next board if no threads/replies
         if (empty($progress['threads']) && empty($progress['replies']) && $progress['step'] < count($progress['boards'])) {
             $board_uri = $progress['boards'][$progress['step']];
             $progress['current_board'] = $board_uri;
             openBoard($board_uri);
             $config['try_smarter'] = false;
 
-            $log[] = '<strong>' . sprintf($config['board_abbreviation'], $board_uri) . '</strong>: Processing…';
+            $log[] = '<strong>' . sprintf($config['board_abbreviation'], $board_uri) . '</strong>: Starting board rebuild…';
 
             if ($options['rebuild_cache']) {
                 if ($config['cache']['enabled']) {
-                    $log[] = 'Flushing cache';
+                    $log[] = 'Clearing board cache';
                     $cache->flush();
                 }
                 load_twig();
                 $twig->getCache()->clear();
-                $options['rebuild_cache'] = false; // only once
+                $options['rebuild_cache'] = false;
             }
 
             if ($options['rebuild_themes']) {
-                $log[] = 'Regenerating theme files';
+                $log[] = 'Regenerating theme files for board';
                 Vichan\Functions\Theme\rebuild_themes('all');
                 $options['rebuild_themes'] = false;
             }
 
             if ($options['rebuild_javascript']) {
-                $log[] = 'Rebuilding <strong>' . $config['file_script'] . '</strong>';
+                $log[] = 'Regenerating JavaScript file <strong>' . $config['file_script'] . '</strong> for board';
                 buildJavascript();
                 $options['rebuild_javascript'] = false;
             }
 
             if ($options['rebuild_index']) {
-                $log[] = 'Building index for ' . $board_uri;
-                buildIndex();
+                $start_page = $progress['index_batch'] * 10 + 1;
+                $end_page = min(($progress['index_batch'] + 1) * 10, $config['max_pages']);
+                $log[] = "Rebuilding index pages $start_page to $end_page for board $board_uri";
+                buildIndex($start_page, $end_page);
+                $progress['index_batch']++;
+
+                if ($progress['index_batch'] * 10 >= $config['max_pages']) {
+                    $progress['index_batch'] = 0;
+                    $options['rebuild_index'] = false;
+                } else {
+                    mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+                        'logs' => $log,
+                        'in_progress' => true,
+                        'token' => make_secure_link_token('rebuild')
+                    ], $mod);
+                    header("Refresh: 1; URL=?/rebuild");
+                    exit;
+                }
             }
 
-            // Always fetch threads for the board
-            $log[] = 'Fetching threads for ' . $board_uri;
+            $log[] = 'Fetching threads for board ' . $board_uri;
             $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
             $query->bindValue(':board', $board_uri);
             $query->execute() or error(db_error($query));
@@ -2844,10 +2870,14 @@ function mod_rebuild(Context $ctx) {
             $progress['current_thread'] = null;
 
             if (empty($progress['threads'])) {
-				$progress['step']++;
-				header("Refresh: 0; URL=?/rebuild");
-				exit;
-			}
+                if ($options['rebuild_archive'] && class_exists('Archive')) {
+                    $log[] = "Rebuilding archive index pages 1 to 5 for board $board_uri";
+                    Archive::buildArchiveIndexBatch($board_uri, 1, 5);
+                }
+                $progress['step']++;
+                header("Refresh: 0; URL=?/rebuild");
+                exit;
+            }
         }
 
         // Process threads and replies
@@ -2857,35 +2887,25 @@ function mod_rebuild(Context $ctx) {
 
             $batch_size = 25;
 
-            // If we are processing replies for a thread
+            // Process replies
             while ($options['rebuild_posts'] && !empty($progress['replies'])) {
-                if ($options['rebuild_replies_incremental']) {
-                    $replies_to_process = array_slice($progress['replies'], $progress['reply_index'], $batch_size);
-                    foreach ($replies_to_process as $reply_id) {
-                        $log[] = 'Rebuilding reply #' . $reply_id;
-                        rebuildPost($reply_id);
-                    }
-                    $progress['reply_index'] += $batch_size;
-                } else {
-                    foreach ($progress['replies'] as $reply_id) {
-                        $log[] = 'Rebuilding reply #' . $reply_id;
-                        rebuildPost($reply_id);
-                    }
-                    $progress['reply_index'] = count($progress['replies']);
+                $replies_to_process = array_slice($progress['replies'], $progress['reply_index'], $batch_size);
+                foreach ($replies_to_process as $reply_id) {
+                    $log[] = 'Rebuilding reply #' . $reply_id . ' in board ' . $board_uri;
+                    rebuildPost($reply_id);
                 }
+                $progress['reply_index'] += $batch_size;
 
-                // If all replies for the current thread are processed, move to next thread
                 if ($progress['reply_index'] >= count($progress['replies'])) {
                     $progress['replies'] = [];
                     $progress['reply_index'] = 0;
                     $progress['current_thread'] = null;
                     $progress['thread_index']++;
                 } else {
-                    // Still have replies to process, so stop here for this refresh
                     mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
                         'logs' => $log,
                         'in_progress' => true,
-                        'token' => make_secure_link_token('rebuild') // Pass token for cancel form
+                        'token' => make_secure_link_token('rebuild')
                     ], $mod);
                     header("Refresh: 1; URL=?/rebuild");
                     exit;
@@ -2894,15 +2914,13 @@ function mod_rebuild(Context $ctx) {
 
             // Process threads
             if (!empty($progress['threads'])) {
-                $threads_to_process = $options['rebuild_thread']
-                    ? array_slice($progress['threads'], $progress['thread_index'], $batch_size)
-                    : array_slice($progress['threads'], $progress['thread_index']); // all remaining threads
-
+                $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
                 foreach ($threads_to_process as $thread_id) {
-                    $log[] = 'Rebuilding thread #' . $thread_id;
-                    buildThread($thread_id);
+                    if ($options['rebuild_threads']) {
+                        $log[] = 'Rebuilding thread #' . $thread_id . ' in board ' . $board_uri;
+                        buildThread($thread_id);
+                    }
 
-                    // If rebuild_posts is enabled, fetch replies for this thread
                     if ($options['rebuild_posts']) {
                         $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
                         $query->bindValue(':board', $board_uri);
@@ -2915,48 +2933,54 @@ function mod_rebuild(Context $ctx) {
                         $progress['reply_index'] = 0;
                         $progress['current_thread'] = $thread_id;
 
-                        // If incremental replies, break to process them in the next refresh
-                        if ($options['rebuild_replies_incremental'] && !empty($progress['replies'])) {
-                            // Do not advance thread_index here, it will be advanced after replies are done
+                        if (!empty($progress['replies'])) {
                             break;
-                        } else if (!empty($progress['replies'])) {
-                            // If not incremental, process all replies now
-                            foreach ($progress['replies'] as $reply_id) {
-                                $log[] = 'Rebuilding reply #' . $reply_id;
-                                rebuildPost($reply_id);
-                            }
-                            $progress['replies'] = [];
-                            $progress['reply_index'] = 0;
-                            $progress['current_thread'] = null;
-                            $progress['thread_index']++;
-                            // Continue to next thread in this batch
-                        } else {
-                            // No replies, continue to next thread in this batch
-                            $progress['thread_index']++;
                         }
-                    } else {
-                        // Not rebuilding replies, just advance thread_index
-                        $progress['thread_index']++;
                     }
+                    $progress['thread_index']++;
                 }
 
-                // If all threads for the current board are processed, move to the next board
                 if ($progress['thread_index'] >= count($progress['threads']) && empty($progress['replies'])) {
                     $progress['threads'] = [];
                     $progress['thread_index'] = 0;
+
+                    if ($options['rebuild_archive'] && class_exists('Archive')) {
+                        $log[] = "Rebuilding archive index pages 1 to 5 for board $board_uri";
+                        Archive::buildArchiveIndexBatch($board_uri, 1, 5);
+                    }
+
                     $progress['step']++;
                 }
             }
 
-            // Refresh for next batch or board
             mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
                 'logs' => $log,
                 'in_progress' => true,
-                'token' => make_secure_link_token('rebuild') // Pass token for cancel form
+                'token' => make_secure_link_token('rebuild')
             ], $mod);
 
             header("Refresh: 1; URL=?/rebuild");
             exit;
+        }
+
+        // Process archive boards in batches
+        if ($options['rebuild_archive'] && !empty($progress['archive_boards']) && $progress['step'] >= count($progress['boards'])) {
+            $start_index = $progress['archive_batch'] * 10;
+            $boards_to_process = array_slice($progress['archive_boards'], $start_index, 10);
+
+            if (!empty($boards_to_process)) {
+                $log[] = 'Rebuilding archive indexes for boards: ' . implode(', ', $boards_to_process);
+                Archive::RebuildArchiveIndexes($boards_to_process);
+                $progress['archive_batch']++;
+
+                mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+                    'logs' => $log,
+                    'in_progress' => true,
+                    'token' => make_secure_link_token('rebuild')
+                ], $mod);
+                header("Refresh: 1; URL=?/rebuild");
+                exit;
+            }
         }
     }
 

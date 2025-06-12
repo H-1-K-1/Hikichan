@@ -26,6 +26,10 @@
 			<label for="rebuild_index">{% trans 'Rebuild index pages' %}</label>
 		</li>
 		<li>
+			<input type="checkbox" name="rebuild_threads" id="rebuild_threads" checked>
+			<label for="rebuild_threads">{% trans 'Rebuild threads' %}</label>
+		</li>
+		<li>
 			<input type="checkbox" name="rebuild_posts" id="rebuild_posts">
 			<label for="rebuild_posts">{% trans 'Rebuild replies' %}</label>
 		</li>
@@ -34,14 +38,8 @@
 			<label for="rebuild_themes">{% trans 'Rebuild themes' %}</label>
 		</li>
 		<li>
-			<input type="checkbox" name="rebuild_thread" id="rebuild_thread" checked>
-			<label for="rebuild_thread">{% trans 'Rebuild thread pages incrementally (uncheck for all at once)' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_replies_incremental" id="rebuild_replies_incremental">
-			<label for="rebuild_replies_incremental">
-				{% trans 'Rebuild replies incrementally (uncheck for all at once)' %}
-			</label>
+			<input type="checkbox" name="rebuild_archive" id="rebuild_archive">
+			<label for="rebuild_archive">{% trans 'Rebuild archive index' %}</label>
 		</li>
 	</ul>
 
@@ -49,7 +47,7 @@
 
 	<ul id="boards">
 		<li style="margin-bottom:8px">
-			<input type="checkbox" name="boards_all" id="boards_all" onchange="toggleallboards(this.checked)" checked> 
+			<input type="checkbox" name="boards_all" id="boards_all" onchange="toggleallboards(this.checked)" checked>
 			<label for="boards_all"><strong>{% trans 'All boards' %}</strong></label>
 			<script>
 				function toggleallboards(val) {
@@ -61,12 +59,12 @@
 			</script>
 		</li>
 		{% for board in boards %}
-			<li>
-				<input type="checkbox" name="board_{{ board.uri }}" id="board-{{ board.uri }}" checked> 
-				<label for="board-{{ board.uri }}">
-					{{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
-				</label>
-			</li>
+		<li>
+			<input type="checkbox" name="board_{{ board.uri }}" id="board-{{ board.uri }}" checked>
+			<label for="board-{{ board.uri }}">
+				{{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
+			</label>
+		</li>
 		{% endfor %}
 	</ul>
 

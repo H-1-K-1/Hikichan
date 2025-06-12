@@ -1664,117 +1664,114 @@ function incrementSpamHash($hash) {
 	$query->execute() or error(db_error($query));
 }
 
-function buildIndex($global_api = "yes") {
-	global $board, $config, $build_pages, $mod;
+function buildIndex($start_page = 1, $end_page = null, $global_api = "yes") {
+    global $board, $config, $build_pages, $mod;
 
-	$catalog_api_action = generation_strategy('sb_api', array($board['uri']));
+    if ($end_page === null) {
+        $end_page = $config['max_pages'];
+    }
+    $end_page = min($end_page, $config['max_pages']);
 
-	$pages = null;
+    $catalog_api_action = generation_strategy('sb_api', array($board['uri']));
 
-	if ($config['api']['enabled']) {
-		$api = new Api(
-			$config['show_filename'],
-			$config['hide_email'],
-			$config['country_flags']
-		);
-		$catalog = array();
-	}
+    $pages = null;
 
-	for ($page = 1; $page <= $config['max_pages']; $page++) {
-		$filename = $board['dir'] . ($page == 1 ? $config['file_index'] : sprintf($config['file_page'], $page));
-		$jsonFilename = $board['dir'] . ($page - 1) . '.json'; // pages should start from 0
+    if ($config['api']['enabled']) {
+        $api = new Api(
+            $config['show_filename'],
+            $config['hide_email'],
+            $config['country_flags']
+        );
+        $catalog = array();
+    }
 
-		$wont_build_this_page = $config['try_smarter'] && isset($build_pages) && !empty($build_pages) && !in_array($page, $build_pages);
+    for ($page = $start_page; $page <= $end_page; $page++) {
+        $filename = $board['dir'] . ($page == 1 ? $config['file_index'] : sprintf($config['file_page'], $page));
+        $jsonFilename = $board['dir'] . ($page - 1) . '.json';
 
-		if ((!$config['api']['enabled'] || $global_api == "skip") && $wont_build_this_page)
-			continue;
+        $wont_build_this_page = $config['try_smarter'] && isset($build_pages) && !empty($build_pages) && !in_array($page, $build_pages);
 
-		$action = generation_strategy('sb_board', array($board['uri'], $page));
-		if ($action == 'rebuild' || $catalog_api_action == 'rebuild') {
-			$content = index($page, false, $wont_build_this_page);
-			if (!$content)
-				break;
+        if ((!$config['api']['enabled'] || $global_api == "skip") && $wont_build_this_page)
+            continue;
 
-			// Tries to avoid rebuilding if the body is the same as the one in cache.
-			if ($config['cache']['enabled']) {
-				$contentHash = md5(json_encode($content['body']));
-				$contentHashKey = '_index_hashed_'. $board['uri'] . '_' . $page;
-				$cachedHash = cache::get($contentHashKey);
-				if ($cachedHash == $contentHash){
-					if ($config['api']['enabled']) {
-						// this is needed for the thread.json and catalog.json rebuilding below, which includes all pages.
-						$catalog[$page-1] = $content['threads'];
-					}
-					continue;
-				}
-				cache::set($contentHashKey, $contentHash, 3600);
-			}
+        $action = generation_strategy('sb_board', array($board['uri'], $page));
+        if ($action == 'rebuild' || $catalog_api_action == 'rebuild') {
+            $content = index($page, false, $wont_build_this_page);
+            if (!$content)
+                break;
 
-			// json api
-			if ($config['api']['enabled']) {
-				$threads = $content['threads'];
-				$json = json_encode($api->translatePage($threads));
-				file_write($jsonFilename, $json);
+            if ($config['cache']['enabled']) {
+                $contentHash = md5(json_encode($content['body']));
+                $contentHashKey = '_index_hashed_' . $board['uri'] . '_' . $page;
+                $cachedHash = cache::get($contentHashKey);
+                if ($cachedHash == $contentHash) {
+                    if ($config['api']['enabled']) {
+                        $catalog[$page - 1] = $content['threads'];
+                    }
+                    continue;
+                }
+                cache::set($contentHashKey, $contentHash, 3600);
+            }
 
-				$catalog[$page-1] = $threads;
+            if ($config['api']['enabled']) {
+                $threads = $content['threads'];
+                $json = json_encode($api->translatePage($threads));
+                file_write($jsonFilename, $json);
 
-				if ($wont_build_this_page) continue;
-			}
+                $catalog[$page - 1] = $threads;
 
-			if (!$pages) {
-				$pages = getPages();
-			}
-			$content['pages'] = $pages;
-			$content['pages'][$page-1]['selected'] = true;
-			$content['btn'] = getPageButtons($content['pages']);
-			if ($mod) {
-				$content['pm'] = create_pm_header();
-			}
+                if ($wont_build_this_page) continue;
+            }
 
-			file_write($filename, Element($config['file_board_index'], $content));
-		}
-		elseif ($action == 'delete' || $catalog_api_action == 'delete') {
-			file_unlink($filename);
-			file_unlink($jsonFilename);
-		}
-	}
+            if (!$pages) {
+                $pages = getPages();
+            }
+            $content['pages'] = $pages;
+            $content['pages'][$page - 1]['selected'] = true;
+            $content['btn'] = getPageButtons($content['pages']);
+            if ($mod) {
+                $content['pm'] = create_pm_header();
+            }
 
-	// $action is an action for our last page
-	if (($catalog_api_action == 'rebuild' || $action == 'rebuild' || $action == 'delete') && $page < $config['max_pages']) {
-		for (;$page<=$config['max_pages'];$page++) {
-			$filename = $board['dir'] . ($page==1 ? $config['file_index'] : sprintf($config['file_page'], $page));
-			file_unlink($filename);
+            file_write($filename, Element($config['file_board_index'], $content));
+        } elseif ($action == 'delete' || $catalog_api_action == 'delete') {
+            file_unlink($filename);
+            file_unlink($jsonFilename);
+        }
+    }
 
-			if ($config['api']['enabled']) {
-				$jsonFilename = $board['dir'] . ($page - 1) . '.json';
-				file_unlink($jsonFilename);
-			}
-		}
-	}
+    if (($catalog_api_action == 'rebuild' || $action == 'rebuild' || ($action == 'delete' && $page <= $config['max_pages']))) {
+        for ($page = $page; $page <= $config['max_pages']; $page++) {
+            $filename = $board['dir'] . ($page == 1 ? $config['file_index'] : sprintf($config['file_page'], $page));
+            file_unlink($filename);
 
-	// json api catalog
-	if ($config['api']['enabled'] && $global_api != "skip") {
-		if ($catalog_api_action == 'delete') {
-			$jsonFilename = $board['dir'] . 'catalog.json';
-			file_unlink($jsonFilename);
-			$jsonFilename = $board['dir'] . 'threads.json';
-			file_unlink($jsonFilename);
-		}
-		elseif ($catalog_api_action == 'rebuild') {
-			$json = json_encode($api->translateCatalog($catalog));
-			$jsonFilename = $board['dir'] . 'catalog.json';
-			file_write($jsonFilename, $json);
+            if ($config['api']['enabled']) {
+                $jsonFilename = $board['dir'] . ($page - 1) . '.json';
+                file_unlink($jsonFilename);
+            }
+        }
+    }
 
-			$json = json_encode($api->translateCatalog($catalog, true));
-			$jsonFilename = $board['dir'] . 'threads.json';
-			file_write($jsonFilename, $json);
-		}
-	}
-	
-	Archive::RebuildArchiveIndexes();
+    if ($config['api']['enabled'] && $global_api != "skip") {
+        if ($catalog_api_action == 'delete') {
+            $jsonFilename = $board['dir'] . 'catalog.json';
+            file_unlink($jsonFilename);
+            $jsonFilename = $board['dir'] . 'threads.json';
+            file_unlink($jsonFilename);
+        } elseif ($catalog_api_action == 'rebuild') {
+            $json = json_encode($api->translateCatalog($catalog));
+            $jsonFilename = $board['dir'] . 'catalog.json';
+            file_write($jsonFilename, $json);
 
-	if ($config['try_smarter'])
-		$build_pages = array();
+            $json = json_encode($api->translateCatalog($catalog, true));
+            $jsonFilename = $board['dir'] . 'threads.json';
+            file_write($jsonFilename, $json);
+        }
+    }
+
+    // Archive rebuilding is now handled in mod_rebuild
+    if ($config['try_smarter'])
+        $build_pages = array();
 }
 
 function buildJavascript() {
