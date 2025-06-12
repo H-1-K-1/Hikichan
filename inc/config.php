@@ -1591,8 +1591,6 @@
 		'dns_lookup' => true,
 		// How many recent posts, per board, to show in ?/IP/x.x.x.x.
 		'ip_recentposts' => 5,
-		// Number of posts to display on the reports page.
-		'recent_reports' => 10,
 		// Number of actions to show per page in the moderation log.
 		'modlog_page' => 350,
 		// Number of bans to show per page in the ban list.
@@ -1603,6 +1601,10 @@
 		'search_page' => 200,
 		// Number of entries to show per page in the moderator noticeboard.
 		'noticeboard_page' => 50,
+		// Number of entries to show per page in the moderator inbox.
+		'inbox_page' => 50,
+		// Number of entries to show per page in moderator reports.
+		'reports_page' => 10,
 		// Number of entries to summarize and display on the dashboard.
 		'noticeboard_dashboard' => 5,
 

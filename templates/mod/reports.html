@@ -1,11 +1,29 @@
-{% if reports %}
-	{{ reports }}
-	{% if last_time and last_id %}
-		<p style="text-align:center; margin-top:1em;">
-			<a href="{{ config.root }}mod.php?/reports&last_time={{ last_time }}&last_id={{ last_id }}">Next {{ limit }} reports</a>
-		</p>
+{% if total_pages > 1 %}
+<nav class="pagination">
+	{% if page_no > 1 %}
+	<a href="?/reports/{{ page_no - 1 }}">&laquo; Prev</a>
 	{% endif %}
-{% else %}
-	<p style="text-align:center" class="unimportant">({% trans 'There are no reports.' %})</p>
+	Page {{ page_no }} of {{ total_pages }}
+	{% if page_no < total_pages %}
+	<a href="?/reports/{{ page_no + 1 }}">Next &raquo;</a>
+	{% endif %}
+</nav>
 {% endif %}
 
+{% if reports %}
+{{ reports|raw }}
+{% else %}
+<p style="text-align:center" class="unimportant">({% trans 'There are no reports.' %})</p>
+{% endif %}
+
+{% if total_pages > 1 %}
+<nav class="pagination">
+	{% if page_no > 1 %}
+	<a href="?/reports/{{ page_no - 1 }}">&laquo; Prev</a>
+	{% endif %}
+	Page {{ page_no }} of {{ total_pages }}
+	{% if page_no < total_pages %}
+	<a href="?/reports/{{ page_no + 1 }}">Next &raquo;</a>
+	{% endif %}
+</nav>
+{% endif %}

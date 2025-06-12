@@ -31,6 +31,7 @@ $pages = [
 	'/new_PM/([^/]+)'			=> 'secure_POST new_pm',	// create a new pm
 	'/PM/(\d+)(/reply)?'			=> 'pm',			// read a pm
 	'/inbox'				=> 'inbox',			// pm inbox
+	'/inbox/(\d+)'			=> 'inbox',			// pm inbox with page number
 
 	'/log'					=> 'log',			// modlog
 	'/log/(\d+)'				=> 'log',			// modlog
@@ -57,6 +58,7 @@ $pages = [
 
 	'/rebuild'				=> 'secure_POST rebuild',	// rebuild static files
 	'/reports'				=> 'reports',			// report queue
+	'/reports/(\d+)'			=> 'reports',			// reports with page number
 	'/reports/(\d+)/dismiss(&all|&post)?'		=> 'secure report_dismiss',	// dismiss a report
 
 	'/IP/([\w.:]+)'				=> 'secure_POST ip',		// view ip address

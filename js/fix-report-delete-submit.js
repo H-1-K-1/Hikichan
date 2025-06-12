@@ -22,7 +22,7 @@ if ($('#delete-fields #password').length) {
 		var ele = e.target.parentElement.parentElement;
 		var $ele = $(ele);
 		var threadId = $ele.parent().attr('id').replace('thread_', '');
-		var postId = $ele.find('.post_no').not('[id]').text();
+		var postId = $ele.attr('id').replace('reply_', '').replace('op_', '');
 		var board_name = $ele.parent().data('board');
 
 		$buf.find('#delete_post_menu,#delete_file_menu,#edit_post_menu').click(function(e) {
@@ -49,7 +49,7 @@ Menu.onclick(function(e, $buf) {
 	var ele = e.target.parentElement.parentElement;
 	var $ele = $(ele);
 	var threadId = $ele.parent().attr('id').replace('thread_', '');
-	var postId = $ele.find('.post_no').not('[id]').text();
+	var postId = $ele.attr('id').replace('reply_', '').replace('op_', '');
 	var board_name = $ele.parent().data('board');
 
 	$buf.find('#report_menu,#global_report_menu').click(function(e) {

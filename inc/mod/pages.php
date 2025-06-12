@@ -2584,17 +2584,38 @@ function mod_pm(Context $ctx, $id, $reply = false) {
 	}
 }
 
-function mod_inbox(Context $ctx) {
+function mod_inbox(Context $ctx, $page_no = 1) {
 	global $mod;
 	$config = $ctx->get('config');
 
-	$query = prepare('SELECT `unread`,``pms``.`id`, `time`, `sender`, `to`, `message`, `username` FROM ``pms`` LEFT JOIN ``mods`` ON ``mods``.`id` = `sender` WHERE `to` = :mod ORDER BY `unread` DESC, `time` DESC');
-	$query->bindValue(':mod', $mod['id']);
+	// Number of messages per page (set this in your config if you want)
+	$per_page = isset($config['mod']['inbox_page']) ? $config['mod']['inbox_page'] : 20;
+	$page_no = (int)$page_no;
+	if ($page_no < 1) $page_no = 1;
+	$offset = ($page_no - 1) * $per_page;
+
+	// Fetch paginated messages
+	$query = prepare('SELECT `unread`, ``pms``.`id`, `time`, `sender`, `to`, `message`, `username`
+		FROM ``pms``
+		LEFT JOIN ``mods`` ON ``mods``.`id` = `sender`
+		WHERE `to` = :mod
+		ORDER BY `unread` DESC, `time` DESC
+		LIMIT :offset, :limit');
+	$query->bindValue(':mod', $mod['id'], PDO::PARAM_INT);
+	$query->bindValue(':offset', $offset, PDO::PARAM_INT);
+	$query->bindValue(':limit', $per_page, PDO::PARAM_INT);
 	$query->execute() or error(db_error($query));
 	$messages = $query->fetchAll(PDO::FETCH_ASSOC);
 
+	// Count total messages for pagination
+	$query = prepare('SELECT COUNT(*) FROM ``pms`` WHERE `to` = :mod');
+	$query->bindValue(':mod', $mod['id'], PDO::PARAM_INT);
+	$query->execute() or error(db_error($query));
+	$total = $query->fetchColumn();
+
+	// Count unread messages
 	$query = prepare('SELECT COUNT(*) FROM ``pms`` WHERE `to` = :mod AND `unread` = 1');
-	$query->bindValue(':mod', $mod['id']);
+	$query->bindValue(':mod', $mod['id'], PDO::PARAM_INT);
 	$query->execute() or error(db_error($query));
 	$unread = $query->fetchColumn();
 
@@ -2603,11 +2624,14 @@ function mod_inbox(Context $ctx) {
 	}
 
 	mod_page(
-		sprintf('%s (%s)', _('PM inbox'), count($messages) > 0 ? $unread . ' unread' : 'empty'),
+		sprintf('%s (%s)', _('PM inbox'), $total > 0 ? $unread . ' unread' : 'empty'),
 		$config['file_mod_inbox'],
 		[
 			'messages' => $messages,
-			'unread' => $unread
+			'unread' => $unread,
+			'count' => $total,
+			'page_no' => $page_no,
+			'per_page' => $per_page
 		],
 		$mod
 	);
@@ -2831,7 +2855,7 @@ function mod_rebuild(Context $ctx) {
             $board_uri = $progress['current_board'];
             openBoard($board_uri);
 
-            $batch_size = 5;
+            $batch_size = 25;
 
             // If we are processing replies for a thread
             while ($options['rebuild_posts'] && !empty($progress['replies'])) {
@@ -2943,36 +2967,26 @@ function mod_rebuild(Context $ctx) {
     ], $mod);
 }
 
-function mod_reports(Context $ctx) {
+function mod_reports(Context $ctx, $page_no = 1) {
 	global $mod;
 	$config = $ctx->get('config');
 
 	if (!hasPermission($config['mod']['reports']))
 		error($config['error']['noaccess']);
 
-	// Pagination: use cursor-based method (like mod_users)
-	$limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 25;
-	$last_time = isset($_GET['last_time']) && is_numeric($_GET['last_time']) ? (int)$_GET['last_time'] : null;
-	$last_id = isset($_GET['last_id']) && is_numeric($_GET['last_id']) ? (int)$_GET['last_id'] : null;
+	$page_no = (int)$page_no;
+	if ($page_no < 1) $page_no = 1;
+	$per_page = isset($config['mod']['reports_page']) ? (int)$config['mod']['reports_page'] : 25;
+	$offset = ($page_no - 1) * $per_page;
 
-	// Total report count
-	$total_query = query("SELECT COUNT(*) FROM ``reports``") or error(db_error());
-	$total_reports = (int)$total_query->fetchColumn();
+	// Get total report count
+	$query = query("SELECT COUNT(*) FROM ``reports``") or error(db_error());
+	$total_reports = (int)$query->fetchColumn();
 
-	// Main query with pagination
-	$sql = "
-		SELECT * FROM ``reports``
-		WHERE (
-			(:last_time IS NULL AND :last_id IS NULL)
-			OR (`time` < :last_time OR (`time` = :last_time AND `id` < :last_id))
-		)
-		ORDER BY `time` DESC, `id` DESC
-		LIMIT :limit
-	";
-	$query = prepare($sql);
-	$query->bindValue(':last_time', $last_time, PDO::PARAM_INT);
-	$query->bindValue(':last_id', $last_id, PDO::PARAM_INT);
-	$query->bindValue(':limit', $limit, PDO::PARAM_INT);
+	// Fetch paginated reports
+	$query = prepare("SELECT * FROM ``reports`` ORDER BY `time` DESC, `id` DESC LIMIT :offset, :limit");
+	$query->bindValue(':offset', $offset, PDO::PARAM_INT);
+	$query->bindValue(':limit', $per_page, PDO::PARAM_INT);
 	$query->execute() or error(db_error($query));
 	$reports = $query->fetchAll(PDO::FETCH_ASSOC);
 
@@ -2986,7 +3000,6 @@ function mod_reports(Context $ctx) {
 	$report_posts = [];
 	foreach ($report_queries as $board => $posts) {
 		$report_posts[$board] = [];
-
 		$query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND (`id` = ' . implode(' OR `id` = ', $posts) . ')');
 		$query->bindValue(':board', $board);
 		$query->execute() or error(db_error($query));
@@ -3039,25 +3052,17 @@ function mod_reports(Context $ctx) {
 			$config['body_truncate_char'] = $__old_body_truncate_char;
 	}
 
-	// Update cursor for next page
-	$new_last_time = null;
-	$new_last_id = null;
-	if (!empty($reports)) {
-		$last_report = end($reports);
-		$new_last_time = $last_report['time'];
-		$new_last_id = $last_report['id'];
-	}
+	$total_pages = ceil($total_reports / $per_page);
 
-	// Render the page with total report count
 	mod_page(
 		sprintf('%s (%d)', _('Report queue'), $total_reports),
 		$config['file_mod_reports'],
 		[
 			'reports' => $body,
-			'count' => count($reports),
-			'limit' => $limit,
-			'last_time' => $new_last_time,
-			'last_id' => $new_last_id
+			'count' => $total_reports,
+			'page_no' => $page_no,
+			'per_page' => $per_page,
+			'total_pages' => $total_pages
 		],
 		$mod
 	);
