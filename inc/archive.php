@@ -355,14 +355,16 @@ class Archive {
         self::buildArchiveIndex($board_uri);
     }
 
-    static public function RebuildArchiveIndexes($board_uri = null) {
+    static public function RebuildArchiveIndexes($board_uris = null) {
         global $config;
 
-        if(!$config['archive']['threads']) return;
+        if (!$config['archive']['threads']) return;
 
         $boards_to_rebuild = [];
-        if ($board_uri) {
-            $boards_to_rebuild[] = ['uri' => $board_uri];
+        if (is_array($board_uris)) {
+            foreach ($board_uris as $uri) {
+                $boards_to_rebuild[] = ['uri' => $uri];
+            }
         } else {
             $query = query("SELECT DISTINCT `board_uri` FROM `archive_threads`");
             while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
@@ -381,7 +383,7 @@ class Archive {
                 }
             }
 
-            if(!$config['archive']['cron_job']['purge']) {
+            if (!$config['archive']['cron_job']['purge']) {
                 self::purgeArchive($current_board_uri);
             }
             self::buildArchiveIndex($current_board_uri);
@@ -445,10 +447,102 @@ class Archive {
                 'body' => $archive_page_content
             ));
 
-            $filename = $config['dir']['home'] . $board['dir'] . $config['dir']['archive'];
-            $filename .= ($page == 1) ? $config['file_index'] : $page . '.html';
+           // Calculate subfolder for every 1000 pages after the first 1000
+           if ($page == 1) {
+                $filename = $config['dir']['home'] . $board['dir'] . $config['dir']['archive'] . $config['file_index'];
+            } else {
+                $pagination_base = $config['dir']['home'] . $board['dir'] . $config['dir']['archive'] . 'pagination/';
+                if ($page <= 1000) {
+                    $folder = '1/';
+                } else {
+                    $folder_num = floor(($page - 1) / 1000) * 1000 + 1;
+                    $folder = $folder_num . '/';
+                }
+                $full_folder_path = $pagination_base . $folder;
+                if (!is_dir($full_folder_path)) {
+                    @mkdir($full_folder_path, 0777, true);
+                }
+                $filename = $full_folder_path . $page . '.html';
+            }
             file_write($filename, $archive_page);
         }
+    }
+
+    // Build a limited number of archive index pages per call for batching
+    static public function buildArchiveIndexBatch($board_uri, $start_page = 1, $batch_size = 100, $threads_per_page = null) {
+        global $config, $board;
+
+        if (!$config['archive']['threads']) return 0;
+
+        if (empty($board) || $board['uri'] !== $board_uri) {
+            if (!openBoard($board_uri)) {
+                error_log("buildArchiveIndexBatch: Failed to open board: " . $board_uri);
+                return 0;
+            }
+        }
+
+        if ($threads_per_page === null) {
+            $threads_per_page = isset($config['archive']['threads_per_page']) ? $config['archive']['threads_per_page'] : 5;
+        }
+
+        $total_threads = self::getArchiveCount($board_uri);
+        $total_pages = ceil($total_threads / $threads_per_page);
+
+        $end_page = min($start_page + $batch_size - 1, $total_pages);
+        for ($page = $start_page; $page <= $end_page; $page++) {
+            $archive = self::getArchiveListPaginated($board_uri, $page, $threads_per_page);
+
+            foreach ($archive as &$thread) {
+                $thread['archived_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $thread['original_thread_id']);
+                if ($thread['first_image']) {
+                    $thread['image_url'] = $config['root'] . $board['dir'] . $config['dir']['archive'] . $config['dir']['thumb'] . $thread['path'] . '/' . $thread['first_image'];
+                } else {
+                    $thread['image_url'] = null;
+                }
+            }
+
+            $title = sprintf(_('Archived') . ' %s: ' . $config['board_abbreviation'], _('threads'), $board['uri']);
+
+            $archive_page_content = Element("mod/archive_list.html", array(
+                'config' => $config,
+                'thread_count' => $total_threads,
+                'board' => $board,
+                'archive' => $archive,
+                'current_page' => $page,
+                'total_pages' => $total_pages
+            ));
+
+            $archive_page = Element('page.html', array(
+                'config' => $config,
+                'mod' => false,
+                'hide_dashboard_link' => true,
+                'boardlist' => createBoardList(false),
+                'title' => $title,
+                'subtitle' => "",
+                'body' => $archive_page_content
+            ));
+
+            // Calculate subfolder for every 1000 pages after the first 1000
+            if ($page == 1) {
+                $filename = $config['dir']['home'] . $board['dir'] . $config['dir']['archive'] . $config['file_index'];
+            } else {
+                $pagination_base = $config['dir']['home'] . $board['dir'] . $config['dir']['archive'] . 'pagination/';
+                if ($page <= 1000) {
+                    $folder = '1/';
+                } else {
+                    $folder_num = floor(($page - 1) / 1000) * 1000 + 1;
+                    $folder = $folder_num . '/';
+                }
+                $full_folder_path = $pagination_base . $folder;
+                if (!is_dir($full_folder_path)) {
+                    @mkdir($full_folder_path, 0777, true);
+                }
+                $filename = $full_folder_path . $page . '.html';
+            }
+            file_write($filename, $archive_page);
+        }
+        // Return the next page to process, or 0 if done
+        return ($end_page < $total_pages) ? ($end_page + 1) : 0;
     }
 
     static public function getArchiveListPaginated($board_uri, $page, $threads_per_page) {

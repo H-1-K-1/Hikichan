@@ -118,17 +118,31 @@
     </tbody>
 </table>
 <div style="text-align: center; margin-top: 20px;">
+    {% macro archive_page_url(page) %}
+        {%- if page == 1 -%}
+            {{ '' }}
+        {%- else -%}
+            pagination/
+            {%- if page <= 1 -%}
+            1/
+            {%- else -%}
+                {{ ((page-1)//1)*1 + 1 }}/
+            {%- endif -%}
+            {{ page }}.html
+        {%- endif -%}
+    {% endmacro %}
+
     {% if current_page > 1 %}
-    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% else %}{{ (current_page - 1) == 1 ? '' : (current_page - 1) ~ '.html' }}{% endif %}">« Previous</a>
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(current_page - 1) }}{% else %}{{ config.root }}{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(current_page - 1) }}{% endif %}">« Previous</a>
     {% endif %}
     {% for page in 1..total_pages %}
     {% if page == current_page %}
     <strong>{{ page }}</strong>
     {% else %}
-    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ page == 1 ? '' : page ~ '.html' }}{% else %}{{ page == 1 ? '' : page ~ '.html' }}{% endif %}">{{ page }}</a>
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(page) }}{% else %}{{ config.root }}{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(page) }}{% endif %}">{{ page }}</a>
     {% endif %}
     {% endfor %}
     {% if current_page < total_pages %}
-    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% else %}{{ (current_page + 1) == 1 ? '' : (current_page + 1) ~ '.html' }}{% endif %}">Next »</a>
+    <a href="{% if mod %}{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(current_page + 1) }}{% else %}{{ config.root }}{{ board.dir }}{{ config.dir.archive }}{{ _self.archive_page_url(current_page + 1) }}{% endif %}">Next »</a>
     {% endif %}
 </div>

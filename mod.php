@@ -77,7 +77,13 @@ $pages = [
 	'/search/(posts|IP_notes|bans|log)/(.+)'	=> 'search',		// search
 	
 	'/(\%b)/archive/'                => 'secure_POST view_archive',
-    '/(\%b)/archive/(\d+)\.html'       => 'secure_POST view_archive',
+    //'/(\%b)/archive/(\d+)\.html'       => 'secure_POST view_archive',
+	// Page 1 (index)
+	'/(\%b)/archive/?' => 'secure_POST view_archive',
+	// Page 2-1000
+	'/(\%b)/archive/pagination/1/(\d+)\.html' => 'secure_POST view_archive',
+	// Page 1001+
+	'/(\%b)/archive/pagination/(\d+)/(\d+)\.html' => 'secure_POST view_archive',
     '/(\%b)/mod_archive/'            => 'secure_POST view_archive_mod_archive',
     '/(\%b)/mod_archive/(\d+)'       => 'secure_POST view_archive_mod_archive',
     '/(\%b)/featured/'               => 'secure_POST view_archive_featured',
