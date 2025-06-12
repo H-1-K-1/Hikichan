@@ -17,7 +17,7 @@
         "lifo/ip": "^1.0",
         "gettext/gettext": "^5.5",
         "mrclay/minify": "^2.1.6",
-        "geoip/geoip": "^1.17",
+        "geoip2/geoip2": "^2.0",
         "erusev/parsedown":  "^1.7.4"
     },
     "autoload": {

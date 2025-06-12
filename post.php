@@ -8,6 +8,7 @@ require_once 'inc/bootstrap.php';
 use Vichan\{Context, WebDependencyFactory};
 use Vichan\Data\Driver\{LogDriver, HttpDriver};
 use Vichan\Functions\Format;
+use GeoIp2\Database\Reader;
 
 /**
  * Utility functions
@@ -996,27 +997,28 @@ if (isset($_POST['delete'])) {
 	}
 
 	if (!$dropped_post)
-	if (($config['country_flags'] && !$config['allow_no_country']) || ($config['country_flags'] && $config['allow_no_country'] && !isset($_POST['no_country']))) {
-		$gi=geoip_open('inc/lib/geoip/GeoIPv6.dat', GEOIP_STANDARD);
+	if (
+        ($config['country_flags'] && !$config['allow_no_country']) ||
+        ($config['country_flags'] && $config['allow_no_country'] && !isset($_POST['no_country']))
+    ) {
+        $geoip_db_path = __DIR__ . '/inc/lib/geoip/GeoLite2-Country.mmdb';
+        $reader = new Reader($geoip_db_path);
 
-		function ipv4to6($ip) {
-			if (strpos($ip, ':') !== false) {
-				if (strpos($ip, '.') > 0)
-					$ip = substr($ip, strrpos($ip, ':')+1);
-				else return $ip;  //native ipv6
-			}
-			$iparr = array_pad(explode('.', $ip), 4, 0);
-			$part7 = base_convert(($iparr[0] * 256) + $iparr[1], 10, 16);
-			$part8 = base_convert(($iparr[2] * 256) + $iparr[3], 10, 16);
-			return '::ffff:'.$part7.':'.$part8;
-		}
+        $ip = $_SERVER['REMOTE_ADDR'];
 
-		if ($country_code = geoip_country_code_by_addr_v6($gi, ipv4to6($_SERVER['REMOTE_ADDR']))) {
-			if (!in_array(strtolower($country_code), array('eu', 'ap', 'o1', 'a1', 'a2')))
-				$post['body'] .= "\n<tinyboard flag>".strtolower($country_code)."</tinyboard>".
-				"\n<tinyboard flag alt>".geoip_country_name_by_addr_v6($gi, ipv4to6($_SERVER['REMOTE_ADDR']))."</tinyboard>";
-		}
-	}
+        try {
+            $record = $reader->country($ip);
+            $country_code = strtolower($record->country->isoCode);
+            $country_name = $record->country->name;
+
+            if (!in_array($country_code, ['eu', 'ap', 'o1', 'a1', 'a2'])) {
+                $post['body'] .= "\n<tinyboard flag>{$country_code}</tinyboard>" .
+                                 "\n<tinyboard flag alt>{$country_name}</tinyboard>";
+            }
+        } catch (\GeoIp2\Exception\AddressNotFoundException $e) {
+            // IP not found in database, do nothing or handle as needed
+        }
+    }
 
 	if ($config['user_flag'] && isset($_POST['user_flag']) && !empty($_POST['user_flag'])) {
 		$user_flag = $_POST['user_flag'];
