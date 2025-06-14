@@ -451,34 +451,27 @@ function setupBoard($array) {
 }
 
 function openBoard($uri) {
-    global $config, $build_pages, $board;
+	global $config, $build_pages, $board;
 
-    // Extract the board path prefix (e.g., 'channel') from board_path
-    $prefix = trim(dirname($config['board_path']), '/');
+	if ($config['try_smarter'])
+		$build_pages = array();
 
-    // Remove the prefix from the start of the URI if present
-    if ($prefix !== '' && str_starts_with($uri, $prefix . '/')) {
-        $uri = substr($uri, strlen($prefix) + 1); // +1 for the slash
-    }
+	// And what if we don't really need to change a board we have opened?
+	if (isset ($board) && isset ($board['uri']) && $board['uri'] == $uri) {
+		return true;
+	}
 
-    if ($config['try_smarter']) {
-        $build_pages = array();
-    }
+	$b = getBoardInfo($uri);
+	if ($b) {
+		setupBoard($b);
 
-    if (isset($board) && isset($board['uri']) && $board['uri'] === $uri) {
-        return true;
-    }
+		if (function_exists('after_open_board')) {
+			after_open_board();
+		}
 
-    $b = getBoardInfo($uri);
-    if ($b) {
-        setupBoard($b);
-        if (function_exists('after_open_board')) {
-            after_open_board();
-        }
-        return true;
-    }
-
-    return false;
+		return true;
+	}
+	return false;
 }
 
 function getBoardInfo($uri) {
@@ -1457,9 +1450,15 @@ function getPages($mod=false) {
 
     $pages = array();
     for ($x=0;$x<$count && $x<$config['max_pages'];$x++) {
+        if ($x == 0) {
+            $link = ($mod ? '?/' : $config['root']) . $board['dir'] . $config['file_index'];
+        } else {
+            $folder_num = intval(($x - 1) / 1000) + 1;
+            $link = ($mod ? '?/' : $config['root']) . $board['dir'] . 'pagination/' . $folder_num . '/' . sprintf($config['file_page'], $x+1);
+        }
         $pages[] = array(
             'num' => $x+1,
-            'link' => $x==0 ? ($mod ? '?/' : $config['root']) . $board['dir'] . $config['file_index'] : ($mod ? '?/' : $config['root']) . $board['dir'] . sprintf($config['file_page'], $x+1)
+            'link' => $link
         );
     }
 
@@ -1686,8 +1685,18 @@ function buildIndex($start_page = 1, $end_page = null, $global_api = "yes") {
     }
 
     for ($page = $start_page; $page <= $end_page; $page++) {
-        $filename = $board['dir'] . ($page == 1 ? $config['file_index'] : sprintf($config['file_page'], $page));
-        $jsonFilename = $board['dir'] . ($page - 1) . '.json';
+        if ($page == 1) {
+            $filename = $board['dir'] . $config['file_index'];
+            $jsonFilename = $board['dir'] . '0.json';
+        } else {
+            $folder_num = intval(($page - 2) / 1000) + 1;
+            $folder_path = $board['dir'] . 'pagination/' . $folder_num . '/';
+            if (!is_dir($folder_path)) {
+                @mkdir($folder_path, 0777, true);
+            }
+            $filename = $folder_path . sprintf($config['file_page'], $page);
+            $jsonFilename = $folder_path . ($page - 1) . '.json';
+        }
 
         $wont_build_this_page = $config['try_smarter'] && isset($build_pages) && !empty($build_pages) && !in_array($page, $build_pages);
 
@@ -1742,11 +1751,18 @@ function buildIndex($start_page = 1, $end_page = null, $global_api = "yes") {
 
     if (($catalog_api_action == 'rebuild' || $action == 'rebuild' || ($action == 'delete' && $page <= $config['max_pages']))) {
         for ($page = $page; $page <= $config['max_pages']; $page++) {
-            $filename = $board['dir'] . ($page == 1 ? $config['file_index'] : sprintf($config['file_page'], $page));
+            if ($page == 1) {
+                $filename = $board['dir'] . $config['file_index'];
+                $jsonFilename = $board['dir'] . '0.json';
+            } else {
+                $folder_num = intval(($page - 2) / 1000) + 1;
+                $folder_path = $board['dir'] . 'pagination/' . $folder_num . '/';
+                $filename = $folder_path . sprintf($config['file_page'], $page);
+                $jsonFilename = $folder_path . ($page - 1) . '.json';
+            }
             file_unlink($filename);
 
             if ($config['api']['enabled']) {
-                $jsonFilename = $board['dir'] . ($page - 1) . '.json';
                 file_unlink($jsonFilename);
             }
         }

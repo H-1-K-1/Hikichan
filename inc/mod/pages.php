@@ -930,19 +930,31 @@ function mod_view_catalog(Context $ctx, $boardName) {
 	echo $catalog->build($settings, $boardName, true);
 }
 
-function mod_view_board(Context $ctx, $boardName, $page_no = 1) {
+function mod_view_board(Context $ctx, $boardName, $folder = null, $page_no = 1) {
 	global $mod;
 	$config = $ctx->get('config');
 
 	if (!openBoard($boardName))
 		error($config['error']['noboard']);
 
+	// Support both old and new pagination: if $folder is set, $page_no is the 3rd argument (from /pagination/{folder}/{page}.html)
+	if (is_numeric($folder) && is_numeric($page_no)) {
+		$page_no = (int)$page_no;
+	} elseif (is_numeric($folder) && !is_numeric($page_no)) {
+		// fallback: /pagination/2.html (shouldn't happen, but just in case)
+		$page_no = (int)$folder;
+	}
+
+	if (!$page_no || $page_no < 1) $page_no = 1;
+
 	if (!$page = index($page_no, $mod)) {
 		error($config['error']['404']);
 	}
 
 	$page['pages'] = getPages(true);
-	$page['pages'][$page_no - 1]['selected'] = true;
+	if (isset($page['pages'][$page_no - 1])) {
+		$page['pages'][$page_no - 1]['selected'] = true;
+	}
 	$page['btn'] = getPageButtons($page['pages'], true);
 	$page['mod'] = true;
 	$page['config'] = $config;
@@ -3808,16 +3820,24 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
     if (!$config['archive']['threads']) return;
     if (!openBoard($boardName)) error($config['error']['noboard']);
 
+    // --- Handle POST actions ---
     if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/archive/')) {
+        $redirect_page = isset($_POST['current_page']) && is_numeric($_POST['current_page']) ? (int)$_POST['current_page'] : 1;
         if (isset($_POST['feature'], $_POST['id'])) {
             if (!hasPermission($config['mod']['feature_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::featureThread($_POST['id'], $board['uri']);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            exit;
         } elseif (isset($_POST['mod_archive'], $_POST['id'])) {
             if (!hasPermission($config['mod']['add_to_mod_archive'], $board['uri'])) error($config['error']['noaccess']);
             Archive::featureThread($_POST['id'], $board['uri'], true);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            exit;
         } elseif (isset($_POST['delete'], $_POST['id'])) {
             if (!hasPermission($config['mod']['delete_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::deleteArchived($_POST['id'], $board['uri']);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            exit;
         }
     }
 

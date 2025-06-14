@@ -122,6 +122,8 @@ $pages = [
 		str_replace('%d', '(\d+)', preg_quote($config['file_page'], '!')) => 'view_thread',
 	'/(\%b)/' . preg_quote($config['dir']['res'], '!') . '([0-9]{4}/[0-9]{2}/[0-9]{2})/' .
 		str_replace([ '%d','%s' ], [ '(\d+)', '[a-z0-9-]+' ], preg_quote($config['file_page_slug'], '!')) => 'view_thread',
+	// Board index pagination (new layout)
+    '/(\%b)/pagination/(\d+)/(\d+)\.html' => 'view_board',
 
 	// Old style thread URLs
 	'/(\%b)/'										=> 'view_board',

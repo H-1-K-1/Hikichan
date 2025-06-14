@@ -78,10 +78,11 @@
             {% if mod and post.mod|hasPermission(config.mod.feature_archived_threads, board.uri) %}
             <td>
                 {% if not thread.featured %}
-                <form action="" method="post" class="archiveForm">
+                <form action="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}" method="post" class="archiveForm">
                     <input type="hidden" name="token" value="{{ token }}">
                     <input type="hidden" name="id" value="{{ thread.id }}">
                     <input type="hidden" name="feature" value="1">
+                    <input type="hidden" name="current_page" value="{{ current_page }}">
                     <a href="#" onclick="confirm('Are you sure you want to add thread to featured archive?')?this.parentNode.submit():false;">[{% trans 'Feature' %}]</a>
                 </form>
                 {% else %}
@@ -92,10 +93,11 @@
             {% if mod and post.mod|hasPermission(config.mod.add_to_mod_archive, board.uri) %}
             <td>
                 {% if not thread.mod_archived %}
-                <form action="" method="post" class="archiveForm">
+                <form action="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}" method="post" class="archiveForm">
                     <input type="hidden" name="token" value="{{ token }}">
                     <input type="hidden" name="id" value="{{ thread.id }}">
                     <input type="hidden" name="mod_archive" value="1">
+                    <input type="hidden" name="current_page" value="{{ current_page }}">
                     <a href="#" onclick="confirm('Are you sure you want to add thread to mod archive?')?this.parentNode.submit():false;">[{% trans 'Mod Archive' %}]</a>
                 </form>
                 {% else %}
@@ -105,10 +107,11 @@
             {% endif %}
             {% if mod and post.mod|hasPermission(config.mod.delete_archived_threads, board.uri) %}
             <td>
-                <form action="" method="post" class="archiveForm">
+                <form action="{{ config.file_mod }}?/{{ board.dir }}{{ config.dir.archive }}" method="post" class="archiveForm">
                     <input type="hidden" name="token" value="{{ token }}">
                     <input type="hidden" name="id" value="{{ thread.id }}">
                     <input type="hidden" name="delete" value="1">
+                    <input type="hidden" name="current_page" value="{{ current_page }}">
                     <a href="#" onclick="return confirm('Are you sure you want to permanently delete this archived thread?') ? this.parentNode.submit() : false;">[{% trans 'Delete' %}]</a>
                 </form>
             </td>
@@ -123,10 +126,10 @@
             {{ '' }}
         {%- else -%}
             pagination/
-            {%- if page <= 1 -%}
+            {%- if page <= 1000 -%}
             1/
             {%- else -%}
-                {{ ((page-1)//1)*1 + 1 }}/
+                {{ ((page-1)//1000)*1000 + 1 }}/
             {%- endif -%}
             {{ page }}.html
         {%- endif -%}

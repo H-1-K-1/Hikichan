@@ -182,31 +182,42 @@ class Catalog {
         $total_pages = $per_page > 0 ? (int)ceil($total / $per_page) : 1;
 
         for ($page = 1; $page <= $total_pages; $page++) {
-            $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
+        $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
 
-            $html = Element('themes/catalog/catalog.html', [
-                'settings'     => $settings,
-                'config'       => $config,
-                'boardlist'    => createBoardlist($mod),
-                'recent_posts' => $slice,
-                'stats'        => $stats,
-                'board'        => $board_name,
-                'link'         => $base_link,
-                'mod'          => $mod,
-                'current_page' => $page,
-                'total_pages'  => $total_pages,
-            ]);
+        $html = Element('themes/catalog/catalog.html', [
+            'settings'     => $settings,
+            'config'       => $config,
+            'boardlist'    => createBoardlist($mod),
+            'recent_posts' => $slice,
+            'stats'        => $stats,
+            'board'        => $board_name,
+            'link'         => $base_link,
+            'mod'          => $mod,
+            'current_page' => $page,
+            'total_pages'  => $total_pages,
+        ]);
 
-            if ($mod) {
-                // Return only first page for moderator preview
-                if ($page === 1) {
-                    return $html;
-                }
-            } else {
-                $filename = ($page === 1) ? 'catalog.html' : "catalog_page_{$page}.html";
-                file_write($config['dir']['home'] . $board['dir'] . '/' . $filename, $html);
+        if ($mod) {
+            // Return only first page for moderator preview
+            if ($page === 1) {
+                return $html;
             }
+        } else {
+            if ($page === 1) {
+                $filename = 'catalog.html';
+                $filepath = $config['dir']['home'] . $board['dir'] . '/' . $filename;
+            } else {
+                $folder_num = intval(($page - 2) / 1000) + 1;
+                $folder_path = $config['dir']['home'] . $board['dir'] . '/pagination/' . $folder_num;
+                if (!is_dir($folder_path)) {
+                    @mkdir($folder_path, 0777, true);
+                }
+                $filename = "catalog_page_{$page}.html";
+                $filepath = $folder_path . '/' . $filename;
+            }
+            file_write($filepath, $html);
         }
+    }
 
         return null;
     }
