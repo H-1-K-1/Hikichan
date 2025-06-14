@@ -9,10 +9,6 @@ RewriteRule ^ - [L]
 RewriteRule ^([a-z0-9_]+)/?$ channel/$1/ [L,QSA]
 RewriteRule ^([a-z0-9_]+)/(.*)$ channel/$1/$2 [L,QSA]
 
-# Redirect /mod.php?/channel/b/... to /mod.php?/b/...
-RewriteCond %{THE_REQUEST} \s/mod\.php\?/channel/([a-z0-9_]+)/(.*)\s [NC]
-RewriteRule ^mod\.php$ /mod.php?/%1/%2 [R=301,L]
-
 # Clean URL for /search
 RewriteRule ^search/?$ search.php [L,QSA]
 
