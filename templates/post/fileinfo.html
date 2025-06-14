@@ -8,29 +8,36 @@
 		<img class="post-image deleted" src="{{ config.root }}{{ config.image_deleted }}" alt="" />
 	{% else %}
 		<p class="fileinfo"><span>File: <a href="{{ config.uri_img }}{{ file.file }}">{{ file.file }}</a></span><span class="unimportant">
-		(
-			{% if file.thumb == 'spoiler' %}
-				{% trans %}Spoiler Image{% endtrans %},
+	(
+	{% if file.thumb == 'spoiler' %}
+	{% trans %}Spoiler Image{% endtrans %},
+	{% endif %}
+	{{ file.size|filesize }}
+	{% if file.width and file.height %}
+	, {{ file.width}}x{{ file.height }}
+	{% if config.show_ratio %}
+	, {{ ratio(file.width, file.height) }}
+	{% endif %}
+	{% endif %}
+	{% if config.show_filename and file.filename %}
+	,
+	{% if file.thumb == 'spoiler' %}
+	<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="{% trans %}Spoiler Image{% endtrans %}">{% trans %}Spoiler Image{% endtrans %}</a>
+	{% elseif file.filename|length > config.max_filename_display %}
+	<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="Save as original filename: {{ file.filename|e|bidi_cleanup }}">{{ file.filename|truncate_filename(config.max_filename_display)|e|bidi_cleanup }}</a>
+	{% else %}
+	<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="Save as original filename">{{ file.filename|e|bidi_cleanup }}</a>
+	{% endif %}
+		{% if file.adult %}
+			{% if config.font_awesome %}
+				<i class="fa fa-exclamation-triangle" title="Adult" style="color: red;"></i>
+			{% else %}
+				<img class="icon" title="Adult" src="{{ config.image_adult or '/static/icons/adult.png' }}" alt="Adult" />
 			{% endif %}
-			{{ file.size|filesize }}
-			{% if file.width and file.height %}
-				, {{ file.width}}x{{ file.height }}
-				{% if config.show_ratio %}
-					, {{ ratio(file.width, file.height) }}
-				{% endif %}
-			{% endif %}
-			{% if config.show_filename and file.filename %}
-				, 
-				{% if file.thumb == 'spoiler' %}
-					<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="{% trans %}Spoiler Image{% endtrans %}">{% trans %}Spoiler Image{% endtrans %}</a>
-				{% elseif file.filename|length > config.max_filename_display %}
-					<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="Save as original filename: {{ file.filename|e|bidi_cleanup }}">{{ file.filename|truncate_filename(config.max_filename_display)|e|bidi_cleanup }}</a>
-				{% else %}
-					<a href="{{ config.uri_img }}{{ file.file|e|bidi_cleanup }}" download="{{ file.filename|e|bidi_cleanup }}" title="Save as original filename">{{ file.filename|e|bidi_cleanup }}</a>
-				{% endif %}
-			{% endif %}
-		)
-		</span>
+		{% endif %}
+	{% endif %}
+	)
+</span>
 		{% include "post/image_identification.html" %}
 		{% include "post/file_controls.html" %}
 		</p>

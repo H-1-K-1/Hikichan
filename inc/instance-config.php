@@ -76,6 +76,11 @@ $config['additional_javascript'][] = 'js/inline-expanding-filename.js';
 $config['additional_javascript'][] = 'js/mascots+spread.js';
 $config['additional_javascript'][] = 'js/expand-audio.js';
 $config['additional_javascript'][] = 'js/favorites.js';
+$config['additional_javascript'][] = 'js/adult-content.js';
+$config['additional_javascript'][] = 'js/webm-settings.js';
+$config['additional_javascript'][] = 'js/hide-form.js';
+$config['additional_javascript'][] = 'js/options/fav.js';
+
 
 // Custom stylesheets available for the user to choose. See the "stylesheets/" folder for a list of
 	// available stylesheets (or create your own).

@@ -3082,13 +3082,24 @@ function vote_poll($poll_id, $option_id) {
     $check->execute([$poll_id, $ip_bin]);
     $already_voted = (int)$check->fetchColumn();
 
+    if ($already_voted > 0) {
+        return 'duplicate';
+    }
+
     if ($poll['max_votes'] > 0 && $already_voted >= $poll['max_votes']) {
         return 'limit';
     }
 
-    // Record vote
-    $ins = $pdo->prepare("INSERT INTO poll_votes (poll_id, option_id, ip, vote_time) VALUES (?, ?, ?, ?)");
-    $ins->execute([$poll_id, $option_id, $ip_bin, $now]);
+    // Record vote, catch duplicate entry just in case
+    try {
+        $ins = $pdo->prepare("INSERT INTO poll_votes (poll_id, option_id, ip, vote_time) VALUES (?, ?, ?, ?)");
+        $ins->execute([$poll_id, $option_id, $ip_bin, $now]);
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000) { // Integrity constraint violation
+            return 'duplicate';
+        }
+        throw $e;
+    }
 
     $upd = $pdo->prepare("UPDATE poll_options SET votes = votes + 1 WHERE id = ?");
     $upd->execute([$option_id]);

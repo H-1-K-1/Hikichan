@@ -19,8 +19,10 @@ function get_all_boards() {
  * @param string     $action   'all', 'post-thread', 'post', etc.
  * @param array      $settings Theme settings.
  * @param string|bool $board   Current board URI (or false).
+ * @param int|null   $batch_page_start  (optional) Start page for batch.
+ * @param int|null   $batch_page_end    (optional) End page for batch.
  */
-function catalog_build($action, $settings, $board) {
+function catalog_build($action, $settings, $board, $batch_page_start = null, $batch_page_end = null) {
     global $config;
 
     $boards = explode(' ', $settings['boards']);
@@ -28,7 +30,7 @@ function catalog_build($action, $settings, $board) {
         $boards = get_all_boards();
     }
 
-    $build_board = function($bname) use ($settings) {
+    $build_board = function($bname) use ($settings, $batch_page_start, $batch_page_end) {
         $cat = new Catalog();
         $strategy = generation_strategy("sb_catalog", [$bname]);
 
@@ -36,7 +38,7 @@ function catalog_build($action, $settings, $board) {
             @unlink($GLOBALS['config']['dir']['home'] . $bname . '/catalog.html');
             @unlink($GLOBALS['config']['dir']['home'] . $bname . '/index.rss');
         } elseif ($strategy === 'rebuild') {
-            $cat->build($settings, $bname);
+            $cat->build($settings, $bname, false, $batch_page_start, $batch_page_end);
         }
     };
 
@@ -61,9 +63,11 @@ class Catalog {
      * @param array  $settings   Theme settings.
      * @param string $board_name Board URI.
      * @param bool   $mod        Moderator preview?
+     * @param int|null $batch_page_start  (optional) Start page for batch.
+     * @param int|null $batch_page_end    (optional) End page for batch.
      * @return string|null       HTML for mod, null when writing files.
      */
-    public function build($settings, $board_name, $mod = false) {
+    public function build($settings, $board_name, $mod = false, $batch_page_start = null, $batch_page_end = null) {
         global $config, $board;
 
         // Ensure correct board context
@@ -76,9 +80,7 @@ class Catalog {
         $recent_posts = [];
         $stats        = [];
 
-        //
         // ─── FETCH THREADS ───────────────────────────────────────────────────────
-        //
         $sql = "
             SELECT
               *,
@@ -95,7 +97,7 @@ class Catalog {
         $query->execute() or error(db_error());
 
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-            // ─── Build thread link ───────────────────────────────────────────────
+            // ... (unchanged: build thread link, youtube, thumbnail logic, etc.) ...
             $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
             if ($mod) {
                 $post['link'] = $config['root']
@@ -110,7 +112,6 @@ class Catalog {
                               . link_for($post);
             }
 
-            // ─── YouTube embed? ─────────────────────────────────────────────────
             if (!empty($post['embed'])
                 && preg_match(
                     '/^https?:\/\/(\w+\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9\-_]{10,11})/',
@@ -120,12 +121,9 @@ class Catalog {
                 $post['youtube'] = $m[2];
             }
 
-            // ─── Thumbnail / file logic ─────────────────────────────────────────
             if (!empty($post['files'])) {
                 $files = json_decode($post['files']);
                 $thumb = $files[0];
-
-                // Deleted?
                 if ($thumb->file === 'deleted') {
                     foreach ($files as $f) {
                         if ($f->file !== 'deleted') {
@@ -139,29 +137,23 @@ class Catalog {
                         $post['file'] = $config['uri_thumb'] . $thumb->thumb;
                     }
                 }
-                // Spoiler?
                 elseif ($thumb->thumb === 'spoiler') {
                     $post['file'] = $config['root'] . $config['spoiler_image'];
                 }
-                // Normal
                 else {
                     $post['file'] = $config['uri_thumb'] . $thumb->thumb;
                 }
             } else {
-                // No files
                 $post['file'] = $config['root'] . $config['image_deleted'];
             }
 
-            // Fallbacks
             $post['image_count'] = $post['image_count'] ?? 0;
             $post['pubdate']     = date('r', $post['time']);
 
             $recent_posts[] = $post;
         }
 
-        //
         // ─── INCLUDE JS ────────────────────────────────────────────────────────
-        //
         foreach (['js/jquery.min.js','js/jquery.mixitup.min.js','js/catalog.js','js/catalog-search.js'] as $js) {
             if (!in_array($js, $config['additional_javascript'])) {
                 $config['additional_javascript'][] = $js;
@@ -172,52 +164,53 @@ class Catalog {
                    ? $config['root'] . $config['file_mod'] . '?/' . $board['dir']
                    : $config['root'] . $board['dir'];
 
-        //
         // ─── PAGINATION ─────────────────────────────────────────────────────────
-        //
         $per_page = isset($settings['items_per_page']) && (int)$settings['items_per_page'] > 0
             ? (int)$settings['items_per_page']
-            : 15; // Default value if not set or invalid
+            : 15;
         $total = count($recent_posts);
         $total_pages = $per_page > 0 ? (int)ceil($total / $per_page) : 1;
 
-        for ($page = 1; $page <= $total_pages; $page++) {
-        $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
+        // Determine batch range
+        $start_page = $batch_page_start !== null ? max(1, (int)$batch_page_start) : 1;
+        $end_page = $batch_page_end !== null ? min($total_pages, (int)$batch_page_end) : $total_pages;
 
-        $html = Element('themes/catalog/catalog.html', [
-            'settings'     => $settings,
-            'config'       => $config,
-            'boardlist'    => createBoardlist($mod),
-            'recent_posts' => $slice,
-            'stats'        => $stats,
-            'board'        => $board_name,
-            'link'         => $base_link,
-            'mod'          => $mod,
-            'current_page' => $page,
-            'total_pages'  => $total_pages,
-        ]);
+        for ($page = $start_page; $page <= $end_page; $page++) {
+            $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
 
-        if ($mod) {
-            // Return only first page for moderator preview
-            if ($page === 1) {
-                return $html;
-            }
-        } else {
-            if ($page === 1) {
-                $filename = 'catalog.html';
-                $filepath = $config['dir']['home'] . $board['dir'] . '/' . $filename;
-            } else {
-                $folder_num = intval(($page - 2) / 1000) + 1;
-                $folder_path = $config['dir']['home'] . $board['dir'] . '/pagination/' . $folder_num;
-                if (!is_dir($folder_path)) {
-                    @mkdir($folder_path, 0777, true);
+            $html = Element('themes/catalog/catalog.html', [
+                'settings'     => $settings,
+                'config'       => $config,
+                'boardlist'    => createBoardlist($mod),
+                'recent_posts' => $slice,
+                'stats'        => $stats,
+                'board'        => $board_name,
+                'link'         => $base_link,
+                'mod'          => $mod,
+                'current_page' => $page,
+                'total_pages'  => $total_pages,
+            ]);
+
+            if ($mod) {
+                if ($page === 1) {
+                    return $html;
                 }
-                $filename = "catalog_page_{$page}.html";
-                $filepath = $folder_path . '/' . $filename;
+            } else {
+                if ($page === 1) {
+                    $filename = 'catalog.html';
+                    $filepath = $config['dir']['home'] . $board['dir'] . '/' . $filename;
+                } else {
+                    $folder_num = intval(($page - 2) / 1000) + 1;
+                    $folder_path = $config['dir']['home'] . $board['dir'] . '/pagination/' . $folder_num;
+                    if (!is_dir($folder_path)) {
+                        @mkdir($folder_path, 0777, true);
+                    }
+                    $filename = "catalog_page_{$page}.html";
+                    $filepath = $folder_path . '/' . $filename;
+                }
+                file_write($filepath, $html);
             }
-            file_write($filepath, $html);
         }
-    }
 
         return null;
     }

@@ -34,16 +34,16 @@
 		   style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
 		   {% if config.content_lazy_loading %}loading="lazy" {% endif %}></video>
 	{% else %}
-	<img class="post-image"
+	<img class="post-image{% if post.adult %} adult-image{% endif %}"
 		 src="
-              {% if post.thumb == 'file' %}
-                {{ config.root }}{{ file_icon_thumb }}
-              {% elseif post.thumb == 'spoiler' %}
-                {{ config.root }}{{ config.spoiler_image }}
-              {% else %}
-                {{ config.uri_thumb }}{{ post.thumb }}
-              {% endif %}
-           "
+          {% if post.thumb == 'file' %}
+            {{ config.root }}{{ file_icon_thumb }}
+          {% elseif post.thumb == 'spoiler' %}
+            {{ config.root }}{{ config.spoiler_image }}
+          {% else %}
+            {{ config.uri_thumb }}{{ post.thumb }}
+          {% endif %}
+       "
 		 style="width:{{ post.thumbwidth }}px;height:{{ post.thumbheight }}px"
 		 {% if config.content_lazy_loading %}loading="lazy" {% endif %}
 		 alt="" />

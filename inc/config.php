@@ -104,6 +104,9 @@
 	// If set to false, ensure to periodically invoke the tools/maintenance.php script.
 	$config['auto_maintenance'] = true;
 
+	// Batch size for rebuild tasks (index pages, threads, replies, archive boards)
+	$config['rebuild_batch_size'] = 10;
+
 /*
  * ====================
  *  Database settings
@@ -592,6 +595,8 @@
 	// static spoiler image instead (see $config['spoiler_image']).
 	$config['spoiler_images'] = true;
 
+	$config['enable_adult_posts'] = true;
+
 	// With the following, you can disable certain superfluous fields or enable "forced anonymous".
 
 	// When true, all names will be set to $config['anonymous'].
@@ -615,7 +620,7 @@
 	$config['hide_email'] = false;
 
 	// Attach country flags to posts.
-	$config['country_flags'] = false;
+	$config['country_flags'] = true;
 
 	// Allow the user to decide whether or not he wants to display his country
 	$config['allow_no_country'] = false;
@@ -1055,8 +1060,8 @@
 		"icon_hikichan" => array("index" => "index.html"), # would refer to /static/icons/vichan.png
 		"Boards" => array('b'),
 		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
-		"d_Mod" => array("mod" => "?/"),
-		"fa_search" => array("Search" => "/search.php"),# would refer to a search 
+		"d_Mod" => array("mod" => "/hikichan/mod?/"),
+		"fa_search" => array("Search" => "/hikichan/search.php"),# would refer to a search 
 														# font-awesome icon
 	   );
 

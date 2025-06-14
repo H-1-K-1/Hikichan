@@ -35,11 +35,11 @@
 		<h1>{{ board.url }} - {{ board.title|e }}</h1>
 		<div class="subtitle">
 			{% if board.subtitle %}
-				{% if config.allow_subtitle_html %}
-					{{ board.subtitle }}
-				{% else %}
-					{{ board.subtitle|e }}
-				{% endif %}
+			{% if config.allow_subtitle_html %}
+			{{ board.subtitle }}
+			{% else %}
+			{{ board.subtitle|e }}
+			{% endif %}
 			{% endif %}
 			{% if mod %}<p><a href="?/">{% trans %}Return to dashboard{% endtrans %}</a></p>{% endif %}
 		</div>
@@ -56,115 +56,15 @@
 	{% if config.global_message %}<hr /><div class="blotter">{{ config.global_message }}</div>{% endif %}
 	<hr />
 	{% if config.enable_poll and poll %}
-	  {% set total_votes = poll.options | reduce((a, o) => a + o.votes, 0) %}
-	  {% set now_ts = "now"|date("U") %}
-	  {% set expired = poll.expires and now_ts > poll.expires %}
-	  {% set maxed_out = poll.max_votes > 0 and total_votes >= poll.max_votes %}
-	  {% set closed = expired or maxed_out %}
+	{% set total_votes = poll.options | reduce((a, o) => a + o.votes, 0) %}
+	{% set now_ts = "now"|date("U") %}
+	{% set expired = poll.expires and now_ts > poll.expires %}
+	{% set maxed_out = poll.max_votes > 0 and total_votes >= poll.max_votes %}
+	{% set closed = expired or maxed_out %}
 
-	  <div class="poll-wrapper">
-		<h3>{{ poll.question|e }}</h3>
+	{% include 'poll.html' %}
 
-		{% if poll.max_votes > 0 %}
-		  <p><strong>🗳️ Poll will close after {{ poll.max_votes }} total votes.</strong><br>
-			 ✅ Currently: {{ total_votes }} vote{{ total_votes == 1 ? '' : 's' }} cast.</p>
-		{% endif %}
-
-		<form method="post" action="{{ config.root }}poll.php" id="poll-form">
-		  <input type="hidden" name="vote_poll" value="1">
-		  <input type="hidden" name="poll_id" value="{{ poll.id }}">
-		  <input type="hidden" name="board" value="{{ board.uri }}">
-
-		  <ul class="poll-options">
-			{% for opt in poll.options %}
-			  {% set percent = total_votes > 0 ? (opt.votes / total_votes * 100) | round(1) : 0 %}
-			  <li>
-				<label>
-				  <input type="radio" name="option_id" value="{{ opt.id }}" {% if closed %}disabled{% endif %}>
-				  {{ opt.option_text|e }} ({{ opt.votes }} vote{{ opt.votes == 1 ? '' : 's' }}, {{ percent }}%)
-				</label>
-				<div class="poll-bar-bg"><div class="poll-bar" style="width: {{ percent }}%"></div></div>
-			  </li>
-			{% endfor %}
-		  </ul>
-
-		  <button type="submit" {% if closed %}disabled{% endif %}>
-			{% if expired %}
-			  Poll expired
-			{% elseif maxed_out %}
-			  Max votes reached
-			{% else %}
-			  Vote
-			{% endif %}
-		  </button>
-		</form>
-
-		<p>
-		  {% if expired %}
-			<strong>Poll closed</strong>
-		  {% elseif maxed_out %}
-			<strong>Poll closed (max votes reached)</strong>
-		  {% elseif poll.expires %}
-			<strong>Poll ends in:</strong> <span id="poll-countdown"></span>
-		  {% endif %}
-		</p>
-	  </div>
-
-	  <script>
-		const pollForm = document.getElementById('poll-form');
-		if (pollForm && !{{ closed ? 'true' : 'false' }}) {
-		  pollForm.addEventListener('submit', function(e) {
-			e.preventDefault();
-			const formData = new FormData(pollForm);
-			fetch(pollForm.action, {
-			  method: 'POST',
-			  body: formData,
-			  headers: { 'X-Requested-With': 'XMLHttpRequest' }
-			})
-			.then(r => r.json())
-			.then(data => {
-			  if (data.success) {
-				location.reload();
-			  } else {
-				alert(data.message || "Voting not allowed.");
-			  }
-			})
-			.catch(error => {
-			  console.error(error);
-			  alert("Unexpected error while voting.");
-			});
-		  });
-		}
-
-		{% if poll.expires %}
-		const countdownEl = document.getElementById("poll-countdown");
-		const pollEnd = {{ poll.expires }};
-		function updateCountdown() {
-		  const now = Math.floor(Date.now() / 1000);
-		  let rem = pollEnd - now;
-		  if (!countdownEl) return;
-		  if (rem <= 0) {
-			countdownEl.textContent = "Poll closed";
-			clearInterval(timer);
-			pollForm.querySelectorAll("input, button").forEach(el => el.disabled = true);
-			return;
-		  }
-		  const d = Math.floor(rem / 86400); rem %= 86400;
-		  const h = Math.floor(rem / 3600); rem %= 3600;
-		  const m = Math.floor(rem / 60); const s = rem % 60;
-		  countdownEl.textContent = (d > 0 ? d + "d " : "") +
-			String(h).padStart(2, "0") + ":" +
-			String(m).padStart(2, "0") + ":" +
-			String(s).padStart(2, "0");
-		}
-		updateCountdown();
-		const timer = setInterval(updateCountdown, 1000);
-		{% endif %}
-	  </script>
 	{% endif %}
-
-
-
 
 	<form name="postcontrols" action="{{ config.post_url }}" method="post">
 		<input type="hidden" name="board" value="{{ board.uri }}" />
@@ -173,35 +73,36 @@
 		{% if config.feature.threads and config.feature.link_post_page %} &nbsp; <a id="unimportant" href="{{ config.root }}{{ board.dir }}{{ config.dir.featured }}">[{% trans %}Featured{% endtrans %}]</a>{% endif %}
 		<hr />
 		{{ body }}
-		
+
 		<div id="thread-interactions">
 			<span id="thread-links">
 				<a id="thread-return" href="{{ return }}">[{% trans %}Return{% endtrans %}]</a>
 				<a id="thread-top" href="#top">[{% trans %}Go to top{% endtrans %}]</a>
-                		{% if config.catalog_link %}
-					<a id="thread-catalog" href="{{ config.root }}{% if mod %}{{ config.file_mod }}?/{% endif %}{{ board.dir }}{{ config.catalog_link }}">{% trans %}Catalog{% endtrans %}</a>
-		                {% endif %}
+				{% if config.catalog_link %}
+				<a id="thread-catalog" href="{{ config.root }}{% if mod %}{{ config.file_mod }}?/{% endif %}{{ board.dir }}{{ config.catalog_link }}">{% trans %}Catalog{% endtrans %}</a>
+				{% endif %}
 			</span>
-			
+
 			<span id="thread-quick-reply">
 				<a id="link-quick-reply" href="#">[{% trans %}Post a Reply{% endtrans %}]</a>
 			</span>
-			
+
 			{% include 'report_delete.html' %}
 		</div>
-		
+
 		<div class="clearfix"></div>
 	</form>
-	
+
 	<a name="bottom"></a>
 	{{ boardlist.bottom }}
 
 	{{ config.ad.bottom }}
 
 	{% include 'footer.html' %}
-	
-	<script type="text/javascript">{% verbatim %}
+
+	<script type="text/javascript">
+	{% verbatim %}
 		ready();
-	{% endverbatim %}</script>
+		{% endverbatim %}</script>
 </body>
 </html>

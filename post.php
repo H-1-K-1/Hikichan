@@ -1169,6 +1169,9 @@ if (isset($_POST['delete'])) {
                     $thumb->_destroy();
                 }
 
+                // Add this after the thumbnail logic, inside the foreach ($_FILES...) loop:
+                $file['adult'] = ($config['enable_adult_posts'] && isset($_POST['adult'])) ? 1 : 0;
+
                 $dont_copy_file = false;
 
                 if ($config['redraw_image'] || ($file_image_has_operable_metadata && !$file['exif_stripped'] && $config['strip_exif'])) {

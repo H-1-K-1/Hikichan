@@ -1562,3 +1562,8 @@ p.captcha {
 .device-mobile .cb-menu {
   display: none !important;
 }
+
+.adult-image {
+    filter: blur(5px) invert(1) !important;
+    transition: filter 0.2s;
+}

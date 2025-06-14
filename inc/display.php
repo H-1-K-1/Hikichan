@@ -44,25 +44,31 @@ function doBoardListPart($list, $root, &$boards) {
 	return $body;
 }
 
-function createBoardlist($mod=false) {
+function createBoardlist($mod = false) {
 	global $config;
 
-	if (!isset($config['boards'])) return array('top'=>'','bottom'=>'');
+	if (!isset($config['boards'])) {
+		return array('top' => '', 'bottom' => '');
+	}
 
+	// Get all board URIs and titles for tooltips
 	$xboards = listBoards();
 	$boards = array();
 	foreach ($xboards as $val) {
 		$boards[$val['uri']] = $val['title'];
 	}
 
-	$body = doBoardListPart($config['boards'], $mod?'?/':$config['root'], $boards);
+	// Build the boardlist HTML
+	$body = doBoardListPart($config['boards'], $mod ? '?/' : $config['root'], $boards);
 
-	if ($config['boardlist_wrap_bracket'] && !preg_match('/\] $/', $body))
+	// Optionally wrap in brackets
+	if ($config['boardlist_wrap_bracket'] && !preg_match('/\] $/', $body)) {
 		$body = '[' . $body . ']';
+	}
 
 	$body = trim($body);
 
-	// Message compact-boardlist.js faster, so that page looks less ugly during loading
+	// Let compact-boardlist.js take over as soon as possible for better UX
 	$top = "<script type='text/javascript'>if (typeof do_boardlist != 'undefined') do_boardlist();</script>";
 
 	return array(

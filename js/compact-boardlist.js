@@ -2,27 +2,13 @@
  * compact-boardlist.js - a compact boardlist implementation making it
  *                        act more like a menubar
  * https://github.com/vichan-devel/Tinyboard/blob/master/js/compact-boardlist.js
+ *
  * Released under the MIT license
  * Copyright (c) 2014 Marcin Łabanowski <marcin@6irc.net>
- *
- * Usage:
- *   $config['boards'] = array(
- *     "icon_vichan" => array('*'), # would refer to /static/icons/vichan.png
- *     "Regular" => array('b', 'cp', 'r+oc', 'id', 'waifu'),
- *     "Topical" => array('sci', "Offsite board name" => '//int.vichan.net/s/'),
- *     "fa_search" => array("search" => "/search.php") # would refer to a search 
- *                                                     # font-awesome icon
- *   )
- *
- *   $config['additional_javascript'][] = 'js/jquery.min.js';
- *   $config['additional_javascript'][] = 'js/mobile-style.js';
- *   $config['additional_javascript'][] = 'js/compact-boardlist.js';
- *   //$config['additional_javascript'][] = 'js/watch.js';
  *
  * Modified to add watchlist toggle to mobile menu
  * Patched: Fixed external website detection (use board.href not board.uri)
  */
- 
 compact_boardlist = true;
 
 //var device_type = 'mobile'; for testing purposes
@@ -123,6 +109,9 @@ do_boardlist = function () {
                         .appendTo(menu);
                     watchlistButton.click(function (e) {
                         e.preventDefault();
+                        // CLOSE THE MOBILE MENU
+                        overlay.fadeOut(200, function () { $(this).remove(); });
+                        hamburger.removeClass('cb-open');
                         if (e.ctrlKey) {
                             watchlist.render(true);
                         }
