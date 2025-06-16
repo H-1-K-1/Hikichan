@@ -149,7 +149,7 @@ class Catalog {
                     $post['file'] = $config['uri_thumb'] . $thumb->thumb;
                 }
             } else {
-                $post['file'] = $config['root'] . $config['image_deleted'];
+                $post['file'] = $config['root'] . $config['no_image'];
             }
 
             $post['image_count'] = $post['image_count'] ?? 0;

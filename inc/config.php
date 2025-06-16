@@ -876,6 +876,8 @@
 	$config['spoiler_image'] = 'static/spoiler.png';
 	// Location of thumbnail to use for deleted images.
 	$config['image_deleted'] = 'static/deleted.png';
+	// Location of thumbnail to use for deleted images.
+	$config['no_image'] = 'static/no_image.png';
 
 	// When a thumbnailed image is going to be the same (in dimension), just copy the entire file and use
 	// that as a thumbnail instead of resizing/redrawing.
