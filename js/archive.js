@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     const table = document.getElementById("archive-list");
+    if (!table) return; // <-- Prevents error if table is missing
+
     const headers = table.querySelectorAll("thead th");
     const tbody = table.querySelector("tbody");
     const searchInput = document.getElementById("search-input");

@@ -204,7 +204,9 @@ $(document).ready(function () {
     // Initialize button states based on watchlist
     $('.thread').each(function () {
         var $thread = $(this);
-        var postId = $thread.attr('id').replace('thread_', '');
+        var idAttr = $thread.attr('id');
+        if (!idAttr) return; // Skip if no id attribute
+        var postId = idAttr.replace('thread_', '');
         var _watchlist = JSON.parse(localStorage.watchlist);
         var isWatched = _watchlist.some(function (w) { return w[5] === postId; });
         if (isWatched) {

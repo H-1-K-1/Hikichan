@@ -14,7 +14,7 @@
  *
  */
 
-onready(function(){
+$(function(){
 	var stylesDiv = $('div.styles');
 	var stylesSelect = $('<select></select>');
 	
