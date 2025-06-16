@@ -23,7 +23,7 @@ function get_all_boards() {
  * @param int|null   $batch_page_end    (optional) End page for batch.
  */
 function catalog_build($action, $settings, $board, $batch_page_start = null, $batch_page_end = null) {
-    global $config;
+    global $config, $build_pages;
 
     $boards = explode(' ', $settings['boards']);
     if (in_array('*', $boards)) {
@@ -41,6 +41,12 @@ function catalog_build($action, $settings, $board, $batch_page_start = null, $ba
             $cat->build($settings, $bname, false, $batch_page_start, $batch_page_end);
         }
     };
+
+    // ✅ SMART BUILD LOGIC FOR CATALOG
+    if ($config['try_smarter'] && isset($build_pages) && !empty($build_pages)) {
+        $batch_page_start = min($build_pages);
+        $batch_page_end = max($build_pages);
+    }
 
     if ($action === 'all') {
         foreach ($boards as $bname) {
@@ -68,7 +74,7 @@ class Catalog {
      * @return string|null       HTML for mod, null when writing files.
      */
     public function build($settings, $board_name, $mod = false, $batch_page_start = null, $batch_page_end = null) {
-        global $config, $board;
+        global $config, $board, $build_pages;
 
         // Ensure correct board context
         if (!isset($board) || $board['uri'] !== $board_name) {
@@ -97,7 +103,6 @@ class Catalog {
         $query->execute() or error(db_error());
 
         while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-            // ... (unchanged: build thread link, youtube, thumbnail logic, etc.) ...
             $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
             if ($mod) {
                 $post['link'] = $config['root']
@@ -175,7 +180,14 @@ class Catalog {
         $start_page = $batch_page_start !== null ? max(1, (int)$batch_page_start) : 1;
         $end_page = $batch_page_end !== null ? min($total_pages, (int)$batch_page_end) : $total_pages;
 
-        for ($page = $start_page; $page <= $end_page; $page++) {
+        // SMART BUILD: Only build pages in $build_pages if set
+        $pages_to_build = range($start_page, $end_page);
+        if ($config['try_smarter'] && isset($build_pages) && !empty($build_pages)) {
+            $pages_to_build = array_intersect($pages_to_build, $build_pages);
+            if (empty($pages_to_build)) return null;
+        }
+
+        foreach ($pages_to_build as $page) {
             $slice = array_slice($recent_posts, ($page-1)*$per_page, $per_page);
 
             $html = Element('themes/catalog/catalog.html', [

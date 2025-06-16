@@ -91,8 +91,15 @@ function sb_ukko() {
   return true;
 }
 
-function sb_catalog($b) {
+function sb_catalog($b, $pages = null) {
+  global $config, $build_pages;
   if (!openBoard($b)) return false;
+
+  // Enable try_smarter if specific pages are requested
+  if ($pages !== null) {
+    $config['try_smarter'] = true;
+    $build_pages = (array)$pages;
+  }
 
   Vichan\Functions\Theme\rebuild_theme("catalog", "post-thread", $b); 
   return true;
