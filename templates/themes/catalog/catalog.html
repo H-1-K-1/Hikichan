@@ -55,7 +55,7 @@
 		<strong>[{{ p }}]</strong>
 		{% else %}
 		{% if p == 1 %}
-		<a href="{{ link|trim('/') }}/catalog.html">[{{ p }}]</a>
+		<a href="{{ link }}/catalog.html">[{{ p }}]</a>
 		{% else %}
 		{% set folder_num = ((p - 2) // 1000) + 1 %}
 		<a href="{{ link }}pagination/{{ folder_num }}/catalog_page_{{ p }}.html">[{{ p }}]</a>
