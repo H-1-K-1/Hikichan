@@ -1876,7 +1876,7 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
         error($config['error']['noaccess']);
     }
 
-    $security_token = make_secure_link_token($board_uri . '/ban/' . $post);
+    $security_token = make_secure_link_token('channel/' . $board_uri . '/ban/' . $post);
 
     $query = prepare('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
     ' FROM ``posts`` WHERE `board` = :board AND `id` = :id');
