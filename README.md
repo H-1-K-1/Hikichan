@@ -11,7 +11,10 @@ I intent to make a lot of changes to the code of tinyboard and vichan. We are in
 
 ~~Hikichan plans to turn the post_b etc... tables into one unified table in the future for all boards called posts. this is a significant change and will mess up everything. This is not set in stone yet and I'm seeing if it is feasable. I first plan to make it so that most bugs are gone and all features that I want are implemented. I will first try and see if separate board tables is feasable since I plan to have 50+ boards in hikichan in the long term.~~
 
-Unified posts table has been implemented, now we test until everything works.
+Unified posts table has been implemented.~~, now we test until everything works.~~
+
+I tested everything and all the core mechanics seems to work, there are probably still a lot of bugs but those will be fixed in time.
+No more extra features will be added, we just focus on improving the code, fixing bugs, and updating twig etc... to make it future proof.
 
 ### Update
 ~~unified table for archive works~~
