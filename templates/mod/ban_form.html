@@ -1,5 +1,5 @@
 {% if post and board %}
-	{% set action = '?/channel/' ~ board ~ '/ban/' ~ post %}
+	{% set action = '?/' ~ board_prefix ~ board ~ '/ban/' ~ post %}
 {% elseif edit_ban %}
 	{% set action = '' %}
 {% else %}

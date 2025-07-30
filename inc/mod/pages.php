@@ -1875,8 +1875,8 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
     if (!hasPermission($config['mod']['ban'], $board_uri)) {
         error($config['error']['noaccess']);
     }
-
-    $security_token = make_secure_link_token('channel/' . $board_uri . '/ban/' . $post);
+	$board_prefix = rtrim(dirname(sprintf($config['board_path'], $board_uri)), '/') . '/';
+    $security_token = make_secure_link_token($board_prefix . $board_uri . '/ban/' . $post);
 
     $query = prepare('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
     ' FROM ``posts`` WHERE `board` = :board AND `id` = :id');
@@ -1931,6 +1931,7 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
         'ip' => $ip,
         'hide_ip' => !hasPermission($config['mod']['show_ip'], $board_uri),
         'post' => $post,
+		'board_prefix' => $board_prefix,
         'board' => $board_uri,
         'delete' => (bool)$delete,
         'boards' => listBoards(),
