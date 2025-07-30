@@ -1,277 +1,280 @@
 <form name="post" onsubmit="return doPost(this);" enctype="multipart/form-data" action="{{ config.post_url }}" method="post">
-{% if id %}<input type="hidden" name="thread" value="{{ id }}">{% endif %}
-<input type="hidden" name="board" value="{{ board.uri }}">
-{% if current_page %}
+	{% if id %}<input type="hidden" name="thread" value="{{ id }}">{% endif %}
+	<input type="hidden" name="board" value="{{ board.uri }}">
+	{% if current_page %}
 	<input type="hidden" name="page" value="{{ current_page }}">
-{% endif %}
-{% if mod %}<input type="hidden" name="mod" value="1">{% endif %}
-			<table>
-				{% if not config.field_disable_name or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
-				<tr>
-					<th>
-						{% trans %}Name{% endtrans %}
-					</th>
-					<td>
-						<input type="text" name="name" size="25" maxlength="35" autocomplete="off"> {% if config.allow_no_country and config.country_flags %}<input id="no_country" name="no_country" type="checkbox"> <label for="no_country">{% trans %}Don't show my flag{% endtrans %}</label>{% endif %}
-					</td>
-				</tr>{% endif %}
-				{% if not config.field_disable_email or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
-				<tr>
-					<th>
-						{% if (mod and not post.mod|hasPermission(config.mod.bypass_field_disable, board.uri) and config.field_email_selectbox) or (not mod and config.field_email_selectbox) or (config.hide_email) %}
-						{% trans %}Options{% endtrans %}
-						{% else %}
-						{% trans %}Email{% endtrans %}
-						{% endif %}
-					</th>
-					<td>
-						{% if (mod and not post.mod|hasPermission(config.mod.bypass_field_disable, board.uri) and config.field_email_selectbox) or (not mod and config.field_email_selectbox) %}
-						<select name="email" id="email_selectbox" autocomplete="off">
-							<option value=""></option>
-							<option value="sage">sage</option>
-							{% if not config.always_noko %}
-							<option value="noko">noko</option>{% endif %}
-							{% if config.always_noko %}
-							<option value="nonoko">nonoko</option>{% endif %}
-						</select>
-						{% else %}
-						<input type="text" name="email" size="25" maxlength="40" autocomplete="off">
-						{% endif %}
-						{% if not (not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
-						<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>				{% endif %}
-						{% endif %}
-					</td>
-				</tr>{% endif %}
-				{% if not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
-				<tr>
-					<th>
-						{% trans %}Subject{% endtrans %}
-					</th>
-					<td>
-						<input style="float:left;" type="text" name="subject" size="25" maxlength="100" autocomplete="off">
-						<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>{% endif %}
-					</td>
-				</tr>
+	{% endif %}
+	{% if mod %}<input type="hidden" name="mod" value="1">{% endif %}
+	<table>
+		{% if not config.field_disable_name or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
+		<tr>
+			<th>
+				{% trans %}Name{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="name" size="25" maxlength="35" autocomplete="off"> {% if config.allow_no_country and config.country_flags %}<input id="no_country" name="no_country" type="checkbox"> <label for="no_country">{% trans %}Don't show my flag{% endtrans %}</label>{% endif %}
+			</td>
+		</tr>{% endif %}
+		{% if not config.field_disable_email or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
+		<tr>
+			<th>
+				{% if (mod and not post.mod|hasPermission(config.mod.bypass_field_disable, board.uri) and config.field_email_selectbox) or (not mod and config.field_email_selectbox) or (config.hide_email) %}
+				{% trans %}Options{% endtrans %}
+				{% else %}
+				{% trans %}Email{% endtrans %}
 				{% endif %}
-				{% if config.enable_adult_posts %}
-				<tr>
-					<th>Adult</th>
-					<td>
-						<input type="checkbox" name="adult" id="adult">
-						<label for="adult">Mark as adult (image will be inverted)</label>
-					</td>
-				</tr>
+			</th>
+			<td>
+				{% if (mod and not post.mod|hasPermission(config.mod.bypass_field_disable, board.uri) and config.field_email_selectbox) or (not mod and config.field_email_selectbox) %}
+				<select name="email" id="email_selectbox" autocomplete="off">
+					<option value=""></option>
+					<option value="sage">sage</option>
+					{% if not config.always_noko %}
+					<option value="noko">noko</option>{% endif %}
+					{% if config.always_noko %}
+					<option value="nonoko">nonoko</option>{% endif %}
+				</select>
+				{% else %}
+				<input type="text" name="email" size="25" maxlength="40" autocomplete="off">
 				{% endif %}
-				<tr>
-					<th>
-						{% trans %}Comment{% endtrans %}
-					</th>
-					<td>
-						<textarea name="body" id="body" rows="5" cols="35"></textarea>
-						<div class="countdown"></div>
-						{% if not (not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
-						{% if not (not config.field_disable_email or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
-						<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>{% endif %}
-						{% endif %}
-						{% endif %}
-					</td>
-				</tr>
-				{% if config.captcha.provider == 'recaptcha' %}
-				{% if config.captcha.dynamic %}
-				<tr id="captcha" style="display: none;">
-					{% else %}
-				<tr>
-					{% endif %}
-					<th>
-						{% trans %}Verification{% endtrans %}
-					</th>
-					<td>
-						<div class="g-recaptcha" data-sitekey="{{ config.captcha.recaptcha.sitekey }}"></div>
-					</td>
-				</tr>
+				{% if not (not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
+				<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>				{% endif %}
 				{% endif %}
-				{% if config.captcha.provider == 'hcaptcha' %}
-				<tr>
-					<th>
-						{% trans %}Verification{% endtrans %}
-					</th>
-					<td>
-						<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
-					</td>
-				</tr>
-				{% endif %}
-				{% if config.captcha.provider == 'native' %}
-				<tr class="captcha">
-					<th>
-						{% trans %}Verification{% endtrans %}
-					</th>
-					<td>
-						<input type="text" name="captcha" autocomplete="off" />
-						<p>
-							<br />
-							<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
-						</p>
-						<p>Click the image to refresh.</p>
-					</td>
-				</tr>
-				{% elseif config.captcha.native.new_thread_capt %}
-				{% if not id %}
-				<tr class="captcha">
-					<th>
-						{% trans %}Verification{% endtrans %}
-					</th>
-					<td>
-						<input type="text" name="captcha" />
-						<p>
-							<br />
-							<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
-						</p>
-						<p>Click the image to refresh.</p>
-					</td>
-				</tr>
+			</td>
+		</tr>{% endif %}
+		{% if not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
+		<tr>
+			<th>
+				{% trans %}Subject{% endtrans %}
+			</th>
+			<td>
+				<input style="float:left;" type="text" name="subject" size="25" maxlength="100" autocomplete="off">
+				<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>{% endif %}
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.enable_adult_posts %}
+		<tr>
+			<th>Adult</th>
+			<td>
+				<input type="checkbox" name="adult" id="adult">
+				<label for="adult">Mark as adult (image will be inverted)</label>
+			</td>
+		</tr>
+		{% endif %}
+		<tr>
+			<th>
+				{% trans %}Comment{% endtrans %}
+			</th>
+			<td>
+				<textarea name="body" id="body" rows="5" cols="35"></textarea>
+				<div class="countdown"></div>
+				{% if not (not (config.field_disable_subject or (id and config.field_disable_reply_subject)) or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
+				{% if not (not config.field_disable_email or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri))) %}
+				<input accesskey="s" style="margin-left:2px;" type="submit" name="post" value="{% if id %}{{ config.button_reply }}{% else %}{{ config.button_newtopic }}{% endif %}" />{% if config.spoiler_images %} <input id="spoiler" name="spoiler" type="checkbox"> <label for="spoiler">{% trans %}Spoiler Image{% endtrans %}</label>{% endif %}
 				{% endif %}
 				{% endif %}
-				{% if config.country_flags %}
-				<tr>
-					{% endif %}
-					{% if config.user_flag %}
-				<tr>
-					<th>{% trans %}Flag{% endtrans %}</th>
-					<td>
-						<select name="user_flag" id="user_flag">
-							<option value="">{% trans %}None{% endtrans %}</option>
-							{% for flag, text in config.user_flags %}
-							<option value="{{ flag }}">{{ text }}</option>
-							{% endfor %}
-						</select>
-					</td>
-				</tr>
-				{% endif %}
-				{% if config.allowed_tags and not id %}
-				<tr>
-					<th>{% trans %}Tag{% endtrans %}</th>
-					<td>
-						<select name="tag">
-							{% for id, tag in config.allowed_tags %}
-							<option value="{{ id|e }}">{{ tag|e }}</option>
-							{% endfor %}
-						</select>
-					</td>
-				</tr>
-				{% endif %}
-				<tr id="upload">
-					<th>
-						{% trans %}File{% endtrans %}
-					</th>
-					<td>
-						<input type="file" name="file" id="upload_file">
+			</td>
+		</tr>
+		{% if config.captcha.provider == 'recaptcha' %}
+		{% if config.captcha.dynamic %}
+		<tr id="captcha" style="display: none;">
+			{% else %}
+		<tr>
+			{% endif %}
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<div class="g-recaptcha" data-sitekey="{{ config.captcha.recaptcha.sitekey }}"></div>
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.captcha.provider == 'hcaptcha' %}
+		<tr>
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.captcha.provider == 'native' %}
+		<tr class="captcha">
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="captcha" autocomplete="off" />
+				<p>
+					<br />
+					<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
+				</p>
+				<p>Click the image to refresh.</p>
+			</td>
+		</tr>
+		{% elseif config.captcha.native.new_thread_capt %}
+		{% if not id %}
+		<tr class="captcha">
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="captcha" />
+				<p>
+					<br />
+					<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
+				</p>
+				<p>Click the image to refresh.</p>
+			</td>
+		</tr>
+		{% endif %}
+		{% endif %}
+		{% if config.country_flags %}
+		<tr>
+			{% endif %}
+			{% if config.user_flag %}
+		<tr>
+			<th>{% trans %}Flag{% endtrans %}</th>
+			<td>
+				<select name="user_flag" id="user_flag">
+					<option value="">{% trans %}None{% endtrans %}</option>
+					{% for flag, text in config.user_flags %}
+					<option value="{{ flag }}">{{ text }}</option>
+					{% endfor %}
+				</select>
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.allowed_tags and not id %}
+		<tr>
+			<th>{% trans %}Tag{% endtrans %}</th>
+			<td>
+				<select name="tag">
+					{% for id, tag in config.allowed_tags %}
+					<option value="{{ id|e }}">{{ tag|e }}</option>
+					{% endfor %}
+				</select>
+			</td>
+		</tr>
+		{% endif %}
+		<tr id="upload">
+			<th>
+				{% trans %}File{% endtrans %}
+			</th>
+			<td>
+				<input type="file" name="file" id="upload_file">
 
-						<script type="text/javascript">if (typeof init_file_selector !== 'undefined') init_file_selector({{ config.max_images }});</script>
+				<script type="text/javascript">if (typeof init_file_selector !== 'undefined') init_file_selector({{ config.max_images }});</script>
 
-						{% if config.allow_upload_by_url %}
-						<div style="float:none;text-align:left" id="upload_url">
-							<label for="file_url">{% trans %}Or URL{% endtrans %}</label>:
-							<input style="display:inline" type="text" id="file_url" name="file_url" size="35">
-						</div>
-						{% endif %}
-					</td>
-				</tr>
-				{% if config.enable_embedding %}
-				<tr id="upload_embed">
-					<th>
-						{% trans %}Embed{% endtrans %}
-					</th>
-					<td>
-						<input type="text" name="embed" value="" size="30" maxlength="120" autocomplete="off">
-					</td>
-				</tr>
+				{% if config.allow_upload_by_url %}
+				<div style="float:none;text-align:left" id="upload_url">
+					<label for="file_url">{% trans %}Or URL{% endtrans %}</label>:
+					<input style="display:inline" type="text" id="file_url" name="file_url" size="35">
+				</div>
 				{% endif %}
-				{% if config.enable_voice %}
-				<tr id="upload_voice">
-					<th>{% trans %}Voice{% endtrans %}</th>
-					<td>
-						<button type="button" id="record_btn">🎙️ {% trans %}Record{% endtrans %}</button>
-						<button type="button" id="finish_btn" disabled>{% trans %}Finish{% endtrans %}</button>
-						<button type="button" id="abort_btn" disabled>{% trans %}Abort{% endtrans %}</button>
-						<span id="recording_status" style="margin-left:10px;"></span>
-						<br><br>
-						<audio id="audio_preview" controls style="display:none;"></audio>
-						<input type="hidden" name="voice_data" id="voice_data">
-					</td>
-				</tr>
-				{% endif %}
-				{% if not id %}
-				{% if config.enable_poll %}
-				<tr id="poll_creator">
-					<th>Poll</th>
-					<td>
-						<input type="text" name="poll_question" size="50" placeholder="Enter poll question"><br>
-						<div id="opts-wrap">
-							<input type="text" name="poll_options[]" size="30" placeholder="Option 1"><br>
-							<input type="text" name="poll_options[]" size="30" placeholder="Option 2">
-						</div>
-						<button type="button" onclick="addOption()">Add another option</button><br>
-						Max votes: <input type="number" name="poll_max_votes" min="0" value="1"><br>
-						Expires: <input type="datetime-local" name="poll_expires">
-					</td>
-				</tr>
-				<script>
-					function addOption() {
-						var wrap = document.getElementById('opts-wrap');
-						var idx = wrap.querySelectorAll('input').length + 1;
-						var inp = document.createElement('input');
-						inp.type = 'text'; inp.name = 'poll_options[]'; inp.size = 30;
-						inp.placeholder = 'Option ' + idx;
-						wrap.appendChild(document.createElement('br'));
-						wrap.appendChild(inp);
-					}
-				</script>
-				{% endif %}
-				{% endif %}
+			</td>
+		</tr>
+		{% if config.enable_embedding %}
+		<tr id="upload_embed">
+			<th>
+				{% trans %}Embed{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="embed" value="" size="30" maxlength="120" autocomplete="off">
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.enable_voice %}
+		<tr id="upload_voice">
+			<th>{% trans %}Voice{% endtrans %}</th>
+			<td>
+				<button type="button" id="record_btn">🎙️ {% trans %}Record{% endtrans %}</button>
+				<button type="button" id="finish_btn" disabled>{% trans %}Finish{% endtrans %}</button>
+				<button type="button" id="abort_btn" disabled>{% trans %}Abort{% endtrans %}</button>
+				<span id="recording_status" style="margin-left:10px;"></span>
+				<br><br>
+				<audio id="audio_preview" controls style="display:none;"></audio>
+				<input type="hidden" name="voice_data" id="voice_data">
+			</td>
+		</tr>
+		{% endif %}
+		{% if not id %}
+		{% if config.enable_poll %}
+		<tr id="poll_creator">
+			<th>Poll</th>
+			<td>
+				<input type="text" name="poll_question" size="50" placeholder="Enter poll question"><br>
+				<div id="opts-wrap">
+					<input type="text" name="poll_options[]" size="30" placeholder="Option 1"><br>
+					<input type="text" name="poll_options[]" size="30" placeholder="Option 2">
+				</div>
+				<button type="button" onclick="addOption()">Add another option</button><br>
+				Max votes: <input type="number" name="poll_max_votes" min="0" value="1"><br>
+				Expires: <input type="datetime-local" name="poll_expires">
+			</td>
+		</tr>
+		{% endif %}
+		{% endif %}
 
 
-				{% if mod and ((not id and post.mod|hasPermission(config.mod.sticky, board.uri)) or (not id and post.mod|hasPermission(config.mod.lock, board.uri)) or post.mod|hasPermission(config.mod.rawhtml, board.uri)) %}
-				<tr>
-					<th>
-						{% trans %}Flags{% endtrans %}
-					</th>
-					<td>
-						{% if not id and post.mod|hasPermission(config.mod.sticky, board.uri) %}<div class="center">
-							<label for="sticky">{% trans %}Sticky{% endtrans %}</label>
-							<input title="{% trans %}Sticky{% endtrans %}" type="checkbox" name="sticky" id="sticky"><br>
-						</div>{% endif %}
-						{% if not id and post.mod|hasPermission(config.mod.lock, board.uri) %}<div class="center">
-							<label for="lock">{% trans %}Lock{% endtrans %}</label><br>
-							<input title="{% trans %}Lock{% endtrans %}" type="checkbox" name="lock" id="lock">
-						</div>{% endif %}
-						{% if post.mod|hasPermission(config.mod.rawhtml, board.uri) %}<div class="center">
-							<label for="raw">{% trans %}Raw HTML{% endtrans %}</label><br>
-							<input title="{% trans %}Raw HTML{% endtrans %}" type="checkbox" name="raw" id="raw">
-						</div>{% endif %}
-					</td>
-				</tr>
-				{% endif %}
-				{% if not config.field_disable_password or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
-				<tr>
-					<th>
-						{% trans %}Password{% endtrans %}
-					</th>
-					<td>
-						<input type="text" name="password" value="" size="12" maxlength="18" autocomplete="off">
-						<span class="unimportant">{% trans %}(For file deletion.){% endtrans %}</span>
-					</td>
-				</tr>{% endif %}
-				{% if config.simple_spam and not id %}
-				<tr>
-					<th>
-						{{ config.simple_spam.question }}
-					</th>
-					<td>
-						<input type="text" name="simple_spam" value="" size="12" maxlength="18" autocomplete="off">
-					</td>
-				</tr>{% endif %}
-			</table>
+		{% if mod and ((not id and post.mod|hasPermission(config.mod.sticky, board.uri)) or (not id and post.mod|hasPermission(config.mod.lock, board.uri)) or post.mod|hasPermission(config.mod.rawhtml, board.uri)) %}
+		<tr>
+			<th>
+				{% trans %}Flags{% endtrans %}
+			</th>
+			<td>
+				{% if not id and post.mod|hasPermission(config.mod.sticky, board.uri) %}<div class="center">
+					<label for="sticky">{% trans %}Sticky{% endtrans %}</label>
+					<input title="{% trans %}Sticky{% endtrans %}" type="checkbox" name="sticky" id="sticky"><br>
+				</div>{% endif %}
+				{% if not id and post.mod|hasPermission(config.mod.lock, board.uri) %}<div class="center">
+					<label for="lock">{% trans %}Lock{% endtrans %}</label><br>
+					<input title="{% trans %}Lock{% endtrans %}" type="checkbox" name="lock" id="lock">
+				</div>{% endif %}
+				{% if post.mod|hasPermission(config.mod.rawhtml, board.uri) %}<div class="center">
+					<label for="raw">{% trans %}Raw HTML{% endtrans %}</label><br>
+					<input title="{% trans %}Raw HTML{% endtrans %}" type="checkbox" name="raw" id="raw">
+				</div>{% endif %}
+			</td>
+		</tr>
+		{% endif %}
+		{% if not config.field_disable_password or (mod and post.mod|hasPermission(config.mod.bypass_field_disable, board.uri)) %}
+		<tr>
+			<th>
+				{% trans %}Password{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="password" value="" size="12" maxlength="18" autocomplete="off">
+				<span class="unimportant">{% trans %}(For file deletion.){% endtrans %}</span>
+			</td>
+		</tr>{% endif %}
+		{% if config.simple_spam and not id %}
+		<tr>
+			<th>
+				{{ config.simple_spam.question }}
+			</th>
+			<td>
+				<input type="text" name="simple_spam" value="" size="12" maxlength="18" autocomplete="off">
+			</td>
+		</tr>{% endif %}
+	</table>
 </form>
-<script type="text/javascript">{% verbatim %}
+<script type="text/javascript">
+	{% verbatim %}
 	rememberStuff();
-{% endverbatim %}</script>
+	{% endverbatim %}</script>
+{% if config.enable_poll %}
+<script>
+	function addOption() {
+		var wrap = document.getElementById('opts-wrap');
+		var idx = wrap.querySelectorAll('input').length + 1;
+		var inp = document.createElement('input');
+		inp.type = 'text'; inp.name = 'poll_options[]'; inp.size = 30;
+		inp.placeholder = 'Option ' + idx;
+		wrap.appendChild(document.createElement('br'));
+		wrap.appendChild(inp);
+	}
+</script>
+{% endif %}

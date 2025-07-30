@@ -107,6 +107,9 @@
 	// Batch size for rebuild tasks (index pages, threads, replies, archive boards)
 	$config['rebuild_batch_size'] = 10;
 
+	// Disable this on a local installation
+	$config['referer_match'] = false;
+
 /*
  * ====================
  *  Database settings
