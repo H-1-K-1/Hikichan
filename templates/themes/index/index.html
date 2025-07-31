@@ -85,9 +85,9 @@
 			<div class="activity-header">
 				<label for="activityFilter" class="filter-label">
 					<select id="activityFilter">
-						<option value="sfw">Show Worksafe</option>
+						<option value="sfw" selected>Show Worksafe</option>
 						<option value="nsfw">Show NSFW</option>
-						<option value="all" selected>Show All</option>
+						<option value="all">Show All</option>
 					</select>
 				</label>
 			</div>
@@ -125,56 +125,51 @@
 	{% include 'footer.html' %}
 
 	<script>
-		function setCookie(name, value, days) {
-			const d = new Date();
-			d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
-			document.cookie = name + "=" + value + ";path=/;expires=" + d.toUTCString();
-		}
+function setCookie(name, value) {
+    localStorage.setItem(name, value);
+}
 
-		function getCookie(name) {
-			const cname = name + "=";
-			const decodedCookie = decodeURIComponent(document.cookie);
-			const ca = decodedCookie.split(';');
-			for (let i = 0; i < ca.length; i++) {
-				let c = ca[i].trim();
-				if (c.indexOf(cname) === 0) {
-					return c.substring(cname.length, c.length);
-				}
-			}
-			return "";
-		}
+function getCookie(name) {
+    return localStorage.getItem(name) || '';
+}
 
-		function dismissInfo() {
-			document.getElementById('vichan-info').style.display = 'none';
-			setCookie('hideVichanInfo', '1', 365);
-		}
+function dismissInfo() {
+    document.getElementById('vichan-info').style.display = 'none';
+    setCookie('hideVichanInfo', '1', 365);
+}
 
-		document.addEventListener('DOMContentLoaded', function () {
-			if (getCookie('hideVichanInfo') === '1') {
-				const el = document.getElementById('vichan-info');
-				if (el) el.style.display = 'none';
-			}
-		});
-		document.addEventListener('DOMContentLoaded', function () {
-			const filter = document.getElementById('activityFilter');
-			const posts = document.querySelectorAll('.recent-card');
-		
-			filter.addEventListener('change', function () {
-				posts.forEach(post => {
-					const isNsfw = post.dataset.nsfw === 'true';
-					if (filter.value === 'all') {
-						post.style.display = '';
-					} else if (filter.value === 'sfw' && isNsfw) {
-						post.style.display = 'none';
-					} else if (filter.value === 'nsfw' && !isNsfw) {
-						post.style.display = 'none';
-					} else {
-						post.style.display = '';
-					}
-				});
-			});
-		});
-	</script>
+function filterRecentActivity(filterValue) {
+    const posts = document.querySelectorAll('.recent-card');
+    posts.forEach(post => {
+        const isNsfw = post.getAttribute('data-nsfw') === 'true';
+        if (filterValue === 'all') {
+            post.style.display = '';
+        } else if (filterValue === 'sfw') {
+            post.style.display = isNsfw ? 'none' : '';
+        } else if (filterValue === 'nsfw') {
+            post.style.display = isNsfw ? '' : 'none';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    if (getCookie('hideVichanInfo') === '1') {
+        const el = document.getElementById('vichan-info');
+        if (el) el.style.display = 'none';
+    }
+
+    const filter = document.getElementById('activityFilter');
+    let saved = getCookie('activityFilter');
+    if (!saved) saved = 'sfw';
+    filter.value = saved;
+    filterRecentActivity(filter.value);
+
+    filter.addEventListener('change', function () {
+        setCookie('activityFilter', filter.value);
+        filterRecentActivity(filter.value);
+    });
+});
+</script>
 	
 </body>
 </html>
