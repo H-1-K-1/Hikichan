@@ -25,6 +25,7 @@
 
 # other stuff
 .DS_Store
+.htaccess
 thumbs.db
 Icon?
 Thumbs.db
