@@ -109,6 +109,9 @@
 
 	// Disable this on a local installation
 	$config['referer_match'] = false;
+	
+	// If you enable this you have to place .htaccess file in your root. currently does nothing yet.
+	$config['clean_url'] = false;
 
 /*
  * ====================
@@ -482,7 +485,7 @@
  */
 
 	// Do you need a body for your reply posts?
-	$config['force_body'] = true;
+	$config['force_body'] = false;
 	// Do you need a body for new threads?
 	$config['force_body_op'] = true;
 	// Require an image for threads?
@@ -670,38 +673,38 @@
 	$config['require_ban_view'] = true;
 
 	// Show the post the user was banned for on the "You are banned" page.
-	$config['ban_show_post'] = false;
+	$config['ban_show_post'] = true;
 
 	// Optional HTML to append to "You are banned" pages. For example, you could include instructions and/or
 	// a link to an email address or IRC chat room to appeal the ban.
 	$config['ban_page_extra'] = '';
 
 	// Pre-configured ban reasons that pre-fill the ban form when clicked.
-	// $config['premade_ban_reasons'] = array(
-	// 	array(
-	// 		'reason' => 'Low-quality posting',
-	// 		'length' =>  '1d'
-	// 	),
-	// 	array(
-	// 		'reason' => 'Off-topic',
-	// 		'length' => '1d'
-	// 	),
-	// 	array(
-	// 		'reason' => 'Ban evasion',
-	// 		'length' => '30d'
-	// 	),
-	// 	array(
-	// 		'reason' => 'Illegal content',
-	// 		'length' => ''
-	// 	)
-	//);
-	$config['premade_ban_reasons'] = false;
+	$config['premade_ban_reasons'] = array(
+	 	array(
+	 		'reason' => 'Low-quality posting',
+	 		'length' =>  '1d'
+	 	),
+	 	array(
+	 		'reason' => 'Off-topic',
+	 		'length' => '1d'
+	 	),
+	 	array(
+	 		'reason' => 'Ban evasion',
+	 		'length' => '30d'
+	 	),
+	 	array(
+	 		'reason' => 'Illegal content',
+	 		'length' => ''
+	 	)
+	);
+	$config['premade_ban_reasons'] = true;
 
 	// How often (minimum) to purge the ban list of expired bans (which have been seen).
 	$config['purge_bans'] = 60 * 60 * 12; // 12 hours
 
 	// Allow users to appeal bans through vichan.
-	$config['ban_appeals'] = false;
+	$config['ban_appeals'] = true;
 
 	// Do not allow users to appeal bans that are shorter than this length (in seconds).
 	$config['ban_appeals_min_length'] = 60 * 60 * 6; // 6 hours
@@ -759,7 +762,7 @@
 	// Maximum number of images allowed. Increasing this number enabled multi image.
 	// If you make it more than 1, make sure to enable the below script for the post form to change.
 	// $config['additional_javascript'][] = 'js/multi-image.js';
-	$config['max_images'] = 1;
+	$config['max_images'] = 5;
 
 	// Method to use for determing the max filesize.
 	// "split" means that your max filesize is split between the images. For example, if your max filesize
@@ -912,14 +915,14 @@
 	];
 
 	// Display image identification links for ImgOps, regex.info/exif, Google Images and iqdb.
-	$config['image_identification'] = false;
+	$config['image_identification'] = true;
 	// Which of the identification links to display. Only works if $config['image_identification'] is true.
 	$config['image_identification_imgops'] = true;
 	$config['image_identification_exif'] = true;
 	$config['image_identification_google'] = true;
 	$config['image_identification_yandex'] = true;
 	// Anime/manga search engine.
-	$config['image_identification_iqdb'] = false;
+	$config['image_identification_iqdb'] = true;
 
 	// Set this to true if you're using a BSD
 	$config['bsd_md5'] = false;
@@ -1063,7 +1066,7 @@
 
 	$config['boards'] = array(
 		"icon_hikichan" => array("index" => "index.html"), # would refer to /static/icons/vichan.png
-		"Boards" => array('b'),
+		"Boards" => array('bant', 'hi', 'test', 'ai', 'g', 'biz', 'meme', 'mu', 'v', 'kino', 'x', 'b'),
 		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
 		"d_Mod" => array("mod" => "/hikichan/mod?/"),
 		"fa_search" => array("Search" => "/hikichan/search.php"),# would refer to a search 

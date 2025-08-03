@@ -264,6 +264,8 @@ CREATE TABLE IF NOT EXISTS `news` (
   `time` int(11) NOT NULL,
   `subject` text NOT NULL,
   `body` text NOT NULL,
+  `source_url` text NULL,
+  `source_title` text NULL,
   UNIQUE KEY `id` (`id`),
   KEY `time` (`time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 AUTO_INCREMENT=1 ;

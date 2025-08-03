@@ -47,7 +47,7 @@
 
             $boards = listBoards();
 
-            // Build recent activity (posts with images)
+            // Build recent activity (posts with images, videos, embeds, or just text)
             $board_uris = [];
             foreach ($boards as &$_board) {
                 if (in_array($_board['uri'], $this->excluded))
@@ -58,32 +58,84 @@
                 error(_("Can't build the Index theme, because there are no boards to be fetched."));
             }
 
-            $query = prepare('SELECT * FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ') AND `files` IS NOT NULL ORDER BY `time` DESC LIMIT :limit');
+            // Remove files IS NOT NULL to allow text-only posts
+            $query = prepare('SELECT * FROM ``posts`` WHERE `board` IN (' . implode(',', $board_uris) . ') ORDER BY `time` DESC LIMIT :limit');
             $query->bindValue(':limit', (int)$settings['limit_activity'], PDO::PARAM_INT);
             $query->execute() or error(db_error($query));
+
+            $video_extensions = ['webm', 'mp4', 'ogg'];
+            $image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
 
             while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
                 openBoard($post['board']);
 
                 $files = isset($post['files']) ? json_decode($post['files']) : null;
-                if (!$files || $files[0]->file == 'deleted' || $files[0]->thumb == 'file')
+                $has_file = $files && isset($files[0]->file) && $files[0]->file !== 'deleted' && $files[0]->thumb !== 'file';
+
+                $is_image = false;
+                $is_video = false;
+                $is_embed = false;
+
+                if ($has_file) {
+                    $file = $files[0];
+                    $ext = strtolower(pathinfo($file->file, PATHINFO_EXTENSION));
+                    $is_image = in_array($ext, $image_extensions);
+                    $is_video = in_array($ext, $video_extensions);
+                    $is_embed = isset($file->embed) && $file->embed;
+                }
+
+                // Skip posts with no files and no text
+                if (!$has_file && empty($post['body'])) {
                     continue;
+                }
 
                 $post_date_path = isset($post['live_date_path']) && $post['live_date_path'] ? $post['live_date_path'] . '/' : '';
                 $post['link'] = $config['root'] . $board['dir'] . $config['dir']['res'] . $post_date_path . link_for($post) . '#' . $post['id'];
 
-                if ($files[0]->thumb == 'spoiler') {
-                    $tn_size = @getimagesize($config['spoiler_image']);
-                    $post['src'] = $config['spoiler_image'];
-                    $post['thumbwidth'] = $tn_size[0];
-                    $post['thumbheight'] = $tn_size[1];
+                // Set display type for the template
+                if ($has_file) {
+                    if ($is_image) {
+                        $post['display_type'] = 'image';
+                        if ($file->thumb == 'spoiler') {
+                            $tn_size = @getimagesize($config['spoiler_image']);
+                            $post['src'] = $config['spoiler_image'];
+                            $post['thumbwidth'] = $tn_size[0];
+                            $post['thumbheight'] = $tn_size[1];
+                        } else {
+                            $post['src'] = $config['uri_thumb'] . $file->thumb;
+                            $post['thumbwidth'] = $file->thumbwidth;
+                            $post['thumbheight'] = $file->thumbheight;
+                        }
+                    } elseif ($is_video) {
+                        $post['display_type'] = 'video';
+                        $post['video_src'] = $config['uri_img'] . $file->file;
+                        // Use video thumbnail if available, else fallback
+                        if (!empty($file->thumb) && $file->thumb != 'file') {
+                            $post['src'] = $config['uri_thumb'] . $file->thumb;
+                            $post['thumbwidth'] = $file->thumbwidth;
+                            $post['thumbheight'] = $file->thumbheight;
+                        } else {
+                            $post['src'] = $config['default_video_thumb'] ?? '';
+                            $post['thumbwidth'] = 128;
+                            $post['thumbheight'] = 128;
+                        }
+                    } elseif ($is_embed) {
+                        $post['display_type'] = 'embed';
+                        $post['embed'] = $file->embed;
+                        // Optionally, set a default embed thumbnail
+                        $post['src'] = $config['default_embed_thumb'] ?? '';
+                        $post['thumbwidth'] = 128;
+                        $post['thumbheight'] = 128;
+                    }
                 } else {
-                    $post['src'] = $config['uri_thumb'] . $files[0]->thumb;
-                    $post['thumbwidth'] = $files[0]->thumbwidth;
-                    $post['thumbheight'] = $files[0]->thumbheight;
+                    $post['display_type'] = 'text';
+                    // No thumbnail for text-only posts
+                    $post['src'] = '';
+                    $post['thumbwidth'] = 0;
+                    $post['thumbheight'] = 0;
                 }
 
-                $post['snippet'] = ($post['body'] != "") ? pm_snippet($post['body'], 30) : "<em>" . _("(no comment)") . "</em>";
+                $post['snippet'] = ($post['body'] != "") ? pm_snippet($post['body'], 150) : "<em>" . _("(no comment)") . "</em>";
                 $post['board_name'] = $board['name'];
                 $post['nsfw'] = in_array($post['board'], explode(' ', $settings['nsfw_boards'])) ? true : false;
 

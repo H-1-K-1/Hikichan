@@ -13,12 +13,45 @@
 	<p class="captcha">{% trans %}Enter reason below...{% endtrans %}</p>
 	<input type="text" id="reason" name="reason" value="{{ reason_prefill|e|addslashes }}">
 	{% if config.report_captcha %}
-		<p class="captcha">{% trans %}To submit your report, please fill out the CAPTCHA below.{% endtrans %}</p>
-		<input type="text" name="captcha" />
-		<p class="captcha"><br />
-		<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
-		</p class="captcha">
-		<p>Click the image to refresh.</p>
+		{% if config.captcha.provider == 'recaptcha' %}
+		{% if config.captcha.dynamic %}
+		<tr id="captcha" style="display: none;">
+			{% else %}
+		<tr>
+			{% endif %}
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<div class="g-recaptcha" data-sitekey="{{ config.captcha.recaptcha.sitekey }}"></div>
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.captcha.provider == 'hcaptcha' %}
+		<tr>
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<div class="h-captcha" data-sitekey="{{ config.captcha.hcaptcha.sitekey }}"></div>
+			</td>
+		</tr>
+		{% endif %}
+		{% if config.captcha.provider == 'native' %}
+		<tr class="captcha">
+			<th>
+				{% trans %}Verification{% endtrans %}
+			</th>
+			<td>
+				<input type="text" name="captcha" autocomplete="off" />
+				<p>
+					<br />
+					<img src="" id="captcha_image" class="captcha_image" style="cursor: pointer;" alt="CAPTCHA" title="Click to refresh" onclick="refreshCaptcha();">
+				</p>
+				<p>Click the image to refresh.</p>
+			</td>
+		</tr>
+		{% endif %}
 	{% endif %}
 	<input name="report" value="{% trans %}Submit{% endtrans %}" type="submit">
 </form>

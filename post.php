@@ -520,8 +520,52 @@ if (isset($_POST['delete'])) {
         error($config['error']['toomanyreports']);
 
 
-    if ($config['report_captcha'] && $config['captcha']['provider'] === 'native') {
-        verify_captcha();
+    if ($config['report_captcha']) {
+        if ($config['captcha']['provider'] === 'native') {
+            verify_captcha();
+        } elseif ($config['captcha']['provider'] === 'hcaptcha') {
+            if (empty($_POST['h-captcha-response'])) {
+                error($config['error']['captcha']);
+            }
+            $hcaptcha_secret = $config['captcha']['hcaptcha_secret'];
+            $hcaptcha_response = $_POST['h-captcha-response'];
+            $verify_response = file_get_contents('https://hcaptcha.com/siteverify', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+                    'content' => http_build_query([
+                        'secret' => $hcaptcha_secret,
+                        'response' => $hcaptcha_response,
+                        'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
+                    ])
+                ]
+            ]));
+            $response_data = json_decode($verify_response, true);
+            if (empty($response_data['success'])) {
+                error($config['error']['captcha']);
+            }
+        } elseif ($config['captcha']['provider'] === 'recaptcha') {
+            if (empty($_POST['g-recaptcha-response'])) {
+                error($config['error']['captcha']);
+            }
+            $recaptcha_secret = $config['captcha']['recaptcha']['secret'];
+            $recaptcha_response = $_POST['g-recaptcha-response'];
+            $verify_response = file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+                    'content' => http_build_query([
+                        'secret' => $recaptcha_secret,
+                        'response' => $recaptcha_response,
+                        'remoteip' => $_SERVER['REMOTE_ADDR'] ?? null
+                    ])
+                ]
+            ]));
+            $response_data = json_decode($verify_response, true);
+            if (empty($response_data['success'])) {
+                error($config['error']['captcha']);
+            }
+        }
     }
 
     $reason = escape_markup_modifiers($_POST['reason']);

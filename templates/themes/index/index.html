@@ -62,24 +62,31 @@
 		</div>
 		{% endif %}
 	
-	    <div class="ban">
+		<div class="ban">
 			<h2>News</h2>
-		{% if news|length == 0 %}
+			{% if news|length == 0 %}
 			<p style="text-align:center" class="unimportant">(No news to show.)</p>
-		{% else %}
+			{% else %}
 			{% for entry in news %}
-				<h2 id="{{ entry.id }}">
-					{% if entry.subject %}
-						{{ entry.subject }}
-					{% else %}
-						<em>no subject</em>
-					{% endif %}
-					<span class="unimportant"> &mdash; by {{ entry.name }} at {{ entry.time|date(config.post_date, config.timezone) }}</span>
-				</h2>
-				<p>{{ entry.body }}</p>
+			<h2 id="{{ entry.id }}">
+				{% if entry.subject %}
+				{{ entry.subject }}
+				{% else %}
+				<em>no subject</em>
+				{% endif %}
+				<span class="unimportant"> &mdash; by {{ entry.name }} at {{ entry.time|date(config.post_date, config.timezone) }}</span>
+			</h2>
+			<p>{{ entry.body }}</p>
+			{% if entry.source_url %}
+			<p>
+				<a href="{{ entry.source_url|e }}" target="_blank" rel="noopener">
+					{{ entry.source_title|default(entry.source_url)|e }}
+				</a>
+			</p>
+			{% endif %}
 			{% endfor %}
-		{% endif %}
-	    </div>
+			{% endif %}
+		</div>
 		<div class="ban">
 			<h2>Recent Activity</h2>
 			<div class="activity-header">

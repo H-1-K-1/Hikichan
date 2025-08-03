@@ -758,11 +758,14 @@ function mod_news(Context $ctx, $page_no = 1) {
 		$_POST['body'] = escape_markup_modifiers($_POST['body']);
 		markup($_POST['body']);
 
-		$query = prepare('INSERT INTO ``news`` VALUES (NULL, :name, :time, :subject, :body)');
+		$query = prepare('INSERT INTO ``news`` (`id`, `name`, `time`, `subject`, `body`, `source_url`, `source_title`)
+			VALUES (NULL, :name, :time, :subject, :body, :source_url, :source_title)');
 		$query->bindValue(':name', isset($_POST['name']) && hasPermission($config['mod']['news_custom']) ? $_POST['name'] : $mod['username']);
-		$query->bindvalue(':time', time());
+		$query->bindValue(':time', time());
 		$query->bindValue(':subject', $_POST['subject']);
 		$query->bindValue(':body', $_POST['body']);
+		$query->bindValue(':source_url', $_POST['source_url'] ?? '');
+		$query->bindValue(':source_title', $_POST['source_title'] ?? '');
 		$query->execute() or error(db_error($query));
 
 		modLog('Posted a news entry');

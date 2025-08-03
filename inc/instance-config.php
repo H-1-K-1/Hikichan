@@ -39,7 +39,6 @@ $config['additional_javascript'][] = 'js/mobile-style.js';
 $config['additional_javascript'][] = 'js/download-original.js';
 $config['additional_javascript'][] = 'js/expand-all-images.js';
 $config['additional_javascript'][] = 'js/expand-too-long.js';
-$config['additional_javascript'][] = 'js/live-index.js';
 $config['additional_javascript'][] = 'js/ajax.js';
 $config['additional_javascript'][] = 'js/show-own-posts.js';
 $config['additional_javascript'][] = 'js/save-user_flag.js';

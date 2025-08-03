@@ -7,16 +7,16 @@
 				<tr>
 					<th>
 						{% if mod|hasPermission(config.mod.news_custom) %}
-							<label for="name">{% trans 'Name' %}</label>
+						<label for="name">{% trans 'Name' %}</label>
 						{% else %}
-							{% trans 'Name' %}
+						{% trans 'Name' %}
 						{% endif %}
 					</th>
 					<td>
 						{% if mod|hasPermission(config.mod.news_custom) %}
-							<input type="text" size="55" name="name" id="name" value="{{ mod.username|e }}">
+						<input type="text" size="55" name="name" id="name" value="{{ mod.username|e }}">
 						{% else %}
-							{{ mod.username|e }}
+						{{ mod.username|e }}
 						{% endif %}
 					</td>
 				</tr>
@@ -27,6 +27,14 @@
 				<tr>
 					<th><label for="body">{% trans 'Body' %}</label></th>
 					<td><textarea name="body" id="body" style="width:100%;height:100px"></textarea></td>
+				</tr>
+				<tr>
+					<th><label for="source_url">{% trans 'Source URL' %}</label></th>
+					<td><input type="text" size="55" name="source_url" id="source_url" placeholder="https://example.com"></td>
+				</tr>
+				<tr>
+					<th><label for="source_title">{% trans 'Source Title' %}</label></th>
+					<td><input type="text" size="55" name="source_title" id="source_title" placeholder="Example Site"></td>
 				</tr>
 			</table>
 			<p style="text-align:center">
@@ -39,26 +47,33 @@
 {% for post in news %}
 	<div class="ban">
 		{% if mod|hasPermission(config.mod.news_delete) %}
-			<span style="float:right;padding:2px">
-				<a class="unimportant" href="?/edit_news/delete/{{ post.id }}/{{ post.delete_token }}">[{% trans 'delete' %}]</a>
-			</span>
+		<span style="float:right;padding:2px">
+			<a class="unimportant" href="?/edit_news/delete/{{ post.id }}/{{ post.delete_token }}">[{% trans 'delete' %}]</a>
+		</span>
 		{% endif %}
 		<h2 id="{{ post.id }}">
 			<small class="unimportant">
 				<a href="#{{ post.id }}">#</a>
-			</small> 
+			</small>
 			{% if post.subject %}
-				{{ post.subject|e }}
+			{{ post.subject|e }}
 			{% else %}
-				<em>{% trans 'no subject' %}</em>
-			{% endif %} 
+			<em>{% trans 'no subject' %}</em>
+			{% endif %}
 			<small class="unimportant">
-				&mdash; {% trans 'by' %} {{ post.name }} {% trans 'at' %} {{ post.time|date(config.post_date) }} 
+				&mdash; {% trans 'by' %} {{ post.name }} {% trans 'at' %} {{ post.time|date(config.post_date) }}
 			</small>
 		</h2>
 		<p>
 			{{ post.body }}
 		</p>
+		{% if post.source_url %}
+		<p>
+			<a href="{{ post.source_url|e }}" target="_blank" rel="noopener">
+				{{ post.source_title|default(post.source_url)|e }}
+			</a>
+		</p>
+		{% endif %}
 	</div>
 {% endfor %}
 
