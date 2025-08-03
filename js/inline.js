@@ -2,153 +2,163 @@ $(document).ready(function() {
   var App = {
     cache: {},
     get: function(url, cb) {
-      var $page = App.cache[url]
-      if ($page)
-        return cb($page)
+      if (App.cache[url]) return cb(App.cache[url]);
 
       $.get(url, function(data) {
-        var $page = $(data)
-        App.cache[url] = $page
-        cb($page)
-      })
+        var $page = $(data);
+        App.cache[url] = $page;
+        cb($page);
+      });
     },
     options: {
       add: function(key, description, tab) {
-        tab || (tab = 'general')
-
-        var checked = App.options.get(key)
+        tab = tab || 'general';
+        var checked = App.options.get(key);
         var $el = $(
           '<div>' +
             '<label>' +
               '<input type="checkbox">' +
               description +
             '</label>' +
-          '</div>')
+          '</div>');
 
         $el
           .find('input')
           .prop('checked', checked)
-          .on('change', App.options.check(key))
+          .on('change', App.options.check(key));
 
-        window.Options.extend_tab(tab, $el)
+        window.Options.extend_tab(tab, $el);
       },
       get: function(key) {
-        if (localStorage[key])
-          return JSON.parse(localStorage[key])
+        return localStorage[key] ? JSON.parse(localStorage[key]) : false;
       },
       check: function(key) {
-        return function(e) {
-          var val = this.checked
-          localStorage[key] = JSON.stringify(val)
-        }
+        return function() {
+          localStorage[key] = JSON.stringify(this.checked);
+        };
       }
     }
-  }
+  };
 
   var inline = function(e) {
-    e.preventDefault()
+    e.preventDefault();
 
-    var $root = $(this).closest('.post')
-    var targetNum = this.textContent.slice(2)
+    var $link = $(this);
+    var $root = $link.closest('.post');
+    var boardId, postId, matches;
 
-    var srcOP = $root.closest('[id^=thread]').attr('id').match(/\d+/)[0]
-
-    var node, targetOP
-    var isBacklink = !!this.className
-    if (isBacklink) {
-      node = $root.find('> .intro')
-      targetOP = srcOP
+    // Parse citation: >>90 or >>>/board/90
+    if (matches = $link.text().match(/^>>(?:>\/([^\/]+)\/)?(\d+)$/)) {
+      boardId = matches[2]; // Citation number (board_id)
     } else {
-      node = $(this)
-
-      var to_search = inMod ? this.search : this.pathname;
-      targetOP = to_search.match(/(\d+).html/)[1]
+      return; // Invalid citation
     }
 
-    var link = {
-      id: 'inline_' + targetNum,
-      isBacklink: isBacklink,
-      node: node
+    // Extract post_id from href (#78) or onclick (highlightReply('78', event))
+    var href = $link.attr('href') || '';
+    var hrefMatch = href.match(/#(\d+)$/);
+    var onclickMatch = $link.attr('onclick')?.match(/highlightReply\(['"](\d+)['"]/);
+    if (hrefMatch) {
+      postId = hrefMatch[1];
+    } else if (onclickMatch) {
+      postId = onclickMatch[1];
+    } else {
+      postId = boardId; // Fallback to board_id
     }
 
-    var selector = targetNum === targetOP
-      ? '#op_' + srcOP
-      : '#reply_' + targetNum
+    // Determine board and thread
+    var $board = $root.closest('[data-board]');
+    var board = $board.data('board') || $('form[name="post"] input[name="board"]').val();
+    var threadId = $root.closest('[id^=thread]').attr('id')?.replace('thread_', '') || '0';
+    if (matches && matches[1]) {
+      board = matches[1]; // Cross-board reference
+    }
 
-    var $clone = $root.find('#inline_' + targetNum)
+    var isBacklink = $link.hasClass('mentioned');
+    var $node = isBacklink ? $root.find('> .intro') : $link;
+    var linkId = 'inline_' + boardId;
+
+    // Selector for the target post
+    var selector = postId === threadId ? `#op_${postId}` : `#reply_${postId}`;
+
+    // Check if inline post already exists
+    var $clone = $root.find('#' + linkId);
     if ($clone.length) {
-      $clone.remove()
-      $(selector)
-        .show()
-        .next()
-        .show()
-      return
+      $clone.remove();
+      $(selector).show().next().show();
+      return;
     }
 
-    if (srcOP === targetOP) {
-      if (targetNum === targetOP)
-        link.node = link.node.next()// bypass `(OP)`
-
-      var $target = $(selector)
-      if ($target.length)
-        return add(link, $target)
+    // Check if post exists on the current page
+    var $target = $(`[data-board="${board}"] ${selector}, [data-board="${board}"] [data-board-id="${boardId}"]`);
+    if ($target.length) {
+      addInline({ id: linkId, isBacklink: isBacklink, node: $node }, $target);
+      return;
     }
 
-    var $loading = $('<div class="inline post">loading...</div>')
-      .attr('id', link.id)
-      .insertAfter(link.node)
+    // Fetch post via AJAX
+    var url = $link.attr('href')?.replace(/#.*$/, '') || `/${board}/${threadId}.html`;
+    var $loading = $('<div class="inline post">loading...</div>').attr('id', linkId).insertAfter($node);
 
-    App.get(this.pathname, function($page) {
-      $loading.remove()
-      var $target = $page.find(selector)
-      add(link, $target)
-    })
-  }
+    App.get(url, function($page) {
+      $loading.remove();
+      var $fetchedPost = $page.find(selector);
+      if ($fetchedPost.length) {
+        // Cache fetched post
+        if ($(`[data-board="${board}"] #thread_${threadId}`).length) {
+          $(`[data-board="${board}"] #thread_${threadId} .post.reply:first`)
+            .before($fetchedPost.clone().hide().addClass('hidden'));
+        } else {
+          $page.find(`[id^="thread_"]`).hide().attr('data-cached', 'yes').prependTo('form[name="postcontrols"]');
+        }
+        addInline({ id: linkId, isBacklink: isBacklink, node: $node }, $fetchedPost);
+      } else {
+        $('<div class="inline post" style="color:red;">Post not found.</div>')
+          .attr('id', linkId)
+          .insertAfter($node);
+      }
+    });
+  };
 
-  var add = function(link, $target) {
-    var $clone = $target.clone(true)
+  var addInline = function(link, $target) {
+    var $clone = $target.clone(true);
+    if (link.isBacklink && App.options.get('hidePost')) {
+      $target.hide().next().hide();
+    }
 
-    if (link.isBacklink && App.options.get('hidePost'))
-      $target
-        .hide()
-        .next()
-        .hide()
-
-    $clone.find('.inline').remove()
+    $clone.find('.inline').remove();
     $clone.attr({
-      "class": 'inline post',
+      'class': 'inline post',
       id: link.id,
-      style: null// XXX remove post hover styling
-    })
-    $clone.insertAfter(link.node)
-  }
+      style: null
+    });
+    $clone.insertAfter(link.node);
+  };
 
-  App.options.add('useInlining', _('Enable inlining'))
-  App.options.add('hidePost', _('Hide inlined backlinked posts'))
+  // Add options
+  App.options.add('useInlining', 'Enable inlining');
+  App.options.add('hidePost', 'Hide inlined backlinked posts');
 
+  // Add CSS
   $('head').append(
     '<style>' +
       '.inline {' +
         'border: 1px dashed black;' +
         'white-space: normal;' +
-        'overflow: auto;' + // clearfix
+        'overflow: auto;' +
       '}' +
-    '</style>')
-
-  // don't attach to outbound links
+    '</style>'
+  );
 
   if (App.options.get('useInlining')) {
-    var assign_inline = function() {
-        $('.body a[href*="'+location.pathname+'"]').not('[rel]').not('.toolong > a').add('.mentioned a')
-          .attr('onclick', null)// XXX disable highlightReply
-          .off('click')
-          .click(inline)
-    }
+    var assignInline = function() {
+      $('.body a[href*="' + location.pathname + '"]').not('[rel]').not('.toolong > a').add('.mentioned a')
+        .attr('onclick', null)
+        .off('click')
+        .on('click', inline);
+    };
 
-    assign_inline();
-
-    $(document).on('new_post', function(e, post) {
-      assign_inline();
-    });
+    assignInline();
+    $(document).on('new_post', assignInline);
   }
 });
