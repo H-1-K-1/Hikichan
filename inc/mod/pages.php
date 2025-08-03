@@ -2720,25 +2720,27 @@ function mod_rebuild(Context $ctx) {
         $start_page = 1;
         do {
             $next_page = Archive::buildArchiveIndexBatch($board_uri, $start_page, $batch_size);
-            $log[] = "Rebuilt archive index pages $start_page to " . ($next_page ? $next_page - 1 : $start_page + $batch_size - 1) . " for board $board_uri";
+            $log[] = "Archive index pages rebuilt for board <strong>$board_uri</strong>: pages $start_page to " . ($next_page ? $next_page - 1 : $start_page + $batch_size - 1);
             $start_page = $next_page;
         } while ($start_page);
     };
 
+    $token = make_secure_link_token('rebuild');
+
     // Handle cancel request
     if (isset($_POST['cancel'])) {
-        if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
+        if (empty($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
             error($config['error']['invalidtoken']);
         }
         unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
-        $log = ['Rebuild cancelled.'];
+        $log = ['Rebuild cancelled by user.'];
         mod_page(_('Rebuild cancelled'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
         return;
     }
 
     // Start new rebuild session
     if (isset($_POST['rebuild'])) {
-        if (!isset($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
+        if (empty($_POST['token']) || !make_secure_link_token($_POST['token'], 'rebuild')) {
             error($config['error']['invalidtoken']);
         }
 
@@ -2754,17 +2756,18 @@ function mod_rebuild(Context $ctx) {
             'index_batch' => 0,
             'archive_batch' => 0,
             'archive_boards' => [],
-            'catalog_batch' => 0 // <-- Add catalog batch progress
+            'catalog_batch' => 0,
+            'global_tasks_done' => false
         ];
 
         foreach (listBoards() as $board) {
-            if (isset($_POST['boards_all']) || isset($_POST['board_' . $board['uri']])) {
+            if (!empty($_POST['boards_all']) || !empty($_POST['board_' . $board['uri']])) {
                 $_SESSION['rebuild_progress']['boards'][] = $board['uri'];
             }
         }
 
         // Populate archive boards if archive rebuilding is enabled
-        if (isset($_POST['rebuild_archive']) && $config['archive']['threads']) {
+        if (!empty($_POST['rebuild_archive']) && !empty($config['archive']['threads'])) {
             $query = query("SELECT DISTINCT `board_uri` FROM `archive_threads`");
             while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
                 $_SESSION['rebuild_progress']['archive_boards'][] = $row['board_uri'];
@@ -2772,14 +2775,14 @@ function mod_rebuild(Context $ctx) {
         }
 
         $_SESSION['rebuild_options'] = [
-            'rebuild_cache' => isset($_POST['rebuild_cache']),
-            'rebuild_javascript' => isset($_POST['rebuild_javascript']),
-            'rebuild_index' => isset($_POST['rebuild_index']),
-            'rebuild_threads' => isset($_POST['rebuild_threads']),
-            'rebuild_posts' => isset($_POST['rebuild_posts']),
-            'rebuild_themes' => isset($_POST['rebuild_themes']),
-            'rebuild_archive' => isset($_POST['rebuild_archive']),
-            'rebuild_catalog' => isset($_POST['rebuild_catalog']) // <-- Add catalog option
+            'rebuild_cache' => !empty($_POST['rebuild_cache']),
+            'rebuild_javascript' => !empty($_POST['rebuild_javascript']),
+            'rebuild_index' => !empty($_POST['rebuild_index']),
+            'rebuild_threads' => !empty($_POST['rebuild_threads']),
+            'rebuild_posts' => !empty($_POST['rebuild_posts']),
+            'rebuild_themes' => !empty($_POST['rebuild_themes']),
+            'rebuild_archive' => !empty($_POST['rebuild_archive']),
+            'rebuild_catalog' => !empty($_POST['rebuild_catalog'])
         ];
 
         header('Location: ?/rebuild');
@@ -2788,41 +2791,52 @@ function mod_rebuild(Context $ctx) {
 
     $log = [];
 
+    // Helper for progress page and refresh
+    $progress_page = function($log) use ($config, $mod, $token) {
+        mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
+            'logs' => $log,
+            'in_progress' => true,
+            'token' => $token
+        ], $mod);
+        header("Refresh: 1; URL=?/rebuild");
+        exit;
+    };
+
     // Handle rebuild progress
-    if (isset($_SESSION['rebuild_progress'])) {
+    if (!empty($_SESSION['rebuild_progress'])) {
         $progress = &$_SESSION['rebuild_progress'];
         $options = $_SESSION['rebuild_options'];
         $batch_size = isset($config['rebuild_batch_size']) ? max(1, (int)$config['rebuild_batch_size']) : 10;
 
-        // Global rebuild tasks
+        // --- GLOBAL TASKS: Only run once per rebuild ---
         if (empty($progress['global_tasks_done'])) {
             $progress['global_tasks_done'] = true;
 
-            if ($options['rebuild_cache']) {
-                if ($config['cache']['enabled']) {
-                    $log[] = 'Clearing system cache';
+            if (!empty($options['rebuild_cache'])) {
+                if (!empty($config['cache']['enabled'])) {
+                    $log[] = 'System cache cleared.';
                     $cache->flush();
                 }
                 load_twig();
                 $twig->getCache()->clear();
+                $log[] = 'Twig template cache cleared.';
             }
 
-            if ($options['rebuild_javascript']) {
-                $log[] = 'Regenerating JavaScript file <strong>' . $config['file_script'] . '</strong>';
+            if (!empty($options['rebuild_javascript'])) {
+                $log[] = 'Main JavaScript file rebuilt: <strong>' . $config['file_script'] . '</strong>.';
                 buildJavascript();
             }
 
-            if ($options['rebuild_themes']) {
-                $log[] = 'Regenerating all theme files';
+            if (!empty($options['rebuild_themes'])) {
+                $log[] = 'All theme files rebuilt.';
                 Vichan\Functions\Theme\rebuild_themes('all');
             }
         }
 
         // Check if all tasks are complete
-        $archive_done = !isset($progress['archive_boards']) ||
+        $archive_done = empty($progress['archive_boards']) ||
             $progress['archive_batch'] * $batch_size >= count($progress['archive_boards']);
-        $catalog_done = !isset($options['rebuild_catalog']) || !$options['rebuild_catalog'] ||
-            $progress['catalog_batch'] === false;
+        $catalog_done = empty($options['rebuild_catalog']) || $progress['catalog_batch'] === false;
         if (
             $progress['step'] >= count($progress['boards']) &&
             empty($progress['threads']) &&
@@ -2843,34 +2857,13 @@ function mod_rebuild(Context $ctx) {
             openBoard($board_uri);
             $config['try_smarter'] = false;
 
-            $log[] = '<strong>' . sprintf($config['board_abbreviation'], $board_uri) . '</strong>: Starting board rebuild…';
+            $log[] = '<strong>' . sprintf($config['board_abbreviation'], $board_uri) . '</strong>: Starting board rebuild.';
 
-            if ($options['rebuild_cache']) {
-                if ($config['cache']['enabled']) {
-                    $log[] = 'Clearing board cache';
-                    $cache->flush();
-                }
-                load_twig();
-                $twig->getCache()->clear();
-                $options['rebuild_cache'] = false;
-            }
-
-            if ($options['rebuild_themes']) {
-                $log[] = 'Regenerating theme files for board';
-                Vichan\Functions\Theme\rebuild_themes('all');
-                $options['rebuild_themes'] = false;
-            }
-
-            if ($options['rebuild_javascript']) {
-                $log[] = 'Regenerating JavaScript file <strong>' . $config['file_script'] . '</strong> for board';
-                buildJavascript();
-                $options['rebuild_javascript'] = false;
-            }
-
-            if ($options['rebuild_index']) {
+            // Index pages
+            if (!empty($options['rebuild_index'])) {
                 $start_page = $progress['index_batch'] * $batch_size + 1;
                 $end_page = min(($progress['index_batch'] + 1) * $batch_size, $config['max_pages']);
-                $log[] = "Rebuilding index pages $start_page to $end_page for board $board_uri";
+                $log[] = "Index pages rebuilt for board <strong>$board_uri</strong>: pages $start_page to $end_page.";
                 buildIndex($start_page, $end_page);
                 $progress['index_batch']++;
 
@@ -2878,80 +2871,71 @@ function mod_rebuild(Context $ctx) {
                     $progress['index_batch'] = 0;
                     $options['rebuild_index'] = false;
                 } else {
-                    mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-                        'logs' => $log,
-                        'in_progress' => true,
-                        'token' => make_secure_link_token('rebuild')
-                    ], $mod);
-                    header("Refresh: 1; URL=?/rebuild");
-                    exit;
+                    $progress_page($log);
                 }
             }
 
-            // --- Catalog theme batch rebuild ---
-            if ($options['rebuild_catalog']) {
-				require_once $config['dir']['themes'] . '/catalog/theme.php';
+            // Catalog theme batch rebuild
+            if (!empty($options['rebuild_catalog'])) {
+                require_once $config['dir']['themes'] . '/catalog/theme.php';
+                $settings = Vichan\Functions\Theme\theme_settings('catalog');
+                $settings['boards'] = $board_uri;
+                $catalog = new Catalog();
 
-				// Load theme settings for catalog, and set the board
-				$settings = Vichan\Functions\Theme\theme_settings('catalog');
-				$settings['boards'] = $board_uri;
+                $sql = "SELECT COUNT(*) FROM `posts` WHERE `board` = :board AND `thread` IS NULL";
+                $query = prepare($sql);
+                $query->bindValue(':board', $board_uri);
+                $query->execute() or error(db_error($query));
+                $total_threads = $query->fetchColumn();
+                $per_page = isset($settings['items_per_page']) ? (int)$settings['items_per_page'] : 50;
+                $total_pages = $per_page > 0 ? (int)ceil($total_threads / $per_page) : 1;
 
-				$catalog = new Catalog();
+                $catalog_batch = $progress['catalog_batch'] ?? 0;
+                $start_page = $catalog_batch * $batch_size + 1;
+                $end_page = min(($catalog_batch + 1) * $batch_size, $total_pages);
 
-				// Get total threads to determine total pages
-				$sql = "SELECT COUNT(*) FROM `posts` WHERE `board` = :board AND `thread` IS NULL";
-				$query = prepare($sql);
-				$query->bindValue(':board', $board_uri);
-				$query->execute() or error(db_error($query));
-				$total_threads = $query->fetchColumn();
-				$per_page = isset($settings['items_per_page']) ? (int)$settings['items_per_page'] : 50;
-				$total_pages = $per_page > 0 ? (int)ceil($total_threads / $per_page) : 1;
+                if ($start_page <= $total_pages) {
+                    $log[] = "Catalog pages rebuilt for board <strong>$board_uri</strong>: pages $start_page to $end_page.";
+                    $catalog->build($settings, $board_uri, false, $start_page, $end_page);
+                    $progress['catalog_batch'] = $catalog_batch + 1;
 
-				$catalog_batch = $progress['catalog_batch'] ?? 0;
-				$start_page = $catalog_batch * $batch_size + 1;
-				$end_page = min(($catalog_batch + 1) * $batch_size, $total_pages);
+                    if ($end_page < $total_pages) {
+                        $progress_page($log);
+                    } else {
+                        $progress['catalog_batch'] = 0;
+                        $options['rebuild_catalog'] = false;
+                    }
+                } else {
+                    $progress['catalog_batch'] = 0;
+                    $options['rebuild_catalog'] = false;
+                }
+            }
 
-				if ($start_page <= $total_pages) {
-					$log[] = "Rebuilding catalog pages $start_page to $end_page for board $board_uri";
-					$catalog->build($settings, $board_uri, false, $start_page, $end_page);
-					$progress['catalog_batch'] = $catalog_batch + 1;
+            // Fetch threads for this board
+			$log[] = "Thread list fetched for board <strong>$board_uri</strong>.";
+			$query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
+			$query->bindValue(':board', $board_uri);
+			$query->execute() or error(db_error($query));
+			$progress['threads'] = [];
+			while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+				$progress['threads'][] = $post['id'];
+			}
+			$progress['thread_index'] = 0;
+			$progress['replies'] = [];
+			$progress['reply_index'] = 0;
+			$progress['current_thread'] = null;
 
-					if ($end_page < $total_pages) {
-						mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-							'logs' => $log,
-							'in_progress' => true,
-							'token' => make_secure_link_token('rebuild')
-						], $mod);
-						header("Refresh: 1; URL=?/rebuild");
-						exit;
-					} else {
-						$progress['catalog_batch'] = 0;
-						$options['rebuild_catalog'] = false;
-					}
-				} else {
-					$progress['catalog_batch'] = 0;
-					$options['rebuild_catalog'] = false;
-				}
+			// Archive batch rebuild for this board
+			if (!empty($options['rebuild_archive']) && class_exists('Archive')) {
+				$log[] = "Archive index pages batch-rebuilt for board <strong>$board_uri</strong>.";
+				$rebuild_archive_batches($board_uri, $log, $batch_size);
 			}
 
-            $log[] = 'Fetching threads for board ' . $board_uri;
-            $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
-            $query->bindValue(':board', $board_uri);
-            $query->execute() or error(db_error($query));
-            $progress['threads'] = [];
-            while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-                $progress['threads'][] = $post['id'];
-            }
-            $progress['thread_index'] = 0;
-            $progress['replies'] = [];
-            $progress['reply_index'] = 0;
-            $progress['current_thread'] = null;
-
-            // Archive batch rebuild for this board
-            if ($options['rebuild_archive'] && class_exists('Archive')) {
-                $log[] = "Rebuilding all archive index pages for board $board_uri in batches of $batch_size...";
-                $rebuild_archive_batches($board_uri, $log, $batch_size);
-            }
+			// If no threads, immediately advance to next board
+			if (empty($progress['threads'])) {
+				$progress['step']++;
+				$progress_page($log);
+			}
         }
 
         // Process threads and replies
@@ -2959,11 +2943,11 @@ function mod_rebuild(Context $ctx) {
             $board_uri = $progress['current_board'];
             openBoard($board_uri);
 
-            // Process replies
-            while ($options['rebuild_posts'] && !empty($progress['replies'])) {
+            // Process replies in batches
+            while (!empty($options['rebuild_posts']) && !empty($progress['replies'])) {
                 $replies_to_process = array_slice($progress['replies'], $progress['reply_index'], $batch_size);
                 foreach ($replies_to_process as $reply_id) {
-                    $log[] = 'Rebuilding reply #' . $reply_id . ' in board ' . $board_uri;
+                    $log[] = "Reply #<strong>$reply_id</strong> rebuilt in board <strong>$board_uri</strong>.";
                     rebuildPost($reply_id);
                 }
                 $progress['reply_index'] += $batch_size;
@@ -2974,26 +2958,20 @@ function mod_rebuild(Context $ctx) {
                     $progress['current_thread'] = null;
                     $progress['thread_index']++;
                 } else {
-                    mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-                        'logs' => $log,
-                        'in_progress' => true,
-                        'token' => make_secure_link_token('rebuild')
-                    ], $mod);
-                    header("Refresh: 1; URL=?/rebuild");
-                    exit;
+                    $progress_page($log);
                 }
             }
 
-            // Process threads
+            // Process threads in batches
             if (!empty($progress['threads'])) {
                 $threads_to_process = array_slice($progress['threads'], $progress['thread_index'], $batch_size);
                 foreach ($threads_to_process as $thread_id) {
-                    if ($options['rebuild_threads']) {
-                        $log[] = 'Rebuilding thread #' . $thread_id . ' in board ' . $board_uri;
+                    if (!empty($options['rebuild_threads'])) {
+                        $log[] = "Thread #<strong>$thread_id</strong> rebuilt in board <strong>$board_uri</strong>.";
                         buildThread($thread_id);
                     }
 
-                    if ($options['rebuild_posts']) {
+                    if (!empty($options['rebuild_posts'])) {
                         $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` = :thread");
                         $query->bindValue(':board', $board_uri);
                         $query->bindValue(':thread', $thread_id);
@@ -3017,8 +2995,8 @@ function mod_rebuild(Context $ctx) {
                     $progress['thread_index'] = 0;
 
                     // Archive batch rebuild for this board
-                    if ($options['rebuild_archive'] && class_exists('Archive')) {
-                        $log[] = "Rebuilding all archive index pages for board $board_uri in batches of $batch_size...";
+                    if (!empty($options['rebuild_archive']) && class_exists('Archive')) {
+                        $log[] = "Archive index pages batch-rebuilt for board <strong>$board_uri</strong>.";
                         $rebuild_archive_batches($board_uri, $log, $batch_size);
                     }
 
@@ -3026,41 +3004,33 @@ function mod_rebuild(Context $ctx) {
                 }
             }
 
-            mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-                'logs' => $log,
-                'in_progress' => true,
-                'token' => make_secure_link_token('rebuild')
-            ], $mod);
-
-            header("Refresh: 1; URL=?/rebuild");
-            exit;
+            $progress_page($log);
         }
 
         // Process archive boards in batches (global archive rebuild)
-        if ($options['rebuild_archive'] && !empty($progress['archive_boards']) && $progress['step'] >= count($progress['boards'])) {
+        if (!empty($options['rebuild_archive']) && !empty($progress['archive_boards']) && $progress['step'] >= count($progress['boards'])) {
             $start_index = $progress['archive_batch'] * $batch_size;
             $boards_to_process = array_slice($progress['archive_boards'], $start_index, $batch_size);
 
             if (!empty($boards_to_process)) {
-                $log[] = 'Rebuilding archive indexes for boards: ' . implode(', ', $boards_to_process);
+                $log[] = 'Global archive index pages rebuilt for boards: <strong>' . implode(', ', $boards_to_process) . '</strong>.';
                 Archive::RebuildArchiveIndexes($boards_to_process);
                 $progress['archive_batch']++;
-
-                mod_page(_('Rebuild in progress…'), $config['file_mod_rebuilt'], [
-                    'logs' => $log,
-                    'in_progress' => true,
-                    'token' => make_secure_link_token('rebuild')
-                ], $mod);
-                header("Refresh: 1; URL=?/rebuild");
-                exit;
+                $progress_page($log);
             }
         }
+
+        // --- Always show completion page if nothing else matched ---
+        unset($_SESSION['rebuild_progress'], $_SESSION['rebuild_options']);
+        $log[] = 'All rebuild tasks completed successfully.';
+        mod_page(_('Rebuild complete'), $config['file_mod_rebuilt'], ['logs' => $log], $mod);
+        return;
     }
 
     // Initial rebuild form
     mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
         'boards' => listBoards(),
-        'token' => make_secure_link_token('rebuild')
+        'token' => $token
     ], $mod);
 }
 
