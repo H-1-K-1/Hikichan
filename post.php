@@ -432,6 +432,7 @@ if (isset($_POST['delete'])) {
         if (!$view_base) {
             // Removes modifiers for showing 
             $post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
+            $post['body_nomarkup'] = html_entity_decode($post['body_nomarkup'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
             echo Element('page.html', array(
                 'config' => $config,
@@ -811,8 +812,21 @@ if (isset($_POST['delete'])) {
 	$post['password'] = hashPassword($_POST['password']);
 	$post['has_file'] = (!isset($post['embed']) && (($post['op'] && !isset($post['no_longer_require_an_image_for_op']) && $config['force_image_op']) || count($_FILES) > 0));
 	// Set the live date path ONCE for this post
-	$live_date_path = date('Y/m/d');
-	$post['live_date_path'] = $live_date_path;
+	if ($post['op']) {
+        // For OP, use current date
+        $live_date_path = date('Y/m/d');
+    } else {
+        // For replies, fetch the OP's live_date_path
+        $query = prepare("SELECT `live_date_path` FROM `posts` WHERE `board` = :board AND `id` = :id AND `thread` IS NULL LIMIT 1");
+        $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
+        $query->bindValue(':id', $post['thread'], PDO::PARAM_INT);
+        $query->execute() or error(db_error($query));
+        $live_date_path = $query->fetchColumn();
+        if (!$live_date_path) {
+            error('Thread not found or OP missing.');
+        }
+    }
+    $post['live_date_path'] = $live_date_path;
 
 	// Ensure image directory for this date exists
 	$live_img_dir = $board['dir'] . $config['dir']['img'] . $live_date_path . '/';
