@@ -32,7 +32,7 @@
 				{% trans %}Comment{% endtrans %}
 			</th>
 			<td>
-				<textarea name="body" id="body" rows="8" cols="35">{% if raw %}{{ post.body }}{% else %}{{ post.body_nomarkup }}{% endif %}</textarea>
+				<textarea name="body" id="body" rows="8" cols="35">{{ post.body_nomarkup|e('html_attr') }}</textarea>
 			</td>
 		</tr>
 	</table>

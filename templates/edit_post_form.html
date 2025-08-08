@@ -30,7 +30,7 @@
                 {% trans %}Comment{% endtrans %}
             </th>
             <td>
-                <textarea name="body" id="body" rows="8" cols="35">{{ post.body_nomarkup|e }}</textarea>
+                <textarea name="body" id="body" rows="8" cols="35">{{ post.body_nomarkup|e('html_attr') }}</textarea>
             </td>
         </tr>
         <tr>
