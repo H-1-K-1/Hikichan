@@ -20,6 +20,8 @@ $query = isset($_SERVER['QUERY_STRING']) ? rawurldecode($_SERVER['QUERY_STRING']
 $pages = [
 	''					=> ':?/',			// redirect to dashboard
 	'/'					=> 'dashboard',			// dashboard
+	'/dashboard/(\d+)'	=> 'dashboard',			// dashboard paginated
+	'/search_boards' => 'search_boards',
 	'/confirm/(.+)'				=> 'confirm',			// confirm action (if javascript didn't work)
 	'/logout'				=> 'secure logout',		// logout
 
@@ -57,6 +59,9 @@ $pages = [
 	'/new-board'				=> 'secure_POST new_board',	// create a new board
 
 	'/rebuild'				=> 'secure_POST rebuild',	// rebuild static files
+	'/rebuild/(\d+)' => 'rebuild',
+	'/rebuild_search' => 'rebuild',
+	'mode=rebuild' => 'secure_POST rebuild',
 	'/reports'				=> 'reports',			// report queue
 	'/reports/(\d+)'			=> 'reports',			// reports with page number
 	'/reports/(\d+)/dismiss(&all|&post)?'		=> 'secure report_dismiss',	// dismiss a report

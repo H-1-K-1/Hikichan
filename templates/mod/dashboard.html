@@ -1,7 +1,10 @@
 {% if config.url_banner %}<img class="board_image" src="{{ config.url_banner }}" {% if config.banner_width or config.banner_height %}style="{% if config.banner_width %}width:{{ config.banner_width }}px{% endif %};{% if config.banner_width %}height:{{ config.banner_height }}px{% endif %}" {% endif %}alt="" />{% endif %}
 <fieldset>
 	<legend>{% trans 'Boards' %}</legend>
-
+	<form method="post" action="?/search_boards" style="margin-bottom:10px;">
+		<input type="text" name="query" placeholder="{% trans 'Search boards' %}" required>
+		<button type="submit">{% trans 'Search' %}</button>
+	</form>
 	<ul>
 		{% for board in boards %}
 			<li>
@@ -33,6 +36,17 @@
 			<li style="margin-top:15px"><a href="?/new-board"><strong>{% trans 'Create new board' %}</strong></a></li>
 		{% endif %}
 	</ul>
+	{% if boardlist_total_pages > 1 %}
+        <div class="pagination">
+            {% for p in 1..boardlist_total_pages %}
+                {% if p == boardlist_page_no %}
+                    <strong>{{ p }}</strong>
+                {% else %}
+                    <a href="?/dashboard/{{ p }}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
 </fieldset>
 
 <fieldset>

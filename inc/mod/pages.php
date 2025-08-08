@@ -213,13 +213,22 @@ function mod_logout(Context $ctx) {
 	header('Location: ?/', true, $config['redirect_http']);
 }
 
-function mod_dashboard(Context $ctx) {
+function mod_dashboard(Context $ctx, $page_no = 1) {
 	global $mod;
 	$config = $ctx->get('config');
 
 	$args = [];
 
-	$args['boards'] = listBoards();
+    $boards = listBoards();
+    $per_page = 20;
+    $page_no = max(1, (int)$page_no);
+    $total_boards = count($boards);
+    $total_pages = ceil($total_boards / $per_page);
+
+    $args['boards'] = array_slice($boards, ($page_no - 1) * $per_page, $per_page);
+    $args['boardlist_total_pages'] = $total_pages;
+    $args['boardlist_page_no'] = $page_no;
+
 
 	if (hasPermission($config['mod']['noticeboard'])) {
 		if (!$args['noticeboard'] = $ctx->get(CacheDriver::class)->get('noticeboard_preview')) {
@@ -304,6 +313,34 @@ function mod_dashboard(Context $ctx) {
 	$args['logout_token'] = make_secure_link_token('logout');
 
 	mod_page(_('Dashboard'), $config['file_mod_dashboard'], $args, $mod);
+}
+
+function mod_search_boards(Context $ctx) {
+    global $mod;
+    $config = $ctx->get('config');
+    $query = isset($_POST['query']) ? trim($_POST['query']) : '';
+    $boards = listBoards();
+    $results = [];
+
+    if ($query !== '') {
+        foreach ($boards as $board) {
+            if (
+                stripos($board['uri'], $query) !== false ||
+                stripos($board['title'], $query) !== false ||
+                (!empty($board['subtitle']) && stripos($board['subtitle'], $query) !== false)
+            ) {
+                $results[] = $board;
+            }
+        }
+    }
+
+    $args = [
+        'boards' => $results,
+        'query' => $query,
+        'mod' => $mod,
+        'config' => $config,
+    ];
+    mod_page(_('Board Search'), 'mod/board_search.html', $args, $mod);
 }
 
 function mod_search_redirect(Context $ctx) {
@@ -2019,7 +2056,7 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
     } else {
         // Remove modifiers
         $post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
-        $post['body_nomarkup'] = utf8tohtml($post['body_nomarkup']);
+        $post['body_nomarkup'] = html_entity_decode($post['body_nomarkup'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $post['body'] = utf8tohtml($post['body']);
 
         mod_page(
@@ -2708,7 +2745,7 @@ function mod_new_pm(Context $ctx, $username) {
 	);
 }
 
-function mod_rebuild(Context $ctx) {
+function mod_rebuild(Context $ctx, $page_no = 1) {
     global $twig, $mod;
     $config = $ctx->get('config');
     $cache = $ctx->get(CacheDriver::class);
@@ -3030,10 +3067,35 @@ function mod_rebuild(Context $ctx) {
         return;
     }
 
+	$search = '';
+    if (isset($_GET['search'])) {
+        $search = trim($_GET['search']);
+    } elseif (isset($_POST['search'])) {
+        $search = trim($_POST['search']);
+    }
+	
+	$boards = listBoards();
+    if ($search !== '') {
+        $boards = array_filter($boards, function($board) use ($search) {
+            return stripos($board['uri'], $search) !== false ||
+                   stripos($board['title'], $search) !== false ||
+                   (!empty($board['subtitle']) && stripos($board['subtitle'], $search) !== false);
+        });
+    }
+
+    $per_page = 20;
+    $page_no = max(1, (int)$page_no);
+    $total_boards = count($boards);
+    $total_pages = ceil($total_boards / $per_page);
+    $boards_page = array_slice(array_values($boards), ($page_no - 1) * $per_page, $per_page);
+
     // Initial rebuild form
     mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
-        'boards' => listBoards(),
-        'token' => $token
+        'boards' => $boards_page,
+        'token' => $token,
+		'rebuild_total_pages' => $total_pages,
+        'rebuild_page_no' => $page_no,
+		'search' => $search
     ], $mod);
 }
 

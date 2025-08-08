@@ -1,3 +1,9 @@
+<form method="get" action="mod.php" style="width:300px;margin:auto; margin-bottom: 20px;">
+    <input type="hidden" name="mode" value="rebuild">
+    <input type="text" name="search" value="{{ search|e }}" placeholder="Search boards..." style="width:180px;">
+    <button type="submit">Search</button>
+</form>
+
 <form style="width:300px;margin:auto" action="?/rebuild" method="post">
 	<input type="hidden" name="token" value="{{ token }}">
 	<ul id="rebuild">
@@ -51,7 +57,7 @@
 
 	<ul id="boards">
 		<li style="margin-bottom:8px">
-			<input type="checkbox" name="boards_all" id="boards_all" onchange="toggleallboards(this.checked)" checked>
+			<input type="checkbox" name="boards_all" id="boards_all" onchange="toggleallboards(this.checked)">
 			<label for="boards_all"><strong>{% trans 'All boards' %}</strong></label>
 			<script>
 				function toggleallboards(val) {
@@ -64,13 +70,25 @@
 		</li>
 		{% for board in boards %}
 		<li>
-			<input type="checkbox" name="board_{{ board.uri }}" id="board-{{ board.uri }}" checked>
+			<input type="checkbox" name="board_{{ board.uri }}" id="board-{{ board.uri }}">
 			<label for="board-{{ board.uri }}">
 				{{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
 			</label>
 		</li>
 		{% endfor %}
 	</ul>
+
+	{% if rebuild_total_pages > 1 %}
+		<div class="pagination" style="text-align:center;margin:10px 0;">
+			{% for p in 1..rebuild_total_pages %}
+				{% if p == rebuild_page_no %}
+					<strong>{{ p }}</strong>
+				{% else %}
+					<a href="?/rebuild/{{ p }}{% if search %}?search={{ search|url_encode }}{% endif %}">{{ p }}</a>
+				{% endif %}
+			{% endfor %}
+		</div>
+	{% endif %}
 
 	<p style="text-align:center">
 		<input type="submit" value="{% trans 'Rebuild' %}" name="rebuild">
