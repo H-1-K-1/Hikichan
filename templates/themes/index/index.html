@@ -103,7 +103,7 @@
 					{% for post in recent_activity %}
 						<div class="recent-card" data-nsfw="{{ post.nsfw ? 'true' : 'false' }}">
 							<a href="{{ post.link }}">
-								<img class="recent-thumb" src="{{ post.src }}" alt="">
+								<img class="recent-thumb{% if post.adult %} adult-image{% endif %}" src="{{ post.src }}" alt="">
 							</a>
 							<div class="recent-info">
 								<div class="recent-board"><strong>{{ post.board_name }}</strong></div>

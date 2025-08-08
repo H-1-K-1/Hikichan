@@ -71,6 +71,7 @@
 
                 $files = isset($post['files']) ? json_decode($post['files']) : null;
                 $has_file = $files && isset($files[0]->file) && $files[0]->file !== 'deleted' && $files[0]->thumb !== 'file';
+                $post['adult'] = ($has_file && isset($files[0]->adult) && $files[0]->adult) ? true : false;
 
                 $is_image = false;
                 $is_video = false;
