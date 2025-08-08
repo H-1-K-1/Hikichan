@@ -1065,7 +1065,7 @@
 	// );
 
 	$config['boards'] = array(
-		"icon_hikichan" => array("index" => "index.html"), # would refer to /static/icons/vichan.png
+		"icon_hikichan" => array("index" => "/hikichan/index.html"), # would refer to /static/icons/vichan.png
 		"Boards" => array('bant', 'hi', 'test', 'ai', 'g', 'biz', 'meme', 'mu', 'v', 'kino', 'x', 'b'),
 		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
 		"d_Mod" => array("mod" => "/hikichan/mod?/"),
