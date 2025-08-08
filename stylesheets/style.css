@@ -1567,3 +1567,90 @@ p.captcha {
     filter: blur(5px) invert(1) !important;
     transition: filter 0.2s;
 }
+
+.image_id {
+  font-size: 10px;
+  display: flex;
+}
+
+.boardlist-container {
+    max-width: 900px;
+    margin: 20px auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 15px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.boardlist-container h2 {
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: #222;
+    font-size: 1.8em;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 5px;
+}
+
+.boardlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.boardlist-table thead {
+    background-color: #fafafa;
+}
+
+.boardlist-table th,
+.boardlist-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    overflow-wrap: break-word;
+}
+
+.boardlist-table th {
+    font-weight: 600;
+    color: #555;
+    font-size: 0.95em;
+}
+
+.boardlist-table tbody tr:hover {
+    background-color: #f0f8ff;
+}
+
+.board-uri a {
+    color: #0055cc;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.board-uri a:hover {
+    text-decoration: underline;
+}
+
+.board-title em {
+    color: #777;
+    font-style: normal;
+    font-size: 0.85em;
+}
+
+.board-posts,
+.board-threads,
+.board-posters,
+.board-pph {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: #444;
+}
+
+/* Responsive for smaller screens */
+@media (max-width: 600px) {
+    .boardlist-table th, .boardlist-table td {
+        font-size: 0.9em;
+        padding: 8px 6px;
+    }
+}

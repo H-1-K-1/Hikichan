@@ -1,0 +1,32 @@
+<div class="boardlist-container">
+    <h2>Boards</h2>
+    <table class="boardlist-table">
+        <thead>
+            <tr>
+                <th>Board</th>
+                <th>Title</th>
+                <th>Posts</th>
+                <th>Threads</th>
+                <th>Posters</th>
+                <th>PPH</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for board in boards %}
+                <tr>
+                    <td class="board-uri"><a href="{{ config.root}}{{ board.uri }}">/{{ board.uri }}/</a></td>
+                    <td class="board-title">
+                        {{ board.title }}
+                        {% if board.subtitle %}
+                            <br><em>{{ board.subtitle }}</em>
+                        {% endif %}
+                    </td>
+                    <td class="board-posts">{{ board.posts }}</td>
+                    <td class="board-threads">{{ board.threads }}</td>
+                    <td class="board-posters">{{ board.posters }}</td>
+                    <td class="board-pph">{{ board.pph }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
