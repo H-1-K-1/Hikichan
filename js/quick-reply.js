@@ -324,6 +324,7 @@
 
 		$postForm.attr('id', 'quick-reply');
 		$postForm.appendTo($('body')).hide();
+		$postForm.find('#upload_embed, #upload_voice, #upload_url').css('display', '');
 
 		// Synchronize body text with original post form
 		const $origBody = $origPostForm.find('textarea[name="body"]');
