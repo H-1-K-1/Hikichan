@@ -17,10 +17,15 @@ No more extra features will be added, we just focus on improving the code, fixin
 
 ### Update
 ~~unified table for archive works~~
+
 ~~unified tabled for posts works~~
+
 ~~deletion of items in posts table works~~
+
 ~~deletion of threads works~~
+
 ~~infinity next has been implmented~~
+
 place boards in a channel/board_channel/board folder so that 1000 boards maximum get placed in a folder channel/1/b etc... this is the last major overhaul that i will do.
 
 
