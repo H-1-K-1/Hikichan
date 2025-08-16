@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS `boards` (
   `uri` varchar(58) CHARACTER SET utf8 NOT NULL,
   `title` tinytext NOT NULL,
   `subtitle` tinytext,
+  `owner_id` int DEFAULT NULL,
   -- `indexed` boolean default true,
   PRIMARY KEY (`uri`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

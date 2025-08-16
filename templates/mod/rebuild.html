@@ -1,96 +1,102 @@
-<form method="get" action="mod.php" style="width:300px;margin:auto; margin-bottom: 20px;">
-    <input type="hidden" name="mode" value="rebuild">
-    <input type="text" name="search" value="{{ search|e }}" placeholder="Search boards..." style="width:180px;">
-    <button type="submit">Search</button>
-</form>
-
 <form style="width:300px;margin:auto" action="?/rebuild" method="post">
-	<input type="hidden" name="token" value="{{ token }}">
-	<ul id="rebuild">
-		<li style="margin-bottom:8px">
-			<input type="checkbox" name="rebuild_all" id="rebuild_all" onchange="toggleall(this.checked)">
-			<label for="rebuild_all"><strong>{% trans 'Toggle all' %}</strong></label>
-			<script>
-				function toggleall(val) {
-					var elements = document.getElementById('rebuild').querySelectorAll('input[type=checkbox]');
-					for (var i = 0; i < elements.length; i++) {
-						elements[i].checked = val;
-					}
-				}
-			</script>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_cache" id="rebuild_cache" checked>
-			<label for="rebuild_cache">{% trans 'Flush cache' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_javascript" id="rebuild_javascript" checked>
-			<label for="rebuild_javascript">{% trans 'Rebuild Javascript' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_index" id="rebuild_index" checked>
-			<label for="rebuild_index">{% trans 'Rebuild index pages' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_threads" id="rebuild_threads" checked>
-			<label for="rebuild_threads">{% trans 'Rebuild threads' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_posts" id="rebuild_posts">
-			<label for="rebuild_posts">{% trans 'Rebuild replies' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_themes" id="rebuild_themes" checked>
-			<label for="rebuild_themes">{% trans 'Rebuild themes' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_archive" id="rebuild_archive">
-			<label for="rebuild_archive">{% trans 'Rebuild archive index' %}</label>
-		</li>
-		<li>
-			<input type="checkbox" name="rebuild_catalog" id="rebuild_catalog">
-			<label for="rebuild_catalog">{% trans 'Rebuild catalog index' %}</label>
-		</li>
-	</ul>
+    <input type="hidden" name="token" value="{{ token }}">
+    <ul id="rebuild">
+        <li style="margin-bottom:8px">
+            <input type="checkbox" name="rebuild_all" id="rebuild_all" onchange="toggleall(this.checked)">
+            <label for="rebuild_all"><strong>{% trans 'Toggle all' %}</strong></label>
+            <script>
+                function toggleall(val) {
+                    var elements = document.getElementById('rebuild').querySelectorAll('input[type=checkbox]');
+                    for (var i = 0; i < elements.length; i++) {
+                        elements[i].checked = val;
+                    }
+                }
+            </script>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_cache" id="rebuild_cache" checked>
+            <label for="rebuild_cache">{% trans 'Flush cache' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_javascript" id="rebuild_javascript" checked>
+            <label for="rebuild_javascript">{% trans 'Rebuild Javascript' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_index" id="rebuild_index" checked>
+            <label for="rebuild_index">{% trans 'Rebuild index pages' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_threads" id="rebuild_threads" checked>
+            <label for="rebuild_threads">{% trans 'Rebuild threads' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_posts" id="rebuild_posts">
+            <label for="rebuild_posts">{% trans 'Rebuild replies' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_themes" id="rebuild_themes" checked>
+            <label for="rebuild_themes">{% trans 'Rebuild themes' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_archive" id="rebuild_archive">
+            <label for="rebuild_archive">{% trans 'Rebuild archive index' %}</label>
+        </li>
+        <li>
+            <input type="checkbox" name="rebuild_catalog" id="rebuild_catalog">
+            <label for="rebuild_catalog">{% trans 'Rebuild catalog index' %}</label>
+        </li>
+    </ul>
 
-	<hr>
+    <hr>
 
-	<ul id="boards">
-		<li style="margin-bottom:8px">
-			<input type="checkbox" name="boards_all" id="boards_all" onchange="toggleallboards(this.checked)">
-			<label for="boards_all"><strong>{% trans 'All boards' %}</strong></label>
-			<script>
-				function toggleallboards(val) {
-					var elements = document.getElementById('boards').querySelectorAll('input[type=checkbox]');
-					for (var i = 0; i < elements.length; i++) {
-						elements[i].checked = val;
-					}
-				}
-			</script>
-		</li>
-		{% for board in boards %}
-		<li>
-			<input type="checkbox" name="board_{{ board.uri }}" id="board-{{ board.uri }}">
-			<label for="board-{{ board.uri }}">
-				{{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
-			</label>
-		</li>
-		{% endfor %}
-	</ul>
+    <div style="margin-bottom:8px">
+        <label for="boards_input"><strong>{% trans 'Boards (comma-separated, * for all)' %}</strong></label><br>
+        <input type="text" name="boards_input" id="boards_input" list="board_suggestions" placeholder="e.g. a,b,c or * for all boards" style="width:280px;">
+        <datalist id="board_suggestions"></datalist> <!-- Empty datalist, populated dynamically -->
+    </div>
 
-	{% if rebuild_total_pages > 1 %}
-		<div class="pagination" style="text-align:center;margin:10px 0;">
-			{% for p in 1..rebuild_total_pages %}
-				{% if p == rebuild_page_no %}
-					<strong>{{ p }}</strong>
-				{% else %}
-					<a href="?/rebuild/{{ p }}{% if search %}?search={{ search|url_encode }}{% endif %}">{{ p }}</a>
-				{% endif %}
-			{% endfor %}
-		</div>
-	{% endif %}
-
-	<p style="text-align:center">
-		<input type="submit" value="{% trans 'Rebuild' %}" name="rebuild">
-	</p>
+    <p style="text-align:center">
+        <input type="submit" value="{% trans 'Rebuild' %}" name="rebuild">
+    </p>
 </form>
+
+<script>
+    document.getElementById('boards_input').addEventListener('input', function(e) {
+        var input = e.target.value.toLowerCase().trim();
+        var datalist = document.getElementById('board_suggestions');
+        
+        // Clear previous suggestions
+        datalist.innerHTML = '';
+
+        // Only fetch suggestions if input is not empty and not just '*'
+        if (input === '' || input === '*') {
+            return;
+        }
+
+        // Make AJAX request to fetch board suggestions
+        fetch('?/board_suggestions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'query=' + encodeURIComponent(input) + '&token=' + encodeURIComponent('{{ token }}')
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error:', data.error);
+                return;
+            }
+            // Populate datalist with new suggestions
+            data.boards.forEach(board => {
+                var option = document.createElement('option');
+                option.value = board.uri;
+                option.text = board.abbreviation + ' - ' + board.title;
+                datalist.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+        });
+    });
+</script>

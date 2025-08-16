@@ -668,6 +668,8 @@
 *  Ban settings
 * ====================
 */
+	//Shows the amount of boars to display per page in the ban form and config form.
+	$config['mod']['boards_per_page'] = 20; // Number of boards to show per page
 
 	// Require users to see the ban page at least once for a ban even if it has since expired.
 	$config['require_ban_view'] = true;
@@ -1068,6 +1070,7 @@
 		"icon_hikichan" => array("index" => "/hikichan/index.html"), # would refer to /static/icons/vichan.png
 		"Boards" => array('bant', 'hi', 'test', 'ai', 'g', 'biz', 'meme', 'mu', 'v', 'kino', 'x', 'b'),
 		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
+		"d_Boardlist" => array("Boardlist" => "/hikichan/boards.php"),
 		"d_Mod" => array("mod" => "/hikichan/mod?/"),
 		"fa_search" => array("Search" => "/hikichan/search.php"),# would refer to a search 
 														# font-awesome icon
@@ -1838,6 +1841,16 @@
 	$config['mod']['manageboards'] = ADMIN;
 	// Delete a board
 	$config['mod']['deleteboard'] = ADMIN;
+	// INFINITY NEXT enable this feature if you want your users to create their own boards
+	$config['mod']['infinity'] = USER;
+	// List of config variables board owners are allowed to edit
+	$config['mod']['board_owner_config_whitelist'] = [
+		'force_body',
+		'force_body_op',
+		'force_image_op',
+		'max_body'
+		// Add more keys as needed, e.g. 'anonymous', 'allow_subtitle_html'
+	];
 	// List/manage users
 	$config['mod']['manageusers'] = MOD;
 	// Promote/demote users
@@ -1845,7 +1858,7 @@
 	// Edit any users' login information
 	$config['mod']['editusers'] = ADMIN;
 	// Change user's own password
-	$config['mod']['change_password'] = JANITOR;
+	$config['mod']['change_password'] = USER;
 	// Delete a user
 	$config['mod']['deleteusers'] = ADMIN;
 	// Create a user

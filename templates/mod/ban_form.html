@@ -1,122 +1,125 @@
-{% if post and board %}
-	{% set action = '?/' ~ board_prefix ~ board ~ '/ban/' ~ post %}
-{% elseif edit_ban %}
-	{% set action = '' %}
-{% else %}
-	{% set action = '?/ban' %}
-{% endif %}
-
 {% if reasons %}
 <script type="text/javascript">
 $(document).ready(function(){
-	{% for key, reason in reasons %}
-		var data_{{ key }} = '{"reason":"{{ reason.reason|escape('js') }}","message":"{{ reason.reason|escape('js') }}","length":"{{ reason.length|escape('js') }}"}';
-		$('#reason-selector-id-{{ key }}').click(function() { populateFormJQuery('#ban-form-id', $.parseJSON(data_{{ key }})); });
-	{% endfor %}
+    {% for key, reason in reasons %}
+        var data_{{ key }} = '{"reason":"{{ reason.reason|escape('js') }}","message":"{{ reason.reason|escape('js') }}","length":"{{ reason.length|escape('js') }}"}';
+        $('#reason-selector-id-{{ key }}').click(function() { populateFormJQuery('#ban-form-id', $.parseJSON(data_{{ key }})); });
+    {% endfor %}
 });
 </script>
 {% endif %}
 <form action="{{ action }}" method="post" id="ban-form-id">
-	<input type="hidden" name="token" value="{{ token }}">
-	{% if redirect %}
-		<input type="hidden" name="redirect" value="{{ redirect|e }}">
-	{% endif %}
-	{% if post and board %}
-		<input type="hidden" name="delete" value="{% if delete %}1{% else %}0{% endif %}">
-	{% endif %}
+    <input type="hidden" name="token" value="{{ token }}">
+    {% if redirect %}
+        <input type="hidden" name="redirect" value="{{ redirect|e }}">
+    {% endif %}
+    {% if post and board %}
+        <input type="hidden" name="delete" value="{% if delete %}1{% else %}0{% endif %}">
+    {% endif %}
 
-	<table>
-	{% if not edit_ban %}
-		<tr>
-			<th>
-				<label for="ip">{% trans 'IP' %} <span class="unimportant">{% trans '(or subnet)' %}</span></label>
-			</th>
-			<td>
-				{% if not hide_ip %}
-					<input type="text" name="ip" id="ip" size="30" maxlength="40" value="{{ ip|cloak_ip|e }}">
-				{% else %}
-					<em>{% trans 'hidden' %}</em>
-				{% endif %}
-			</td>
-		</tr>
-	{% endif %}
-		<tr>
-			<th>
-				<label for="reason">{% trans 'Reason' %}</label>
-			</th>
-			<td>
-				<textarea name="reason" id="reason" rows="5" cols="30">{{ reason|e }}</textarea>
-			</td>
-		</tr>
-		{% if post and board and not delete %}
-			<tr>
-				<th>
-					<label for="message">{% trans 'Message' %}</label>
-				</th>
-				<td>
-					<input type="checkbox" id="public_message" name="public_message"{% if config.mod.check_ban_message %} checked{% endif %}>
-					<input type="text" name="message" id="message" size="35" maxlength="200" value="{{ config.mod.default_ban_message|e }}">
-					<span class="unimportant">({% trans 'public; attached to post' %})</span>
-					<script type="text/javascript">
-						document.getElementById('message').disabled = !document.getElementById('public_message').checked;
-						document.getElementById('public_message').onchange = function() {
-							document.getElementById('message').disabled = !this.checked;
-						}
-					</script>
-				</td>
-			</tr>
-		{% endif %}
-		<tr>
-			<th>
-				<label for="length">{% trans 'Length' %}</label>
-			</th>
-			<td>
-				<input type="text" name="length" id="length" size="20" maxlength="40">
-					<span class="unimportant">(eg. "2d1h30m" or "2 days")</span></td>
-			</tr>
-		<tr>
-			<th>{% trans 'Board' %}</th>
-			<td>
-				<ul style="list-style:none;padding:2px 5px">
-					<li>
-						<input type="radio" name="board" value="*" id="ban-allboards" {% if (edit_ban and not current_board) or not edit_ban %}checked{% endif %}>
-						<label style="display:inline" for="ban-allboards">
-							<em>{% trans 'all boards' %}</em>
-						</label>
-					</li>
-
-					{% for board in boards %}
-						<li>
-							<input type="radio" name="board" value="{{ board.uri }}" id="ban-board-{{ board.uri }}" {% if edit_ban and current_board == board.uri %}checked{% endif %}>
-							<label style="display:inline" for="ban-board-{{ board.uri }}">
-								{{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
-							</label>
-						</li>
-					{% endfor %}
-				</ul>
-			</td>
-		</tr>
-		<tr>
-			<td></td>
-			<td><input name="new_ban" type="submit" value="{% if edit_ban %}{% trans 'Edit Ban' %}{% else %}{% trans 'New Ban' %}{% endif %}"></td>
-		</tr>
-	</table>
+    <table>
+    {% if not edit_ban %}
+        <tr>
+            <th>
+                <label for="ip">{% trans 'IP' %} <span class="unimportant">{% trans '(or subnet)' %}</span></label>
+            </th>
+            <td>
+                {% if not hide_ip %}
+                    <input type="text" name="ip" id="ip" size="30" maxlength="40" value="{{ ip|cloak_ip|e }}">
+                {% else %}
+                    <em>{% trans 'hidden' %}</em>
+                {% endif %}
+            </td>
+        </tr>
+    {% endif %}
+        <tr>
+            <th>
+                <label for="reason">{% trans 'Reason' %}</label>
+            </th>
+            <td>
+                <textarea name="reason" id="reason" rows="5" cols="30">{{ reason|e }}</textarea>
+            </td>
+        </tr>
+        {% if post and board and not delete %}
+            <tr>
+                <th>
+                    <label for="message">{% trans 'Message' %}</label>
+                </th>
+                <td>
+                    <input type="checkbox" id="public_message" name="public_message"{% if config.mod.check_ban_message %} checked{% endif %}>
+                    <input type="text" name="message" id="message" size="35" maxlength="200" value="{{ config.mod.default_ban_message|e }}">
+                    <span class="unimportant">({% trans 'public; attached to post' %})</span>
+                    <script type="text/javascript">
+                        document.getElementById('message').disabled = !document.getElementById('public_message').checked;
+                        document.getElementById('public_message').onchange = function() {
+                            document.getElementById('message').disabled = !this.checked;
+                        }
+                    </script>
+                </td>
+            </tr>
+        {% endif %}
+        <tr>
+            <th>
+                <label for="length">{% trans 'Length' %}</label>
+            </th>
+            <td>
+                <input type="text" name="length" id="length" size="20" maxlength="40" value="{{ bans is defined and bans[0].length ? bans[0].length|e : '' }}">
+                <span class="unimportant">(eg. "2d1h30m" or "2 days")</span>
+            </td>
+        </tr>
+        <tr>
+            <th>{% trans 'Board' %}</th>
+            <td>
+                <ul style="list-style:none;padding:2px 5px">
+                    <li>
+                        <input type="radio" name="board" value="*" id="ban-allboards" {% if (edit_ban and not current_board) or not edit_ban %}checked{% endif %}>
+                        <label style="display:inline" for="ban-allboards">
+                            <em>{% if is_board_owner %}{% trans 'all my boards' %}{% else %}{% trans 'all boards' %}{% endif %}</em>
+                        </label>
+                    </li>
+                    {% for board in boards %}
+                        <li>
+                            <input type="radio" name="board" value="{{ board.uri }}" id="ban-board-{{ board.uri }}" {% if edit_ban and current_board == board.uri %}checked{% endif %}>
+                            <label style="display:inline" for="ban-board-{{ board.uri }}">
+                                {{ config.board_abbreviation|sprintf(board.uri) }} - {{ board.title|e }}
+                            </label>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <div style="text-align: center; margin-top: 10px;">
+                    {% if current_page > 1 %}
+                        <a href="{% if edit_ban %}?/edit_ban/{{ ban_id }}&page={{ current_page - 1 }}{% elseif post and board %}?/{{ board_prefix }}{{ board }}/ban/{{ post }}&page={{ current_page - 1 }}{% else %}?/ban&page={{ current_page - 1 }}{% endif %}">{% trans 'Previous' %}</a>
+                    {% endif %}
+                    <span style="margin: 0 10px;">
+                        {% trans 'Page' %} {{ current_page }} {% trans 'of' %} {{ total_pages }}
+                    </span>
+                    {% if current_page < total_pages %}
+                        <a href="{% if edit_ban %}?/edit_ban/{{ ban_id }}&page={{ current_page + 1 }}{% elseif post and board %}?/{{ board_prefix }}{{ board }}/ban/{{ post }}&page={{ current_page + 1 }}{% else %}?/ban&page={{ current_page + 1 }}{% endif %}">{% trans 'Next' %}</a>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><input name="new_ban" type="submit" value="{% if edit_ban %}{% trans 'Edit Ban' %}{% else %}{% trans 'New Ban' %}{% endif %}"></td>
+        </tr>
+    </table>
 </form>
 
 {% if reasons %}
 <div style="text-align:center">
-	<h3>Predefined Reasons:</h3>
-	<table class="ban-reason-table">
-		<tr id="reason-selector-heading">
-			<th><b>Length</b></th>
-			<th><b>Reason</b></th>
-		</tr>
-		{% for key, reason in reasons %}
-		<tr id="reason-selector-id-{{ key }}">
-			<td>{% if not reason.length %}forever{% else %}{{ reason.length|e }}{% endif %}</td>
-			<td>{{ reason.reason|e }}</td>
-		</tr>
-		{% endfor %}
-	</table>
+    <h3>Predefined Reasons:</h3>
+    <table class="ban-reason-table">
+        <tr id="reason-selector-heading">
+            <th><b>Length</b></th>
+            <th><b>Reason</b></th>
+        </tr>
+        {% for key, reason in reasons %}
+        <tr id="reason-selector-id-{{ key }}">
+            <td>{% if not reason.length %}forever{% else %}{{ reason.length|e }}{% endif %}</td>
+            <td>{{ reason.reason|e }}</td>
+        </tr>
+        {% endfor %}
+    </table>
 </div>
 {% endif %}

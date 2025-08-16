@@ -1,0 +1,26 @@
+<h2>Manage Moderators for {{ board.uri }}</h2>
+<form method="post">
+    <input type="hidden" name="token" value="{{ token }}">
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Current Mod?</th>
+            <th>Action</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.username|e }}</td>
+            <td>{% if user.is_mod %}Yes{% else %}No{% endif %}</td>
+            <td>
+                {% if user.is_mod %}
+                    <button name="remove_user_id" value="{{ user.id }}">Remove</button>
+                {% else %}
+                    <button name="add_user_id" value="{{ user.id }}">Add</button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</form>

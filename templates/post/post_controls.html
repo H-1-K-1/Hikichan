@@ -1,41 +1,42 @@
 {% if mod %}
 
 <span class="controls {% if not post.thread %}op{% endif %}">
-{% if mod|hasPermission(config.mod.delete, board.uri) %}
+{% if mod|hasPermission(config.mod.delete, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{{ secure_link_confirm(config.mod.link_delete, 'Delete'|trans, 'Are you sure you want to delete this?'|trans, board.dir ~ 'delete/' ~ post.id) }}&nbsp;
 {% endif %}
-{% if mod|hasPermission(config.mod.deletebyip, board.uri) %}
+{% if mod|hasPermission(config.mod.deletebyip, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{{ secure_link_confirm(config.mod.link_deletebyip, 'Delete all posts by IP'|trans, 'Are you sure you want to delete all posts by this IP address?'|trans, board.dir ~ 'deletebyip/' ~ post.id) }}&nbsp;
 {% endif %}
 {% if mod|hasPermission(config.mod.deletebyip_global, board.uri) %}
 	{{ secure_link_confirm(config.mod.link_deletebyip_global, 'Delete all posts by IP across all boards'|trans, 'Are you sure you want to delete all posts by this IP address, across all boards?'|trans, board.dir ~ 'deletebyip/' ~ post.id ~ '/global') }}&nbsp;
 {% endif %}
-{% if mod|hasPermission(config.mod.ban, board.uri) %}
+{% if mod|hasPermission(config.mod.ban, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	<a title="{% trans %}Ban{% endtrans %}" href="?/{{ board.dir }}ban/{{ post.id }}">{{ config.mod.link_ban }}</a>&nbsp;
 {% endif %}
-{% if mod|hasPermission(config.mod.bandelete, board.uri) %}
+{% if mod|hasPermission(config.mod.bandelete, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	<a title="{% trans %}Ban & Delete{% endtrans %}" href="?/{{ board.dir }}ban&amp;delete/{{ post.id }}">{{ config.mod.link_bandelete }}</a>&nbsp;
 {% endif %}
 
 {% if not post.thread %}
-{% if mod|hasPermission(config.mod.sticky, board.uri) %}
+{% if mod|hasPermission(config.mod.sticky, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{% if post.sticky %}
 	<a title="{% trans %}Make thread not sticky{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'unsticky/' ~ post.id) }}">{{ config.mod.link_desticky }}</a>&nbsp;
 	{% else %}
 	<a title="{% trans %}Make thread sticky{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'sticky/' ~ post.id) }}">{{ config.mod.link_sticky }}</a>&nbsp;
 	{% endif %}
 {% endif %}
-{% if mod|hasPermission(config.mod.send_threads_to_archive, board.uri) %}
-			{{ secure_link_confirm(config.mod.link_send_to_archive, 'Send thread to archive'|trans, 'Are you sure you want to send thread to archive and delete it from the catalog?'|trans, board.dir ~ 'archive_thread/' ~ post.id ) }}&nbsp;
-		{% endif %}
-{% if mod|hasPermission(config.mod.bumplock, board.uri) %}
+{% if mod|hasPermission(config.mod.send_threads_to_archive, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
+	{{ secure_link_confirm(config.mod.link_send_to_archive, 'Send thread to archive'|trans, 'Are you sure you want to send thread to archive and delete it from the catalog?'|trans, board.dir ~ 'archive_thread/' ~ post.id ) }}&nbsp;
+{% endif %}
+
+{% if mod|hasPermission(config.mod.bumplock, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{% if post.sage %}
 	<a title="{% trans %}Allow thread to be bumped{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'bumpunlock/' ~ post.id) }}">{{ config.mod.link_bumpunlock }}</a>&nbsp;
 	{% else %}
 	<a title="{% trans %}Prevent thread from being bumped{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'bumplock/' ~ post.id) }}">{{ config.mod.link_bumplock }}</a>&nbsp;
 	{% endif %}
 {% endif %}
-{% if mod|hasPermission(config.mod.lock, board.uri) %}
+{% if mod|hasPermission(config.mod.lock, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{% if post.locked %}
 	<a title="{% trans %}Unlock thread{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'unlock/' ~ post.id) }}">{{ config.mod.link_unlock }}</a>&nbsp;
 	{% else %}
@@ -51,14 +52,14 @@
 		<a title="{% trans %}Move reply to another board{% endtrans %}" href="?/{{ board.dir }}move_reply/{{ post.id }}">{{ config.mod.link_move }}</a>&nbsp;
 	{% endif %}
 {% endif %}
-{% if mod|hasPermission(config.mod.cycle, board.uri) %}
+{% if mod|hasPermission(config.mod.cycle, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	{% if post.cycle %}
 	<a title="{% trans %}Make thread not cycle{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'uncycle/' ~ post.id) }}">{{ config.mod.link_uncycle }}</a>&nbsp;
 	{% else %}
 	<a title="{% trans %}Make thread cycle{% endtrans %}" href="?/{{ secure_link(board.dir ~ 'cycle/' ~ post.id) }}">{{ config.mod.link_cycle }}</a>&nbsp;
 	{% endif %}
 {% endif %}
-{% if mod|hasPermission(config.mod.editpost, board.uri) %}
+{% if mod|hasPermission(config.mod.editpost, board.uri) or ((board.owner_id is defined and mod.id == board.owner_id) and mod|hasPermission(config.mod.infinity)) %}
 	<a title="{% trans %}Edit post{% endtrans %}" href="?/{{ board.dir }}edit{% if config.mod.raw_html_default %}_raw{% endif %}/{{ post.id }}">{{ config.mod.link_editpost }}</a>&nbsp;
 {% endif %}
 </span>

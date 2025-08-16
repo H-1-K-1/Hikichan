@@ -213,12 +213,13 @@ function mod_logout(Context $ctx) {
 	header('Location: ?/', true, $config['redirect_http']);
 }
 
-function mod_dashboard(Context $ctx, $page_no = 1) {
-	global $mod;
-	$config = $ctx->get('config');
+function mod_dashboard(Context $ctx, $page_no = 1, $own_page_no = 1) {
+    global $mod;
+    $config = $ctx->get('config');
 
-	$args = [];
+    $args = [];
 
+    // All boards (paginated)
     $boards = listBoards();
     $per_page = 20;
     $page_no = max(1, (int)$page_no);
@@ -229,90 +230,107 @@ function mod_dashboard(Context $ctx, $page_no = 1) {
     $args['boardlist_total_pages'] = $total_pages;
     $args['boardlist_page_no'] = $page_no;
 
+    // Own boards (paginated)
+    $own_boards = [];
+    if (isset($mod['id'])) {
+        $query = prepare('SELECT * FROM ``boards`` WHERE `owner_id` = :owner_id ORDER BY `uri` ASC');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $own_boards = $query->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $own_page_no = max(1, (int)$own_page_no);
+    $own_total_boards = count($own_boards);
+    $own_total_pages = ceil($own_total_boards / $per_page);
+    $args['own_boards'] = array_slice($own_boards, ($own_page_no - 1) * $per_page, $per_page);
+    $args['own_boards_total_pages'] = $own_total_pages;
+    $args['own_boards_page_no'] = $own_page_no;
 
-	if (hasPermission($config['mod']['noticeboard'])) {
-		if (!$args['noticeboard'] = $ctx->get(CacheDriver::class)->get('noticeboard_preview')) {
-			$query = prepare("SELECT ``noticeboard``.*, `username` FROM ``noticeboard`` LEFT JOIN ``mods`` ON ``mods``.`id` = `mod` ORDER BY `id` DESC LIMIT :limit");
-			$query->bindValue(':limit', $config['mod']['noticeboard_dashboard'], PDO::PARAM_INT);
-			$query->execute() or error(db_error($query));
-			$args['noticeboard'] = $query->fetchAll(PDO::FETCH_ASSOC);
+    // Noticeboard
+    if (hasPermission($config['mod']['noticeboard'])) {
+        if (!$args['noticeboard'] = $ctx->get(CacheDriver::class)->get('noticeboard_preview')) {
+            $query = prepare("SELECT ``noticeboard``.*, `username` FROM ``noticeboard`` LEFT JOIN ``mods`` ON ``mods``.`id` = `mod` ORDER BY `id` DESC LIMIT :limit");
+            $query->bindValue(':limit', $config['mod']['noticeboard_dashboard'], PDO::PARAM_INT);
+            $query->execute() or error(db_error($query));
+            $args['noticeboard'] = $query->fetchAll(PDO::FETCH_ASSOC);
 
-			$ctx->get(CacheDriver::class)->set('noticeboard_preview', $args['noticeboard']);
-		}
-	}
+            $ctx->get(CacheDriver::class)->set('noticeboard_preview', $args['noticeboard']);
+        }
+    }
 
-	if ($args['unread_pms'] = $ctx->get(CacheDriver::class)->get('pm_unreadcount_' . $mod['id']) === false) {
-		$query = prepare('SELECT COUNT(*) FROM ``pms`` WHERE `to` = :id AND `unread` = 1');
-		$query->bindValue(':id', $mod['id']);
-		$query->execute() or error(db_error($query));
-		$args['unread_pms'] = $query->fetchColumn();
+    // Unread PMs
+    if (($args['unread_pms'] = $ctx->get(CacheDriver::class)->get('pm_unreadcount_' . $mod['id'])) === false) {
+        $query = prepare('SELECT COUNT(*) FROM ``pms`` WHERE `to` = :id AND `unread` = 1');
+        $query->bindValue(':id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $args['unread_pms'] = $query->fetchColumn();
 
-		$ctx->get(CacheDriver::class)->set('pm_unreadcount_' . $mod['id'], $args['unread_pms']);
-	}
+        $ctx->get(CacheDriver::class)->set('pm_unreadcount_' . $mod['id'], $args['unread_pms']);
+    }
 
-	$query = query('SELECT COUNT(*) FROM ``reports``') or error(db_error($query));
-	$args['reports'] = $query->fetchColumn();
+    // Reports count
+    $query = query('SELECT COUNT(*) FROM ``reports``') or error(db_error($query));
+    $args['reports'] = $query->fetchColumn();
 
-	$query = query('SELECT COUNT(*) FROM ``ban_appeals``') or error(db_error($query));
-	$args['appeals'] = $query->fetchColumn();
+    // Ban appeals count
+    $query = query('SELECT COUNT(*) FROM ``ban_appeals``') or error(db_error($query));
+    $args['appeals'] = $query->fetchColumn();
 
-	if ($mod['type'] >= ADMIN && $config['check_updates']) {
-		if (!$config['version'])
-			error(_('Could not find current version! (Check .installed)'));
+    // Version check
+    if ($mod['type'] >= ADMIN && $config['check_updates']) {
+        if (!$config['version'])
+            error(_('Could not find current version! (Check .installed)'));
 
-		if (isset($_COOKIE['update'])) {
-			$latest = unserialize($_COOKIE['update']);
-		} else {
-			$ctx = stream_context_create(array('http' => array('timeout' => 5)));
-			if ($code = @file_get_contents('http://engine.vichan.info/version.txt', 0, $ctx)) {
-				$ver = strtok($code, "\n");
+        if (isset($_COOKIE['update'])) {
+            $latest = unserialize($_COOKIE['update']);
+        } else {
+            $ctx_stream = stream_context_create(array('http' => array('timeout' => 5)));
+            if ($code = @file_get_contents('http://engine.vichan.info/version.txt', 0, $ctx_stream)) {
+                $ver = strtok($code, "\n");
 
-				if (preg_match('@^// v(\d+)\.(\d+)\.(\d+)\s*?$@', $ver, $matches)) {
-					$latest = array(
-						'massive' => $matches[1],
-						'major' => $matches[2],
-						'minor' => $matches[3]
-					);
-					if (preg_match('/(\d+)\.(\d)\.(\d+)(-dev.+)?$/', $config['version'], $matches)) {
-						$current = array(
-							'massive' => (int) $matches[1],
-							'major' => (int) $matches[2],
-							'minor' => (int) $matches[3]
-						);
-						if (isset($m[4])) {
-							// Development versions are always ahead in the versioning numbers
-							$current['minor'] --;
-						}
-						// Check if it's newer
-						if (!(	$latest['massive'] > $current['massive'] ||
-							$latest['major'] > $current['major'] ||
-								($latest['massive'] == $current['massive'] &&
-									$latest['major'] == $current['major'] &&
-									$latest['minor'] > $current['minor']
-								)))
-							$latest = false;
-					} else {
-						$latest = false;
-					}
-				} else {
-					// Couldn't get latest version
-					$latest = false;
-				}
-			} else {
-				// Couldn't get latest version
-				$latest = false;
-			}
+                if (preg_match('@^// v(\d+)\.(\d+)\.(\d+)\s*?$@', $ver, $matches)) {
+                    $latest = array(
+                        'massive' => $matches[1],
+                        'major' => $matches[2],
+                        'minor' => $matches[3]
+                    );
+                    if (preg_match('/(\d+)\.(\d)\.(\d+)(-dev.+)?$/', $config['version'], $matches)) {
+                        $current = array(
+                            'massive' => (int) $matches[1],
+                            'major' => (int) $matches[2],
+                            'minor' => (int) $matches[3]
+                        );
+                        if (isset($m[4])) {
+                            $current['minor'] --;
+                        }
+                        if (!(
+                            $latest['massive'] > $current['massive'] ||
+                            $latest['major'] > $current['major'] ||
+                            ($latest['massive'] == $current['massive'] &&
+                                $latest['major'] == $current['major'] &&
+                                $latest['minor'] > $current['minor']
+                            )
+                        ))
+                            $latest = false;
+                    } else {
+                        $latest = false;
+                    }
+                } else {
+                    $latest = false;
+                }
+            } else {
+                $latest = false;
+            }
 
-			setcookie('update', serialize($latest), time() + $config['check_updates_time'], $config['cookies']['jail'] ? $config['cookies']['path'] : '/', null, !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off', true);
-		}
+            setcookie('update', serialize($latest), time() + $config['check_updates_time'], $config['cookies']['jail'] ? $config['cookies']['path'] : '/', null, !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off', true);
+        }
 
-		if ($latest)
-			$args['newer_release'] = $latest;
-	}
+        if ($latest)
+            $args['newer_release'] = $latest;
+    }
 
-	$args['logout_token'] = make_secure_link_token('logout');
+    $args['logout_token'] = make_secure_link_token('logout');
 
-	mod_page(_('Dashboard'), $config['file_mod_dashboard'], $args, $mod);
+    mod_page(_('Dashboard'), $config['file_mod_dashboard'], $args, $mod);
 }
 
 function mod_search_boards(Context $ctx) {
@@ -534,172 +552,111 @@ function mod_edit_board(Context $ctx, $boardName) {
     if (!openBoard($boardName))
         error($config['error']['noboard']);
 
-    if (!hasPermission($config['mod']['manageboards'], $board['uri']))
+    // Only allow if user is admin/mod, or is BOTH the creator of the board AND has infinity permission
+    if (
+        !hasPermission($config['mod']['manageboards'], $board['uri']) &&
+        !(isset($board['owner_id']) && $mod['id'] == $board['owner_id'] && hasPermission($config['mod']['infinity']))
+    ) {
         error($config['error']['noaccess']);
+    }
 
     if (isset($_POST['title'], $_POST['subtitle'])) {
-        if (isset($_POST['delete'])) {
-            if (!hasPermission($config['mod']['manageboards'], $board['uri']))
-                error($config['error']['deleteboard']);
-
-            // Delete from the single archive table
-            $query = prepare('DELETE FROM `archive_threads` WHERE `board_uri` = :uri');
-            $query->bindValue(':uri', $board['uri'], PDO::PARAM_STR);
+        // Reassign owner if requested
+        if (isset($_POST['new_owner_username']) && $_POST['new_owner_username'] !== '') {
+            $query = prepare('SELECT `id` FROM ``mods`` WHERE `username` = :username');
+            $query->bindValue(':username', $_POST['new_owner_username']);
             $query->execute() or error(db_error($query));
-            
-            // Also delete votes for this board from archive_votes
-            $vote_query = prepare('DELETE FROM `archive_votes` WHERE `board` = :uri');
-            $vote_query->bindValue(':uri', $board['uri'], PDO::PARAM_STR);
-            $vote_query->execute() or error(db_error($vote_query));
-
-            $cache->delete('board_' . $board['uri']);
-            $cache->delete('all_boards');
-
-            modLog('Deleted board: ' . sprintf($config['board_abbreviation'], $board['uri']), false);
-            
-            // Clear reports
-            $query = prepare('DELETE FROM ``reports`` WHERE `board` = :id');
-            $query->bindValue(':id', $board['uri'], PDO::PARAM_STR);
-            $query->execute() or error(db_error($query));
-
-            // Delete all posts for this board from the unified posts table
-            $query = prepare('DELETE FROM ``posts`` WHERE `board` = :board');
-            $query->bindValue(':board', $board['uri'], PDO::PARAM_STR);
-            $query->execute() or error(db_error($query));
-
-            // Delete from boards table
-            $query = prepare('DELETE FROM ``boards`` WHERE `uri` = :uri');
-            $query->bindValue(':uri', $board['uri'], PDO::PARAM_STR);
-            $query->execute() or error(db_error($query));
-
-            // Remove cites
-            $query = prepare("SELECT `board`, `post` FROM ``cites`` WHERE `target_board` = :board ORDER BY `board`");
-            $query->bindValue(':board', $board['uri']);
-            $query->execute() or error(db_error($query));
-            while ($cite = $query->fetch(PDO::FETCH_ASSOC)) {
-                if ($board['uri'] != $cite['board']) {
-                    if (!isset($tmp_board))
-                        $tmp_board = $board;
-                    openBoard($cite['board']);
-                    rebuildPost($cite['post']);
-                }
+            $new_owner_id = $query->fetchColumn();
+            if ($new_owner_id) {
+                $query = prepare('UPDATE ``boards`` SET `owner_id` = :owner_id WHERE `uri` = :uri');
+                $query->bindValue(':owner_id', $new_owner_id);
+                $query->bindValue(':uri', $board['uri']);
+                $query->execute() or error(db_error($query));
+            } else {
+                error(_('Username not found. Board owner not changed.'));
             }
-            if (isset($tmp_board))
-                $board = $tmp_board;
-
-            $query = prepare('DELETE FROM ``cites`` WHERE `board` = :board OR `target_board` = :board');
-            $query->bindValue(':board', $board['uri']);
-            $query->execute() or error(db_error($query));
-
-            $query = prepare('DELETE FROM ``antispam`` WHERE `board` = :board');
-            $query->bindValue(':board', $board['uri']);
-            $query->execute() or error(db_error($query));
-
-            // Remove board from users/permissions table
-            $query = query('SELECT `id`,`boards` FROM ``mods``') or error(db_error());
-            while ($user = $query->fetch(PDO::FETCH_ASSOC)) {
-                $user_boards = explode(',', $user['boards']);
-                if (in_array($board['uri'], $user_boards)) {
-                    unset($user_boards[array_search($board['uri'], $user_boards)]);
-                    $_query = prepare('UPDATE ``mods`` SET `boards` = :boards WHERE `id` = :id');
-                    $_query->bindValue(':boards', implode(',', $user_boards));
-                    $_query->bindValue(':id', $user['id']);
-                    $_query->execute() or error(db_error($_query));
-                }
-            }
-            rrmdir($board['dir']);
-        } else {
-            $query = prepare('UPDATE ``boards`` SET `title` = :title, `subtitle` = :subtitle WHERE `uri` = :uri');
-            $query->bindValue(':uri', $board['uri']);
-            $query->bindValue(':title', $_POST['title']);
-            $query->bindValue(':subtitle', $_POST['subtitle']);
-            $query->execute() or error(db_error($query));
-            modLog('Edited board information for ' . sprintf($config['board_abbreviation'], $board['uri']), false);
         }
+        // ...existing update logic for title/subtitle...
+        $query = prepare('UPDATE ``boards`` SET `title` = :title, `subtitle` = :subtitle WHERE `uri` = :uri');
+        $query->bindValue(':title', $_POST['title']);
+        $query->bindValue(':subtitle', $_POST['subtitle']);
+        $query->bindValue(':uri', $board['uri']);
+        $query->execute() or error(db_error($query));
+
         $cache->delete('board_' . $board['uri']);
         $cache->delete('all_boards');
         Vichan\Functions\Theme\rebuild_themes('boards');
         header('Location: ?/', true, $config['redirect_http']);
+        exit;
     } else {
-        mod_page(
-            sprintf('%s: ' . $config['board_abbreviation'], _('Edit board'), $board['uri']),
-            $config['file_mod_board'],
-            [
-                'board' => $board, 
-                'token' => make_secure_link_token('edit/' .  $board['prefix'] . $board['uri'])
-            ],
-            $mod
-        );
+        // Fetch owner username for display
+        $owner_username = '';
+        if (isset($board['owner_id'])) {
+            $query = prepare('SELECT `username` FROM ``mods`` WHERE `id` = :id');
+            $query->bindValue(':id', $board['owner_id']);
+            $query->execute() or error(db_error($query));
+            $owner_username = $query->fetchColumn();
+        }
+        $args = [
+            'board' => array_merge($board, ['owner_username' => $owner_username]),
+            'token' => make_secure_link_token('edit/' . $board['dir_no_slash']),
+            'new' => false,
+            'config' => $config,
+            'mod' => $mod,
+        ];
+        mod_page(_('Edit board'), $config['file_mod_board'], $args, $mod);
     }
 }
 
 function mod_new_board(Context $ctx) {
-	global $board, $mod;
-	$config = $ctx->get('config');
+    global $board, $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['newboard']))
-		error($config['error']['noaccess']);
+    if (!hasPermission($config['mod']['newboard']) && !hasPermission($config['mod']['infinity']))
+        error($config['error']['noaccess']);
 
-	if (isset($_POST['uri'], $_POST['title'], $_POST['subtitle'])) {
-        if ($_POST['uri'] == '')
-			error(sprintf($config['error']['required'], 'URI'));
+    if (isset($_POST['uri'], $_POST['title'], $_POST['subtitle'])) {
+        $uri = strtolower(trim($_POST['uri']));
+        if (!preg_match('/^' . $config['board_regex'] . '$/u', $uri))
+            error(sprintf($config['error']['invalidfield'], 'URI'));
 
-		if ($_POST['title'] == '')
-			error(sprintf($config['error']['required'], 'title'));
+        // Check if board already exists
+        $query = prepare('SELECT COUNT(*) FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $uri);
+        $query->execute() or error(db_error($query));
+        if ($query->fetchColumn() > 0)
+            error(sprintf($config['error']['boardexists'], $uri));
 
-		if (!preg_match('/^' . $config['board_regex'] . '$/u', $_POST['uri']))
-			error(sprintf($config['error']['invalidfield'], 'URI'));
+        $cache = $ctx->get(CacheDriver::class);
 
-		$cache = $ctx->get(CacheDriver::class);
+        // Insert owner_id as the creator
+        $query = prepare('INSERT INTO ``boards`` (`uri`, `title`, `subtitle`, `owner_id`) VALUES (:uri, :title, :subtitle, :owner_id)');
+        $query->bindValue(':uri', $uri);
+        $query->bindValue(':title', $_POST['title']);
+        $query->bindValue(':subtitle', $_POST['subtitle']);
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
 
-		$bytes = 0;
-		$chars = preg_split('//u', $_POST['uri'], -1, PREG_SPLIT_NO_EMPTY);
-		foreach ($chars as $char) {
-			$o = 0;
-			$ord = ordutf8($char, $o);
-			if ($ord > 0x0080)
-				$bytes += 5;
-			else
-				$bytes++;
-		}
-		$bytes += strlen('posts_.frm');
+        // Setup board directory and config
+        setupBoard([
+            'uri' => $uri,
+            'title' => $_POST['title'],
+            'subtitle' => $_POST['subtitle'],
+        ]);
 
-		if ($bytes > 255) {
-			error('Your filesystem cannot handle a board URI of that length (' . $bytes . '/255 bytes)');
-			exit;
-		}
+        $cache->delete('all_boards');
+        Vichan\Functions\Theme\rebuild_themes('boards');
+        header('Location: ?/', true, $config['redirect_http']);
+        exit;
+    }
 
-		if (openBoard($_POST['uri'])) {
-			error(sprintf($config['error']['boardexists'], $board['url']));
-		}
-
-		$query = prepare('INSERT INTO ``boards`` VALUES (:uri, :title, :subtitle)');
-		$query->bindValue(':uri', $_POST['uri']);
-		$query->bindValue(':title', $_POST['title']);
-		$query->bindValue(':subtitle', $_POST['subtitle']);
-		$query->execute() or error(db_error($query));
-
-		modLog('Created a new board: ' . sprintf($config['board_abbreviation'], $_POST['uri']));
-
-		if (!openBoard($_POST['uri']))
-			error(_("Couldn't open board after creation."));
-
-		// No per-board archive table creation; archive is global.
-
-		$cache->delete('all_boards');
-		buildIndex();
-		Vichan\Functions\Theme\rebuild_themes('boards');
-		header('Location: ?/', true, $config['redirect_http']);
-	}
-	mod_page(
-		_('New board'),
-		$config['file_mod_board'],
-		[
-			'new' => true,
-			'token' => make_secure_link_token('new-board')
-		],
-		$mod
-	);
+    $args = [
+        'token' => make_secure_link_token('new-board'),
+        'new' => true,
+        'config' => $config,
+        'mod' => $mod,
+    ];
+    mod_page(_('Create board'), $config['file_mod_board'], $args, $mod);
 }
 
 function mod_noticeboard(Context $ctx, $page_no = 1) {
@@ -1155,230 +1112,520 @@ function mod_ip(Context $ctx, $cip) {
 }
 
 function mod_edit_ban(Context $ctx, $ban_id) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['edit_ban']))
-		error($config['error']['noaccess']);
+    // Validate ban_id
+    if (!is_numeric($ban_id) || $ban_id <= 0) {
+        error($config['error']['404']);
+    }
 
-	$args['bans'] = Bans::find(null, false, true, $ban_id, $config['auto_maintenance']);
-	$args['ban_id'] = $ban_id;
-	$args['boards'] = listBoards();
-	$args['current_board'] = isset($args['bans'][0]['board']) ? $args['bans'][0]['board'] : false;
+    // Fetch ban details
+    $args['bans'] = Bans::find(null, false, !hasPermission($config['mod']['view_banstaff']), $ban_id, $config['auto_maintenance']);
+    if (empty($args['bans'])) {
+        error($config['error']['404']);
+    }
+    $args['ban_id'] = $ban_id;
 
-	if (!$args['bans'])
-		error($config['error']['404']);
+    // Fetch board info for the ban
+    $current_board = isset($args['bans'][0]['board']) ? $args['bans'][0]['board'] : false;
+    $is_board_owner = false;
+    if ($current_board) {
+        $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $current_board);
+        $query->execute() or error(db_error($query));
+        $board_info = $query->fetch(PDO::FETCH_ASSOC);
+        if ($board_info) {
+            $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+        }
+    }
 
-	if (isset($_POST['new_ban'])) {
+    // Permission check: edit_ban permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['edit_ban'], $current_board) &&
+        !$is_board_owner
+    ) {
+        error($config['error']['noaccess']);
+    }
 
-		$new_ban['mask'] = $args['bans'][0]['mask'];
-		$new_ban['post'] = isset($args['bans'][0]['post']) ? $args['bans'][0]['post'] : false;
-		$new_ban['board'] = $args['current_board'];
+    // Fetch all boards for total count
+    $all_boards = listBoards();
+    $total_boards = count($all_boards);
 
-		if (isset($_POST['reason']))
-			$new_ban['reason'] = $_POST['reason'];
-		else
-			$new_ban['reason'] = $args['bans'][0]['reason'];
+    // Restrict board owners without edit_ban permission to their own boards
+    if (!hasPermission($config['mod']['edit_ban'], $current_board) && $is_board_owner && isset($mod['id'])) {
+        $all_boards = array_filter($all_boards, function($b) use ($mod) {
+            return isset($b['owner_id']) && $b['owner_id'] == $mod['id'];
+        });
+    }
 
-		if (isset($_POST['length']) && !empty($_POST['length']))
-			$new_ban['length'] = $_POST['length'];
-		else
-			$new_ban['length'] = false;
+    // Pagination settings
+    $items_per_page = isset($config['mod']['boards_per_page']) ? $config['mod']['boards_per_page'] : 10;
+    $current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $offset = ($current_page - 1) * $items_per_page;
 
-		if (isset($_POST['board'])) {
-			if ($_POST['board'] == '*')
-				$new_ban['board'] = false;
-			else
-				$new_ban['board'] = $_POST['board'];
-		}
+    // Prepare arguments for the template
+    $args['boards'] = array_slice($all_boards, $offset, $items_per_page);
+    $args['current_board'] = $current_board;
+    $args['total_pages'] = ceil(count($all_boards) / $items_per_page);
+    $args['current_page'] = $current_page;
+    $args['items_per_page'] = $items_per_page;
+    $args['action'] = '?/edit_ban/' . $ban_id;
+    $args['is_board_owner'] = $is_board_owner;
+    $args['token'] = make_secure_link_token('edit_ban/' . $ban_id);
 
-		Bans::new_ban($new_ban['mask'], $new_ban['reason'], $new_ban['length'], $new_ban['board'], false, $new_ban['post']);
-		Bans::delete($ban_id);
+    if (isset($_POST['new_ban'])) {
+        // Validate new board
+        $new_board = isset($_POST['board']) ? basename($_POST['board']) : $current_board;
+        if ($new_board !== '*' && $new_board !== $current_board) {
+            $board_exists = false;
+            foreach ($all_boards as $b) {
+                if ($b['uri'] === $new_board) {
+                    $board_exists = true;
+                    break;
+                }
+            }
+            if (!$board_exists) {
+                error($config['error']['invalidboard']);
+            }
+            if (!hasPermission($config['mod']['edit_ban'], $new_board) && $is_board_owner) {
+                $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+                $query->bindValue(':uri', $new_board);
+                $query->execute() or error(db_error($query));
+                $new_board_info = $query->fetch(PDO::FETCH_ASSOC);
+                if (!$new_board_info || $new_board_info['owner_id'] != $mod['id']) {
+                    error($config['error']['noaccess']);
+                }
+            }
+        }
 
-		header('Location: ?/', true, $config['redirect_http']);
-	}
+        // Prepare new ban data
+        $new_ban = [
+            'mask' => $args['bans'][0]['mask'],
+            'post' => isset($args['bans'][0]['post']) ? $args['bans'][0]['post'] : false,
+            'reason' => isset($_POST['reason']) ? $_POST['reason'] : $args['bans'][0]['reason'],
+            'length' => isset($_POST['length']) && !empty($_POST['length']) ? $_POST['length'] : false,
+            'board' => $new_board == '*' ? false : $new_board
+        ];
 
-	$args['token'] = make_secure_link_token('edit_ban/' . $ban_id);
+        // Handle ban creation
+        if ($is_board_owner && $new_board == '*' && !hasPermission($config['mod']['edit_ban'], $current_board)) {
+            // Delete original ban
+            Bans::delete($ban_id);
+            // Create bans for all owned boards
+            foreach ($all_boards as $board) {
+                Bans::new_ban($new_ban['mask'], $new_ban['reason'], $new_ban['length'], $board['uri'], false, $new_ban['post']);
+            }
+        } else {
+            // Create new ban for single board or global
+            Bans::new_ban($new_ban['mask'], $new_ban['reason'], $new_ban['length'], $new_ban['board'], false, $new_ban['post']);
+            Bans::delete($ban_id);
+        }
 
-	mod_page(_('Edit ban'), 'mod/edit_ban.html', $args, $mod);
+        header('Location: ?/', true, $config['redirect_http']);
+        return;
+    }
+
+    mod_page(_('Edit ban'), 'mod/ban_form.html', $args, $mod);
 }
 
 function mod_ban(Context $ctx) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['ban']))
-		error($config['error']['noaccess']);
+    // Fetch all boards for total count
+    $all_boards = listBoards();
+    $total_boards = count($all_boards);
 
-	if (!isset($_POST['ip'], $_POST['reason'], $_POST['length'], $_POST['board'])) {
-		mod_page(_('New ban'), $config['file_mod_ban_form'], [ 'token' => make_secure_link_token('ban') ], $mod);
-		return;
-	}
+    // Initialize board owner flag
+    $is_board_owner = false;
 
-	Bans::new_ban($_POST['ip'], $_POST['reason'], $_POST['length'], $_POST['board'] == '*' ? false : $_POST['board']);
+    // Restrict board owners without ban permission to their own boards
+    if (isset($mod['id']) && hasPermission($config['mod']['infinity'])) {
+        $query = prepare('SELECT `uri` FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $owned_boards = $query->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($owned_boards)) {
+            $is_board_owner = true;
+            if (!hasPermission($config['mod']['ban'])) {
+                $all_boards = array_filter($all_boards, function($b) use ($mod) {
+                    return isset($b['owner_id']) && $b['owner_id'] == $mod['id'];
+                });
+            }
+        }
+    }
 
-	if (isset($_POST['redirect']))
-		header('Location: ' . $_POST['redirect'], true, $config['redirect_http']);
-	else
-		header('Location: ?/', true, $config['redirect_http']);
+    // Pagination settings
+    $items_per_page = isset($config['mod']['boards_per_page']) ? $config['mod']['boards_per_page'] : 10;
+    $current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $offset = ($current_page - 1) * $items_per_page;
+
+    // Apply pagination to boards list
+    $boards = array_slice($all_boards, $offset, $items_per_page);
+    $total_pages = ceil(count($all_boards) / $items_per_page);
+
+    // If no board is specified, show the form
+    if (!isset($_POST['board'])) {
+        $args = [
+            'token' => make_secure_link_token('ban'),
+            'action' => '?/ban',
+            'boards' => $boards,
+            'current_page' => $current_page,
+            'total_pages' => $total_pages,
+            'items_per_page' => $items_per_page,
+            'is_board_owner' => $is_board_owner
+        ];
+        mod_page(_('New ban'), $config['file_mod_ban_form'], $args);
+        return;
+    }
+
+    $board_uri = basename($_POST['board']);
+
+    // Validate board exists
+    $board_exists = false;
+    foreach ($all_boards as $b) {
+        if ($b['uri'] === $board_uri) {
+            $board_exists = true;
+            break;
+        }
+    }
+    if (!$board_exists && $board_uri !== '*') {
+        error($config['error']['invalidboard']);
+    }
+
+    // Fetch board info if not global ban
+    $board_info = false;
+    $current_board_owner = false;
+    if ($board_uri !== '*') {
+        $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $board_uri);
+        $query->execute() or error(db_error($query));
+        $board_info = $query->fetch(PDO::FETCH_ASSOC);
+        if (!$board_info) {
+            error($config['error']['invalidboard']);
+        }
+        $current_board_owner = isset($board_info['owner_id']) && $board_info['owner_id'] == $mod['id'] && hasPermission($config['mod']['infinity']);
+    }
+
+    // Check permissions
+    if (
+        !hasPermission($config['mod']['ban'], $board_uri) &&
+        !$current_board_owner
+    ) {
+        error($config['error']['noaccess']);
+    }
+
+    if (!isset($_POST['ip'], $_POST['reason'], $_POST['length'])) {
+        $args = [
+            'token' => make_secure_link_token('ban'),
+            'action' => '?/ban',
+            'boards' => $boards,
+            'current_page' => $current_page,
+            'total_pages' => $total_pages,
+            'items_per_page' => $items_per_page,
+            'is_board_owner' => $is_board_owner
+        ];
+        mod_page(_('New ban'), $config['file_mod_ban_form'], $args);
+        return;
+    }
+
+    // Handle ban creation
+    if ($is_board_owner && $board_uri == '*' && !hasPermission($config['mod']['ban'])) {
+        // Board owner banning on all their boards
+        foreach ($all_boards as $board) {
+            Bans::new_ban($_POST['ip'], $_POST['reason'], $_POST['length'], $board['uri']);
+        }
+    } else {
+        // Single board ban
+        $ban_board = ($board_uri == '*' ? false : $board_uri);
+        // Validate that board owners without ban permission can only ban on their boards
+        if (!hasPermission($config['mod']['ban'], $ban_board) && $is_board_owner && $ban_board && !$current_board_owner) {
+            error($config['error']['noaccess']);
+        }
+        Bans::new_ban($_POST['ip'], $_POST['reason'], $_POST['length'], $ban_board);
+    }
+
+    if (isset($_POST['redirect']))
+        header('Location: ' . $_POST['redirect'], true, $config['redirect_http']);
+    else
+        header('Location: ?/', true, $config['redirect_http']);
 }
 
 function mod_bans(Context $ctx) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['view_banlist']))
-		error($config['error']['noaccess']);
+    // Determine accessible boards
+    $is_board_owner = false;
+    if (isset($mod['id']) && hasPermission($config['mod']['infinity'])) {
+        $query = prepare('SELECT `uri` FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $owned_boards = $query->fetchAll(PDO::FETCH_COLUMN);
+        $mod['boards'] = !empty($owned_boards) ? $owned_boards : [];
+        $is_board_owner = !empty($mod['boards']);
+    } else {
+        $mod['boards'] = ['*'];
+    }
 
-	if (isset($_POST['unban'])) {
-		if (!hasPermission($config['mod']['unban']))
-			error($config['error']['noaccess']);
+    // Check permissions: view_banlist permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['view_banlist']) &&
+        !($is_board_owner && hasPermission($config['mod']['infinity']))
+    ) {
+        error($config['error']['noaccess']);
+    }
 
-		$unban = [];
-		foreach ($_POST as $name => $unused) {
-			if (preg_match('/^ban_(\d+)$/', $name, $match))
-				$unban[] = $match[1];
-		}
-		if (isset($config['mod']['unban_limit']) && $config['mod']['unban_limit'] && count($unban) > $config['mod']['unban_limit'])
-			error(sprintf($config['error']['toomanyunban'], $config['mod']['unban_limit'], count($unban)));
+    // Unban handling
+    if (isset($_POST['unban'])) {
+        if (
+            !hasPermission($config['mod']['unban']) &&
+            !($is_board_owner && hasPermission($config['mod']['infinity']))
+        ) {
+            error($config['error']['noaccess']);
+        }
 
-		foreach ($unban as $id) {
-			Bans::delete($id, true, $mod['boards'], true);
-		}
-		Vichan\Functions\Theme\rebuild_themes('bans');
-		header('Location: ?/bans', true, $config['redirect_http']);
-		return;
-	}
+        $unban = [];
+        foreach ($_POST as $name => $unused) {
+            if (preg_match('/^ban_(\d+)$/', $name, $match))
+                $unban[] = $match[1];
+        }
+        if (isset($config['mod']['unban_limit']) && $config['mod']['unban_limit'] && count($unban) > $config['mod']['unban_limit'])
+            error(sprintf($config['error']['toomanyunban'], $config['mod']['unban_limit'], count($unban)));
 
-	mod_page(
-		_('Ban list'),
-		$config['file_mod_ban_list'],
-		[
-			'mod' => $mod,
-			'boards' => json_encode($mod['boards']),
-			'token' => make_secure_link_token('bans'),
-			'token_json' => make_secure_link_token('bans.json')
-		],
-		$mod
-	);
+        foreach ($unban as $id) {
+            Bans::delete($id, true, hasPermission($config['mod']['unban']) ? ['*'] : $mod['boards'], true);
+        }
+        Vichan\Functions\Theme\rebuild_themes('bans');
+        header('Location: ?/bans', true, $config['redirect_http']);
+        return;
+    }
+
+    // Fetch bans for accessible boards
+    $bans = Bans::find(
+        null,
+        false,
+        !hasPermission($config['mod']['view_banstaff']),
+        null,
+        $config['auto_maintenance'],
+        hasPermission($config['mod']['view_banlist']) ? ['*'] : $mod['boards']
+    );
+
+    // Pagination settings
+    $items_per_page = isset($config['mod']['bans_per_page']) ? $config['mod']['bans_per_page'] : 20;
+    $current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $offset = ($current_page - 1) * $items_per_page;
+    $total_bans = count($bans);
+    $bans = array_slice($bans, $offset, $items_per_page);
+    $total_pages = ceil($total_bans / $items_per_page);
+
+    mod_page(
+        _('Ban list'),
+        $config['file_mod_ban_list'],
+        [
+            'boards' => json_encode($mod['boards']),
+            'bans' => $bans,
+            'token' => make_secure_link_token('bans'),
+            'token_json' => make_secure_link_token('bans.json'),
+            'current_page' => $current_page,
+            'total_pages' => $total_pages,
+            'items_per_page' => $items_per_page
+        ],
+        $mod // Added the $mod parameter
+    );
 }
 
 function mod_bans_json(Context $ctx) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['ban']))
-		error($config['error']['noaccess']);
+    // Determine accessible boards
+    $is_board_owner = false;
+    if (isset($mod['id']) && hasPermission($config['mod']['infinity'])) {
+        $query = prepare('SELECT `uri` FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $owned_boards = $query->fetchAll(PDO::FETCH_COLUMN);
+        $mod['boards'] = !empty($owned_boards) ? $owned_boards : [];
+        $is_board_owner = !empty($mod['boards']);
+    } else {
+        $mod['boards'] = ['*'];
+    }
 
-	// Compress the json for faster loads
-	if (substr_count($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')) ob_start("ob_gzhandler");
+    // Check permissions: view_banlist permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['view_banlist']) &&
+        !($is_board_owner && hasPermission($config['mod']['infinity']))
+    ) {
+        error($config['error']['noaccess']);
+    }
 
-	Bans::stream_json(false, false, !hasPermission($config['mod']['view_banstaff']), $mod['boards']);
+    if (substr_count($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip')) ob_start("ob_gzhandler");
+
+    // Stream bans for accessible boards
+    Bans::stream_json(
+        false,
+        false,
+        !hasPermission($config['mod']['view_banstaff']),
+        hasPermission($config['mod']['view_banlist']) ? ['*'] : $mod['boards']
+    );
 }
 
 function mod_ban_appeals(Context $ctx) {
-	global $board, $mod;
-	$config = $ctx->get('config');
+    global $board, $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['view_ban_appeals']))
-		error($config['error']['noaccess']);
+    // Determine accessible boards
+    $is_board_owner = false;
+    if (isset($mod['id']) && hasPermission($config['mod']['infinity'])) {
+        $query = prepare('SELECT `uri` FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $owned_boards = $query->fetchAll(PDO::FETCH_COLUMN);
+        $mod['boards'] = !empty($owned_boards) ? $owned_boards : [];
+        $is_board_owner = !empty($mod['boards']);
+    } else {
+        $mod['boards'] = ['*'];
+    }
 
-	if (isset($_POST['appeal_id']) && (isset($_POST['unban']) || isset($_POST['deny']))) {
-		if (!hasPermission($config['mod']['ban_appeals']))
-			error($config['error']['noaccess']);
+    // Check permissions: view_ban_appeals permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['view_ban_appeals']) &&
+        !($is_board_owner && hasPermission($config['mod']['infinity']))
+    ) {
+        error($config['error']['noaccess']);
+    }
 
-		$query = query("SELECT *, ``ban_appeals``.`id` AS `id` FROM ``ban_appeals``
-			LEFT JOIN ``bans`` ON `ban_id` = ``bans``.`id`
-			WHERE ``ban_appeals``.`id` = " . (int)$_POST['appeal_id']) or error(db_error());
-		if (!$ban = $query->fetch(PDO::FETCH_ASSOC)) {
-			error(_('Ban appeal not found!'));
-		}
+    if (isset($_POST['appeal_id']) && (isset($_POST['unban']) || isset($_POST['deny']))) {
+        // Check permissions for unban/deny: ban_appeals permission or board owner with infinity permission
+        if (
+            !hasPermission($config['mod']['ban_appeals']) &&
+            !($is_board_owner && hasPermission($config['mod']['infinity']))
+        ) {
+            error($config['error']['noaccess']);
+        }
 
-		$ban['mask'] = cloak_mask(Bans::range_to_string(array($ban['ipstart'], $ban['ipend'])));
+        $query = query("SELECT *, ``ban_appeals``.`id` AS `id` FROM ``ban_appeals``
+            LEFT JOIN ``bans`` ON `ban_id` = ``bans``.`id`
+            WHERE ``ban_appeals``.`id` = " . (int)$_POST['appeal_id']) or error(db_error());
+        if (!$ban = $query->fetch(PDO::FETCH_ASSOC)) {
+            error(_('Ban appeal not found!'));
+        }
 
-		if (isset($_POST['unban'])) {
-			modLog('Accepted ban appeal #' . $ban['id'] . ' for ' . $ban['mask']);
-			Bans::delete($ban['ban_id'], true);
-			query("DELETE FROM ``ban_appeals`` WHERE `id` = " . $ban['id']) or error(db_error());
-		} else {
-			modLog('Denied ban appeal #' . $ban['id'] . ' for ' . $ban['mask']);
-			query("UPDATE ``ban_appeals`` SET `denied` = 1 WHERE `id` = " . $ban['id']) or error(db_error());
-		}
+        // Validate that board owners can only manage appeals for their boards
+        if ($is_board_owner && !hasPermission($config['mod']['ban_appeals']) && $ban['board'] && !in_array($ban['board'], $mod['boards'])) {
+            error($config['error']['noaccess']);
+        }
 
-		header('Location: ?/ban-appeals', true, $config['redirect_http']);
-		return;
-	}
+        $ban['mask'] = cloak_mask(Bans::range_to_string(array($ban['ipstart'], $ban['ipend'])));
 
-	$query = query("SELECT *, ``ban_appeals``.`id` AS `id` FROM ``ban_appeals``
-		LEFT JOIN ``bans`` ON `ban_id` = ``bans``.`id`
-		LEFT JOIN ``mods`` ON ``bans``.`creator` = ``mods``.`id`
-		WHERE `denied` != 1 ORDER BY `time`") or error(db_error());
-	$ban_appeals = $query->fetchAll(PDO::FETCH_ASSOC);
-	foreach ($ban_appeals as &$ban) {
-		if ($ban['post'])
-			$ban['post'] = json_decode($ban['post'], true);
-		$ban['mask'] = Bans::range_to_string(array($ban['ipstart'], $ban['ipend']));
+        if (isset($_POST['unban'])) {
+            modLog('Accepted ban appeal #' . $ban['id'] . ' for ' . $ban['mask']);
+            Bans::delete($ban['ban_id'], true, hasPermission($config['mod']['ban_appeals']) ? ['*'] : $mod['boards'], true);
+            query("DELETE FROM ``ban_appeals`` WHERE `id` = " . $ban['id']) or error(db_error());
+        } else {
+            modLog('Denied ban appeal #' . $ban['id'] . ' for ' . $ban['mask']);
+            query("UPDATE ``ban_appeals`` SET `denied` = 1 WHERE `id` = " . $ban['id']) or error(db_error());
+        }
 
-		if ($ban['post'] && isset($ban['post']['board'], $ban['post']['id'])) {
-			if (openBoard($ban['post']['board'])) {
-				$query = prepare("SELECT `num_files`, `files` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
-				$query->bindValue(':board', $board['uri']);
-				$query->bindValue(':id', (int)$ban['post']['id']);
-				$query->execute() or error(db_error($query));
-				if ($_post = $query->fetch(PDO::FETCH_ASSOC)) {
-					$_post['files'] = $_post['files'] ? json_decode($_post['files']) : [];
-					$ban['post'] = array_merge($ban['post'], $_post);
-				} else {
-					$ban['post']['files'] = array([]);
-					$ban['post']['files'][0]['file'] = 'deleted';
-					$ban['post']['files'][0]['thumb'] = false;
-					$ban['post']['num_files'] = 1;
-				}
-			} else {
-				$ban['post']['files'] = array([]);
-				$ban['post']['files'][0]['file'] = 'deleted';
-				$ban['post']['files'][0]['thumb'] = false;
-				$ban['post']['num_files'] = 1;
-			}
+        header('Location: ?/ban-appeals', true, $config['redirect_http']);
+        return;
+    }
 
-			if ($ban['post']['thread']) {
-				$ban['post'] = new Post($ban['post']);
-			} else {
-				$ban['post'] = new Thread($ban['post'], null, false, false);
-			}
-		}
-	}
+    // Fetch ban appeals for accessible boards
+    $boards_sql = hasPermission($config['mod']['view_ban_appeals']) ? '' : 'AND ``bans``.`board` IN (' . implode(',', array_map(function($uri) { return "'" . addslashes($uri) . "'"; }, $mod['boards'])) . ')';
+    $query = query("SELECT *, ``ban_appeals``.`id` AS `id` FROM ``ban_appeals``
+        LEFT JOIN ``bans`` ON `ban_id` = ``bans``.`id`
+        LEFT JOIN ``mods`` ON ``bans``.`creator` = ``mods``.`id`
+        WHERE `denied` != 1 $boards_sql ORDER BY `time`") or error(db_error());
+    $ban_appeals = $query->fetchAll(PDO::FETCH_ASSOC);
 
-	mod_page(
-		_('Ban appeals'),
-		$config['file_mod_ban_appeals'],
-		[
-			'ban_appeals' => $ban_appeals,
-			'token' => make_secure_link_token('ban-appeals')
-		],
-		$mod
-	);
+    foreach ($ban_appeals as &$ban) {
+        if ($ban['post']) {
+            $ban['post'] = json_decode($ban['post'], true);
+        }
+        $ban['mask'] = Bans::range_to_string(array($ban['ipstart'], $ban['ipend']));
+
+        if ($ban['post'] && isset($ban['post']['board'], $ban['post']['id'])) {
+            if (openBoard($ban['post']['board'])) {
+                $query = prepare("SELECT `num_files`, `files` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
+                $query->bindValue(':board', $ban['post']['board']);
+                $query->bindValue(':id', (int)$ban['post']['id']);
+                $query->execute() or error(db_error($query));
+                if ($_post = $query->fetch(PDO::FETCH_ASSOC)) {
+                    $_post['files'] = $_post['files'] ? json_decode($_post['files']) : [];
+                    $ban['post'] = array_merge($ban['post'], $_post);
+                } else {
+                    $ban['post']['files'] = [[]];
+                    $ban['post']['files'][0]['file'] = 'deleted';
+                    $ban['post']['files'][0]['thumb'] = false;
+                    $ban['post']['num_files'] = 1;
+                }
+            } else {
+                $ban['post']['files'] = [[]];
+                $ban['post']['files'][0]['file'] = 'deleted';
+                $ban['post']['files'][0]['thumb'] = false;
+                $ban['post']['num_files'] = 1;
+            }
+
+            if ($ban['post']['thread']) {
+                $ban['post'] = new Post($ban['post']);
+            } else {
+                $ban['post'] = new Thread($ban['post'], null, false, false);
+            }
+        }
+    }
+
+    mod_page(
+        _('Ban appeals'),
+        $config['file_mod_ban_appeals'],
+        [
+            'ban_appeals' => $ban_appeals,
+            'token' => make_secure_link_token('ban-appeals'),
+            'boards' => json_encode($mod['boards']),
+            'is_board_owner' => $is_board_owner
+        ],
+        $mod
+    );
 }
 
 function mod_lock(Context $ctx, $board, $unlock, $post) {
+    global $mod;
     $config = $ctx->get('config');
 
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['lock'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: lock permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['lock'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
-    // Use the board URI to construct the table name
+    // Update thread lock status
     $query = prepare('UPDATE ``posts`` SET `locked` = :locked WHERE `board` = :board AND `id` = :id AND `thread` IS NULL');
-	$query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post);
-    $query->bindValue(':locked', $unlock ? 0 : 1);
+    $query->bindValue(':board', $board_uri);
+    $query->bindValue(':id', (int)$post);
+    $query->bindValue(':locked', $unlock ? 0 : 1, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
     if ($query->rowCount()) {
@@ -1390,7 +1637,7 @@ function mod_lock(Context $ctx, $board, $unlock, $post) {
     if ($config['mod']['dismiss_reports_on_lock']) {
         $query = prepare('DELETE FROM ``reports`` WHERE `board` = :board AND `post` = :id');
         $query->bindValue(':board', $board_uri);
-        $query->bindValue(':id', $post);
+        $query->bindValue(':id', (int)$post);
         $query->execute() or error(db_error($query));
     }
 
@@ -1405,24 +1652,41 @@ function mod_lock(Context $ctx, $board, $unlock, $post) {
 }
 
 function mod_sticky(Context $ctx, $board, $unsticky, $post) {
+    global $mod;
     $config = $ctx->get('config');
 
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['sticky'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: sticky permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['sticky'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
-    // Correct: update the `sticky` column, not `locked`
+    // Update thread sticky status
     $query = prepare('UPDATE ``posts`` SET `sticky` = :sticky WHERE `board` = :board AND `id` = :id AND `thread` IS NULL');
     $query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post);
-    $query->bindValue(':sticky', $unsticky ? 0 : 1);
+    $query->bindValue(':id', (int)$post);
+    $query->bindValue(':sticky', $unsticky ? 0 : 1, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
     if ($query->rowCount()) {
@@ -1436,25 +1700,42 @@ function mod_sticky(Context $ctx, $board, $unsticky, $post) {
 }
 
 function mod_cycle(Context $ctx, $board, $uncycle, $post) {
+    global $mod;
     $config = $ctx->get('config');
 
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['cycle'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: cycle permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['cycle'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
-    // Use the board URI to construct the table name
+    // Update thread cycle status
     $query = prepare('UPDATE ``posts`` SET `cycle` = :cycle WHERE `board` = :board AND `id` = :id AND `thread` IS NULL');
-	$query->bindValue(':board', $board_uri);
-	$query->bindValue(':id', $post);
-	$query->bindValue(':cycle', $uncycle ? 0 : 1);
-	$query->execute() or error(db_error($query));
+    $query->bindValue(':board', $board_uri);
+    $query->bindValue(':id', (int)$post);
+    $query->bindValue(':cycle', $uncycle ? 0 : 1, PDO::PARAM_INT);
+    $query->execute() or error(db_error($query));
 
     if ($query->rowCount()) {
         modLog(($uncycle ? 'Made not cyclical' : 'Made cyclical') . " thread #{$post}");
@@ -1467,24 +1748,41 @@ function mod_cycle(Context $ctx, $board, $uncycle, $post) {
 }
 
 function mod_bumplock(Context $ctx, $board, $unbumplock, $post) {
+    global $mod;
     $config = $ctx->get('config');
 
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['bumplock'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: bumplock permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['bumplock'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
-    // Correct: update the `sage` column, not `locked`
+    // Update thread bumplock status
     $query = prepare('UPDATE ``posts`` SET `sage` = :sage WHERE `board` = :board AND `id` = :id AND `thread` IS NULL');
     $query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post);
-    $query->bindValue(':sage', $unbumplock ? 0 : 1);
+    $query->bindValue(':id', (int)$post);
+    $query->bindValue(':sage', $unbumplock ? 0 : 1, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
     if ($query->rowCount()) {
@@ -1908,21 +2206,39 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['ban'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: ban permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['ban'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
-	$board_prefix = rtrim(dirname(sprintf($config['board_path'], $board_uri)), '/') . '/';
-    $security_token = make_secure_link_token($board_prefix . $board_uri . '/ban/' . $post);
+
+    $board_prefix = rtrim(dirname(sprintf($config['board_path'], $board_uri)), '/') . '/';
+    $security_token = make_secure_link_token($board_prefix . $board_uri . '/ban/' . (int)$post);
 
     $query = prepare('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
-    ' FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-	$query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post);
+        ' FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+    $query->bindValue(':board', $board_uri);
+    $query->bindValue(':id', (int)$post);
     $query->execute() or error(db_error($query));
+
     if (!$_post = $query->fetch(PDO::FETCH_ASSOC)) {
         error($config['error']['404']);
     }
@@ -1930,57 +2246,102 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
     $thread = $_post['thread'];
     $ip = $_post['ip'];
 
+    // Fetch all boards for total count
+    $all_boards = listBoards();
+    $total_boards = count($all_boards);
+
+    // Restrict board owners without ban permission to their own boards
+    if ($is_board_owner && !hasPermission($config['mod']['ban'], $board_uri) && isset($mod['id'])) {
+        $all_boards = array_filter($all_boards, function($b) use ($mod) {
+            return isset($b['owner_id']) && $b['owner_id'] == $mod['id'];
+        });
+    }
+
+    // Pagination settings
+    $items_per_page = isset($config['mod']['boards_per_page']) ? $config['mod']['boards_per_page'] : 10;
+    $current_page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+    $offset = ($current_page - 1) * $items_per_page;
+    $boards = array_slice($all_boards, $offset, $items_per_page);
+    $total_pages = ceil(count($all_boards) / $items_per_page);
+
     if (isset($_POST['new_ban'], $_POST['reason'], $_POST['length'], $_POST['board'])) {
         if (isset($_POST['ip'])) {
             $ip = $_POST['ip'];
         }
 
-        Bans::new_ban($ip, $_POST['reason'], $_POST['length'], $_POST['board'] == '*' ? false : $_POST['board'],
-            false, $config['ban_show_post'] ? $_post : false);
+        $ban_board = $_POST['board'] == '*' ? false : basename($_POST['board']);
+
+        // Validate board exists if not global
+        if ($ban_board) {
+            $board_exists = false;
+            foreach ($all_boards as $b) {
+                if ($b['uri'] === $ban_board) {
+                    $board_exists = true;
+                    break;
+                }
+            }
+            if (!$board_exists) {
+                error($config['error']['invalidboard']);
+            }
+        }
+
+        // Restrict board owners without ban permission to their boards
+        if ($is_board_owner && !hasPermission($config['mod']['ban'], $ban_board) && $ban_board && !in_array($ban_board, array_column($all_boards, 'uri'))) {
+            error($config['error']['noaccess']);
+        }
+
+        // Handle global ban for board owners
+        if ($is_board_owner && !$ban_board && !hasPermission($config['mod']['ban'])) {
+            foreach ($all_boards as $board) {
+                Bans::new_ban($ip, $_POST['reason'], $_POST['length'], $board['uri'], false, $config['ban_show_post'] ? $_post : false);
+            }
+        } else {
+            Bans::new_ban($ip, $_POST['reason'], $_POST['length'], $ban_board, false, $config['ban_show_post'] ? $_post : false);
+        }
 
         if (isset($_POST['public_message'], $_POST['message'])) {
-            // Public ban message
             $length_english = Bans::parse_time($_POST['length']) ? 'for ' . Format\until(Bans::parse_time($_POST['length'])) : 'permanently';
             $_POST['message'] = preg_replace('/[\r\n]/', '', $_POST['message']);
             $_POST['message'] = str_replace('%length%', $length_english, $_POST['message']);
             $_POST['message'] = str_replace('%LENGTH%', strtoupper($length_english), $_POST['message']);
             $query = prepare('UPDATE ``posts`` SET `body_nomarkup` = CONCAT(`body_nomarkup`, :body_nomarkup) WHERE `board` = :board AND `id` = :id');
-			$query->bindValue(':board', $board_uri);
-            $query->bindValue(':id', $post);
+            $query->bindValue(':board', $board_uri);
+            $query->bindValue(':id', (int)$post);
             $query->bindValue(':body_nomarkup', sprintf("\n<tinyboard ban message>%s</tinyboard>", utf8tohtml($_POST['message'])));
             $query->execute() or error(db_error($query));
             rebuildPost($post);
-
             modLog("Attached a public ban message to post #{$post}: " . utf8tohtml($_POST['message']));
             buildThread($thread ? $thread : $post);
             buildIndex();
         } elseif (isset($_POST['delete']) && (int)$_POST['delete']) {
-            // Delete post
             deletePost($post);
             modLog("Deleted post #{$post}");
-            // Rebuild board
             buildIndex();
-            // Rebuild themes
             Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
         }
 
         header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+        return;
     }
 
     $args = [
         'ip' => $ip,
         'hide_ip' => !hasPermission($config['mod']['show_ip'], $board_uri),
         'post' => $post,
-		'board_prefix' => $board_prefix,
+        'board_prefix' => $board_prefix,
         'board' => $board_uri,
         'delete' => (bool)$delete,
-        'boards' => listBoards(),
+        'boards' => $boards,
         'reasons' => $config['premade_ban_reasons'],
-        'token' => $security_token
+        'token' => $security_token,
+        'current_page' => $current_page,
+        'total_pages' => $total_pages,
+        'items_per_page' => $items_per_page
     ];
 
     mod_page(_('New ban'), $config['file_mod_ban_form'], $args, $mod);
 }
+
 
 function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
     global $mod;
@@ -1989,11 +2350,27 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['editpost'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: editpost permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['editpost'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
@@ -2003,18 +2380,16 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
 
     // Generate the security token
     $board_path = rtrim(sprintf($config['board_path'], $board_uri), '/');
-	$security_token = make_secure_link_token("{$board_path}/edit" . ($edit_raw_html ? '_raw' : '') . "/{$postID}");
-
-
+    $security_token = make_secure_link_token("{$board_path}/edit" . ($edit_raw_html ? '_raw' : '') . "/" . (int)$postID);
 
     $query = prepare('SELECT *, live_date_path FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-	$query->bindValue(':board', $board_uri);
-	$query->bindValue(':id', $postID);
-	$query->execute() or error(db_error($query));
+    $query->bindValue(':board', $board_uri);
+    $query->bindValue(':id', (int)$postID);
+    $query->execute() or error(db_error($query));
 
-	if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
-		error($config['error']['404']);
-	}
+    if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
+        error($config['error']['404']);
+    }
 
     if (isset($_POST['name'], $_POST['email'], $_POST['subject'], $_POST['body'])) {
         // Validate the security token
@@ -2029,13 +2404,11 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
             $_POST['body'] .= "<tinyboard $key>$value</tinyboard>";
         }
 
-        if ($edit_raw_html) {
-			$query = prepare('UPDATE ``posts`` SET `name` = :name, `email` = :email, `subject` = :subject, `body` = :body, `body_nomarkup` = :body_nomarkup WHERE `board` = :board AND `id` = :id');
-		} else {
-			$query = prepare('UPDATE ``posts`` SET `name` = :name, `email` = :email, `subject` = :subject, `body_nomarkup` = :body WHERE `board` = :board AND `id` = :id');
-		}
-		$query->bindValue(':board', $board_uri);
-        $query->bindValue(':id', $postID);
+        $query = prepare('UPDATE ``posts`` SET `name` = :name, `email` = :email, `subject` = :subject, ' .
+            ($edit_raw_html ? '`body` = :body, `body_nomarkup` = :body_nomarkup' : '`body_nomarkup` = :body') .
+            ' WHERE `board` = :board AND `id` = :id');
+        $query->bindValue(':board', $board_uri);
+        $query->bindValue(':id', (int)$postID);
         $query->bindValue(':name', $_POST['name']);
         $query->bindValue(':email', $_POST['email']);
         $query->bindValue(':subject', $_POST['subject']);
@@ -2049,7 +2422,6 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
         modLog("Edited post #{$postID}");
         rebuildPost($postID);
         buildIndex();
-
         Vichan\Functions\Theme\rebuild_themes('post', $board_uri);
 
         header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . '#' . $postID, true, $config['redirect_http']);
@@ -2074,26 +2446,40 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
 }
 
 function mod_delete(Context $ctx, $board, $post) {
+    global $mod;
     $config = $ctx->get('config');
 
     // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
 
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
+
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['delete'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: delete permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['delete'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
     // Delete post
-    deletePost($post);
-    // Record the action
+    deletePost((int)$post);
     modLog("Deleted post #{$post}");
-    // Rebuild board
     buildIndex();
-    // Rebuild themes
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
     // Redirect to the board index
@@ -2101,51 +2487,81 @@ function mod_delete(Context $ctx, $board, $post) {
 }
 
 function mod_deletefile(Context $ctx, $board, $post, $file) {
+    global $mod;
     $config = $ctx->get('config');
 
-    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
+
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
 
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['deletefile'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: deletefile permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['deletefile'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
     // Delete file
-    deleteFile($post, true, $file);
-    // Record the action
+    deleteFile((int)$post, true, $file);
     modLog("Deleted file from post #{$post}");
-
-    // Rebuild board
     buildIndex();
-    // Rebuild themes
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
-    // Redirect
+    // Redirect to the board index
     header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_spoiler_image(Context $ctx, $board, $post, $file) {
+    global $mod;
     $config = $ctx->get('config');
 
-    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
+    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($board);
+
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
 
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['spoilerimage'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: spoilerimage permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['spoilerimage'], $board_uri) &&
+        !$is_board_owner
+    ) {
         error($config['error']['noaccess']);
     }
 
     // Fetch files, thread, and live_date_path
-    $query = prepare("SELECT `files`, `thread`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND id = :id");
+    $query = prepare("SELECT `files`, `thread`, `live_date_path` FROM ``posts`` WHERE `board` = :board AND `id` = :id");
     $query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post, PDO::PARAM_INT);
+    $query->bindValue(':id', (int)$post, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
     $result = $query->fetch(PDO::FETCH_ASSOC);
     $files = json_decode($result['files']);
@@ -2162,23 +2578,16 @@ function mod_spoiler_image(Context $ctx, $board, $post, $file) {
     $files[$file]->thumbwidth = $size_spoiler_image[0];
     $files[$file]->thumbheight = $size_spoiler_image[1];
 
-    // Make thumbnail spoiler
+    // Update post with spoiler
     $query = prepare("UPDATE ``posts`` SET `files` = :files WHERE `board` = :board AND `id` = :id");
     $query->bindValue(':board', $board_uri);
     $query->bindValue(':files', json_encode($files));
-    $query->bindValue(':id', $post, PDO::PARAM_INT);
+    $query->bindValue(':id', (int)$post, PDO::PARAM_INT);
     $query->execute() or error(db_error($query));
 
-    // Record the action
     modLog("Spoilered file from post #{$post}");
-
-    // Rebuild thread
     buildThread($result['thread'] ? $result['thread'] : $post);
-
-    // Rebuild board
     buildIndex();
-
-    // Rebuild themes
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
     // Redirect
@@ -2186,47 +2595,56 @@ function mod_spoiler_image(Context $ctx, $board, $post, $file) {
 }
 
 function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
-    global $board;
+    global $board, $mod;
     $config = $ctx->get('config');
 
     $global = (bool)$global;
-
-    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
     $board_uri = basename($boardName);
+
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
+        error($config['error']['noboard']);
+    }
 
     if (!openBoard($board_uri)) {
         error($config['error']['noboard']);
     }
 
-    if (!$global && !hasPermission($config['mod']['deletebyip'], $board_uri)) {
+    // Check if user is board owner with infinity permission
+    $is_board_owner = isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
+
+    // Permission: deletebyip or deletebyip_global permission, or board owner with infinity permission
+    if (
+        (!$global && !hasPermission($config['mod']['deletebyip'], $board_uri) && !$is_board_owner) ||
+        ($global && !hasPermission($config['mod']['deletebyip_global']) && !$is_board_owner)
+    ) {
         error($config['error']['noaccess']);
     }
 
-    if ($global && !hasPermission($config['mod']['deletebyip_global'], $board_uri)) {
-        error($config['error']['noaccess']);
+    // Determine accessible boards for board owners
+    $accessible_boards = [$board_uri];
+    if ($global && $is_board_owner && !hasPermission($config['mod']['deletebyip_global']) && isset($mod['id'])) {
+        $query = prepare('SELECT `uri` FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $accessible_boards = $query->fetchAll(PDO::FETCH_COLUMN);
+        if (empty($accessible_boards)) {
+            error($config['error']['noaccess']);
+        }
+    } elseif ($global && hasPermission($config['mod']['deletebyip_global'])) {
+        $accessible_boards = array_column(listBoards(), 'uri');
     }
 
     // Find IP address
     $query = prepare('SELECT `ip` FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-	$query->bindValue(':board', $board_uri);
-    $query->bindValue(':id', $post);
+    $query->bindValue(':board', $board_uri);
+    $query->bindValue(':id', (int)$post);
     $query->execute() or error(db_error($query));
     if (!$ip = $query->fetchColumn()) {
-        error($config['error']['invalidpost']);
-    }
-
-    $boards = $global ? listBoards() : array(array('uri' => $board_uri));
-
-    $query = '';
-    foreach ($boards as $_board) {
-		$query = prepare('SELECT `thread`, `id`, `board` FROM ``posts`` WHERE `board` = :board AND `ip` = :ip');
-		$query->bindValue(':board', $_board['uri']);
-		$query->bindValue(':ip', $ip);
-		$query->execute() or error(db_error($query));
-		// ... process results ...
-	}
-
-    if ($query->rowCount() < 1) {
         error($config['error']['invalidpost']);
     }
 
@@ -2234,19 +2652,22 @@ function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
 
     $threads_to_rebuild = [];
     $threads_deleted = [];
-    while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-        openBoard($post['board']);
+    foreach ($accessible_boards as $_board) {
+        $query = prepare('SELECT `thread`, `id`, `board` FROM ``posts`` WHERE `board` = :board AND `ip` = :ip');
+        $query->bindValue(':board', $_board);
+        $query->bindValue(':ip', $ip);
+        $query->execute() or error(db_error($query));
 
-        deletePost($post['id'], false, false);
-
-        Vichan\Functions\Theme\rebuild_themes('post-delete', $board['uri']);
-
-        buildIndex();
-
-        if ($post['thread']) {
-            $threads_to_rebuild[$post['board']][$post['thread']] = true;
-        } else {
-            $threads_deleted[$post['board']][$post['id']] = true;
+        while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+            openBoard($post['board']);
+            deletePost($post['id'], false, false);
+            Vichan\Functions\Theme\rebuild_themes('post-delete', $post['board']);
+            buildIndex();
+            if ($post['thread']) {
+                $threads_to_rebuild[$post['board']][$post['thread']] = true;
+            } else {
+                $threads_deleted[$post['board']][$post['id']] = true;
+            }
         }
     }
 
@@ -2264,11 +2685,8 @@ function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
         $board = false;
     }
 
-    // Record the action
     $cip = cloak_ip($ip);
     modLog("Deleted all posts by IP address: <a href=\"?/IP/$cip\">$cip</a>");
-
-    // Redirect
     header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
@@ -2276,31 +2694,40 @@ function mod_user(Context $ctx, $uid) {
 	global $mod;
 	$config = $ctx->get('config');
 
+	// Permission check
 	if (!hasPermission($config['mod']['editusers']) && !(hasPermission($config['mod']['change_password']) && $uid == $mod['id']))
 		error($config['error']['noaccess']);
 
+	// Fetch the user
 	$query = prepare('SELECT * FROM ``mods`` WHERE `id` = :id');
 	$query->bindValue(':id', $uid);
 	$query->execute() or error(db_error($query));
 	if (!$user = $query->fetch(PDO::FETCH_ASSOC))
 		error($config['error']['404']);
 
+	// Editing user details
 	if (hasPermission($config['mod']['editusers']) && isset($_POST['username'], $_POST['password'])) {
-		if (isset($_POST['allboards'])) {
-			$boards = array('*');
-		} else {
-			$_boards = listBoards();
-			foreach ($_boards as &$board) {
-				$board = $board['uri'];
-			}
 
-			$boards = [];
-			foreach ($_POST as $name => $value) {
-				if (preg_match('/^board_(' . $config['board_regex'] . ')$/u', $name, $matches) && in_array($matches[1], $_boards))
-					$boards[] = $matches[1];
+		// Boards parsing from hidden input
+		if (isset($_POST['boards'])) {
+			$boards_input = explode(',', trim($_POST['boards']));
+			$boards_input = array_map('trim', $boards_input);
+			$boards_input = array_filter($boards_input, function($b) {
+				return $b !== '';
+			});
+
+			if (in_array('*', $boards_input)) {
+				$boards = ['*'];
+			} else {
+				$_boards = listBoards();
+				$valid_uris = array_column($_boards, 'uri');
+				$boards = array_intersect($boards_input, $valid_uris);
 			}
+		} else {
+			$boards = [];
 		}
 
+		// Delete user
 		if (isset($_POST['delete'])) {
 			if (!hasPermission($config['mod']['deleteusers']))
 				error($config['error']['noaccess']);
@@ -2312,13 +2739,14 @@ function mod_user(Context $ctx, $uid) {
 			modLog('Deleted user ' . utf8tohtml($user['username']) . ' <small>(#' . $user['id'] . ')</small>');
 
 			header('Location: ?/users', true, $config['redirect_http']);
-
 			return;
 		}
 
+		// Username required
 		if ($_POST['username'] == '')
 			error(sprintf($config['error']['required'], 'username'));
 
+		// Update username & boards
 		$query = prepare('UPDATE ``mods`` SET `username` = :username, `boards` = :boards WHERE `id` = :id');
 		$query->bindValue(':id', $uid);
 		$query->bindValue(':username', $_POST['username']);
@@ -2326,10 +2754,10 @@ function mod_user(Context $ctx, $uid) {
 		$query->execute() or error(db_error($query));
 
 		if ($user['username'] !== $_POST['username']) {
-			// account was renamed
 			modLog('Renamed user "' . utf8tohtml($user['username']) . '" <small>(#' . $user['id'] . ')</small> to "' . utf8tohtml($_POST['username']) . '"');
 		}
 
+		// Update password if provided
 		if ($_POST['password'] != '') {
 			list($version, $password) = crypt_password($_POST['password']);
 
@@ -2355,6 +2783,7 @@ function mod_user(Context $ctx, $uid) {
 		return;
 	}
 
+	// Changing own password only
 	if (hasPermission($config['mod']['change_password']) && $uid == $mod['id'] && isset($_POST['password'])) {
 		if ($_POST['password'] != '') {
 			list($version, $password) = crypt_password($_POST['password']);
@@ -2379,6 +2808,7 @@ function mod_user(Context $ctx, $uid) {
 		return;
 	}
 
+	// Fetch modlog
 	if (hasPermission($config['mod']['modlog'])) {
 		$query = prepare('SELECT * FROM ``modlogs`` WHERE `mod` = :id ORDER BY `time` DESC LIMIT 5');
 		$query->bindValue(':id', $uid);
@@ -2390,18 +2820,20 @@ function mod_user(Context $ctx, $uid) {
 
 	$user['boards'] = explode(',', $user['boards']);
 
+	// Render page
 	mod_page(
-		_('Edit user'),
-		$config['file_mod_user'],
-		[
-			'user' => $user,
-			'logs' => $log,
-			'boards' => listBoards(),
-			'token' => make_secure_link_token('users/' . $user['id'])
-		],
-		$mod
-	);
+        _('Edit user'),
+        $config['file_mod_user'],
+        [
+            'user' => $user,
+            'logs' => $log,
+            'token' => make_secure_link_token('users/' . $user['id'])
+        ],
+        $mod
+    );
+
 }
+
 
 function mod_user_new(Context $ctx) {
 	global $pdo, $config, $mod;
@@ -2453,86 +2885,94 @@ function mod_user_new(Context $ctx) {
 	}
 
 	mod_page(
-		_('New user'),
-		$config['file_mod_user'],
-		[
-			'new' => true,
-			'boards' => listBoards(),
-			'token' => make_secure_link_token('users/new')
-		],
-		$mod
-	);
+        _('New user'),
+        $config['file_mod_user'],
+        [
+            'new' => true,
+            'token' => make_secure_link_token('users/new')
+        ],
+        $mod
+    );
 }
 
 
 function mod_users(Context $ctx) {
-	global $mod;
-	$config = $ctx->get('config');
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!hasPermission($config['mod']['manageusers']))
-		error($config['error']['noaccess']);
+    if (!hasPermission($config['mod']['manageusers']))
+        error($config['error']['noaccess']);
 
-	// Pagination params
-	$limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 25;
-	$last_time = isset($_GET['last_time']) && is_numeric($_GET['last_time']) ? (int)$_GET['last_time'] : null;
-	$last_type = isset($_GET['last_type']) && is_numeric($_GET['last_type']) ? (int)$_GET['last_type'] : null;
+    // Pagination params
+    $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) && $_GET['limit'] > 0 ? (int)$_GET['limit'] : 25;
+    $last_time = isset($_GET['last_time']) && is_numeric($_GET['last_time']) ? (int)$_GET['last_time'] : null;
+    $last_type = isset($_GET['last_type']) && is_numeric($_GET['last_type']) ? (int)$_GET['last_type'] : null;
 
-	// Total user count
-	$total_query = query("SELECT COUNT(*) FROM ``mods``") or error(db_error());
-	$total_users = (int)$total_query->fetchColumn();
+    // User search
+    $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+    $where = '';
+    $params = [];
+    if ($search !== '') {
+        $where = 'WHERE m.`username` LIKE :search OR m.`id` = :id_search';
+        $params[':search'] = '%' . $search . '%';
+        $params[':id_search'] = $search;
+    }
 
-	// Main query
-	$sql = "
-		SELECT
-			m.*,
-			(SELECT ml.`time` FROM ``modlogs`` ml WHERE ml.`mod` = m.`id` ORDER BY ml.`time` DESC LIMIT 1) AS `last`,
-			(SELECT ml.`text` FROM ``modlogs`` ml WHERE ml.`mod` = m.`id` ORDER BY ml.`time` DESC LIMIT 1) AS `action`
-		FROM ``mods`` m
-		LEFT JOIN (
-			SELECT `mod`, MAX(`time`) AS last FROM ``modlogs`` GROUP BY `mod`
-		) ml ON ml.mod = m.id
-		WHERE (
-			(:last_time IS NULL AND :last_type IS NULL)
-			OR (m.`type` < :last_type OR (m.`type` = :last_type AND ml.last < :last_time))
-		)
-		ORDER BY m.`type` DESC, ml.last DESC
-		LIMIT :limit
-	";
+    // Total user count
+    $total_query = query("SELECT COUNT(*) FROM ``mods``") or error(db_error());
+    $total_users = (int)$total_query->fetchColumn();
 
-	$query = prepare($sql);
-	$query->bindValue(':last_time', $last_time, PDO::PARAM_INT);
-	$query->bindValue(':last_type', $last_type, PDO::PARAM_INT);
-	$query->bindValue(':limit', $limit, PDO::PARAM_INT);
-	$query->execute() or error(db_error($query));
-	$users = $query->fetchAll(PDO::FETCH_ASSOC);
+    // Main query
+    $sql = "
+        SELECT
+            m.*,
+            (SELECT ml.`text` FROM ``modlogs`` ml WHERE ml.`mod` = m.`id` ORDER BY ml.`time` DESC LIMIT 1) AS `action`
+        FROM ``mods`` m
+        LEFT JOIN (
+            SELECT `mod`, MAX(`time`) AS last FROM ``modlogs`` GROUP BY `mod`
+        ) ml ON ml.mod = m.id
+        $where
+        ORDER BY m.`type` DESC, ml.last DESC
+        LIMIT :limit
+    ";
 
-	// Add secure action tokens
-	foreach ($users as &$user) {
-		$user['promote_token'] = make_secure_link_token("users/{$user['id']}/promote");
-		$user['demote_token'] = make_secure_link_token("users/{$user['id']}/demote");
-	}
+    $query = prepare($sql);
+    foreach ($params as $key => $value) {
+        $query->bindValue($key, $value);
+    }
+    $query->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $query->execute() or error(db_error($query));
+    $users = $query->fetchAll(PDO::FETCH_ASSOC);
 
-	// Update cursor for next page
-	$new_last_time = null;
-	$new_last_type = null;
-	if (!empty($users)) {
-		$last_user = end($users);
-		$new_last_time = $last_user['last'] ?? 0;
-		$new_last_type = $last_user['type'];
-	}
+    // Add secure action tokens
+    foreach ($users as &$user) {
+        $user['promote_token'] = make_secure_link_token("users/{$user['id']}/promote");
+        $user['demote_token'] = make_secure_link_token("users/{$user['id']}/demote");
+    }
 
-	// Render page
-	mod_page(
-		sprintf('%s (%d)', _('Manage users'), $total_users),
-		$config['file_mod_users'],
-		[
-			'users' => $users,
-			'limit' => $limit,
-			'last_time' => $new_last_time,
-			'last_type' => $new_last_type
-		],
-		$mod
-	);
+    // Update cursor for next page
+    $new_last_time = null;
+    $new_last_type = null;
+    if (!empty($users)) {
+        $last_user = end($users);
+        $new_last_time = $last_user['last'] ?? 0;
+        $new_last_type = $last_user['type'];
+    }
+
+    // Render page
+    mod_page(
+        sprintf('%s (%d)', _('Manage users'), $total_users),
+        $config['file_mod_users'],
+        [
+            'last_type' => $new_last_type,
+            'search' => $search,
+            'users' => $users,
+            'limit' => $limit,
+            'last_time' => $new_last_time,
+            'last_type' => $new_last_type
+        ],
+        $mod
+    );
 }
 
 
@@ -2745,7 +3185,7 @@ function mod_new_pm(Context $ctx, $username) {
 	);
 }
 
-function mod_rebuild(Context $ctx, $page_no = 1) {
+function mod_rebuild(Context $ctx) {
     global $twig, $mod;
     $config = $ctx->get('config');
     $cache = $ctx->get(CacheDriver::class);
@@ -2800,11 +3240,30 @@ function mod_rebuild(Context $ctx, $page_no = 1) {
             'global_tasks_done' => false
         ];
 
-        foreach (listBoards() as $board) {
-            if (!empty($_POST['boards_all']) || !empty($_POST['board_' . $board['uri']])) {
-                $_SESSION['rebuild_progress']['boards'][] = $board['uri'];
+        // Process boards_input
+        $all_boards = listBoards();
+        $valid_board_uris = array_column($all_boards, 'uri');
+        $selected_boards = [];
+
+        if (!empty($_POST['boards_input'])) {
+            $input = trim($_POST['boards_input']);
+            if ($input === '*') {
+                // Select all boards
+                $selected_boards = $valid_board_uris;
+            } else {
+                // Parse comma-separated board URIs
+                $input_boards = array_map('trim', explode(',', $input));
+                foreach ($input_boards as $board_uri) {
+                    if (in_array($board_uri, $valid_board_uris)) {
+                        $selected_boards[] = $board_uri;
+                    } else {
+                        $log[] = "Warning: Invalid board URI <strong>$board_uri</strong> ignored.";
+                    }
+                }
             }
         }
+
+        $_SESSION['rebuild_progress']['boards'] = array_unique($selected_boards);
 
         // Populate archive boards if archive rebuilding is enabled
         if (!empty($_POST['rebuild_archive']) && !empty($config['archive']['threads'])) {
@@ -2824,6 +3283,16 @@ function mod_rebuild(Context $ctx, $page_no = 1) {
             'rebuild_archive' => !empty($_POST['rebuild_archive']),
             'rebuild_catalog' => !empty($_POST['rebuild_catalog'])
         ];
+
+        if (empty($_SESSION['rebuild_progress']['boards']) && !$_SESSION['rebuild_options']['rebuild_cache'] && !$_SESSION['rebuild_options']['rebuild_javascript'] && !$_SESSION['rebuild_options']['rebuild_themes']) {
+            $log[] = 'No boards or global tasks selected for rebuild.';
+            mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
+                'boards' => $all_boards,
+                'token' => $token,
+                'logs' => $log
+            ], $mod);
+            return;
+        }
 
         header('Location: ?/rebuild');
         exit;
@@ -2952,30 +3421,30 @@ function mod_rebuild(Context $ctx, $page_no = 1) {
             }
 
             // Fetch threads for this board
-			$log[] = "Thread list fetched for board <strong>$board_uri</strong>.";
-			$query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
-			$query->bindValue(':board', $board_uri);
-			$query->execute() or error(db_error($query));
-			$progress['threads'] = [];
-			while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
-				$progress['threads'][] = $post['id'];
-			}
-			$progress['thread_index'] = 0;
-			$progress['replies'] = [];
-			$progress['reply_index'] = 0;
-			$progress['current_thread'] = null;
+            $log[] = "Thread list fetched for board <strong>$board_uri</strong>.";
+            $query = prepare("SELECT `id` FROM ``posts`` WHERE `board` = :board AND `thread` IS NULL");
+            $query->bindValue(':board', $board_uri);
+            $query->execute() or error(db_error($query));
+            $progress['threads'] = [];
+            while ($post = $query->fetch(PDO::FETCH_ASSOC)) {
+                $progress['threads'][] = $post['id'];
+            }
+            $progress['thread_index'] = 0;
+            $progress['replies'] = [];
+            $progress['reply_index'] = 0;
+            $progress['current_thread'] = null;
 
-			// Archive batch rebuild for this board
-			if (!empty($options['rebuild_archive']) && class_exists('Archive')) {
-				$log[] = "Archive index pages batch-rebuilt for board <strong>$board_uri</strong>.";
-				$rebuild_archive_batches($board_uri, $log, $batch_size);
-			}
+            // Archive batch rebuild for this board
+            if (!empty($options['rebuild_archive']) && class_exists('Archive')) {
+                $log[] = "Archive index pages batch-rebuilt for board <strong>$board_uri</strong>.";
+                $rebuild_archive_batches($board_uri, $log, $batch_size);
+            }
 
-			// If no threads, immediately advance to next board
-			if (empty($progress['threads'])) {
-				$progress['step']++;
-				$progress_page($log);
-			}
+            // If no threads, immediately advance to next board
+            if (empty($progress['threads'])) {
+                $progress['step']++;
+                $progress_page($log);
+            }
         }
 
         // Process threads and replies
@@ -3067,36 +3536,73 @@ function mod_rebuild(Context $ctx, $page_no = 1) {
         return;
     }
 
-	$search = '';
-    if (isset($_GET['search'])) {
-        $search = trim($_GET['search']);
-    } elseif (isset($_POST['search'])) {
-        $search = trim($_POST['search']);
-    }
-	
-	$boards = listBoards();
-    if ($search !== '') {
-        $boards = array_filter($boards, function($board) use ($search) {
-            return stripos($board['uri'], $search) !== false ||
-                   stripos($board['title'], $search) !== false ||
-                   (!empty($board['subtitle']) && stripos($board['subtitle'], $search) !== false);
-        });
-    }
-
-    $per_page = 20;
-    $page_no = max(1, (int)$page_no);
-    $total_boards = count($boards);
-    $total_pages = ceil($total_boards / $per_page);
-    $boards_page = array_slice(array_values($boards), ($page_no - 1) * $per_page, $per_page);
-
     // Initial rebuild form
     mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
-        'boards' => $boards_page,
-        'token' => $token,
-		'rebuild_total_pages' => $total_pages,
-        'rebuild_page_no' => $page_no,
-		'search' => $search
+        'boards' => listBoards(),
+        'token' => $token
     ], $mod);
+}
+
+function mod_board_suggestions(Context $ctx) {
+    global $config, $mod;
+
+    // Check permissions
+    if (!hasPermission($config['mod']['editusers'])) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => $config['error']['noaccess']]);
+        exit;
+    }
+
+    // Validate CSRF token
+    if (empty($_POST['token']) || !check_secure_link_token($_POST['token'], 'users/suggestions')) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => $config['error']['invalidtoken']]);
+        exit;
+    }
+
+    // Get the query from the request
+    $query = isset($_POST['query']) ? trim($_POST['query']) : '';
+
+    // Initialize boards array
+    $boards = [];
+
+    // Handle wildcard
+    if ($query === '*' || stripos('*', $query) === 0) {
+        $boards[] = [
+            'uri' => '*',
+            'title' => 'All Boards',
+            'abbreviation' => '*'
+        ];
+    }
+
+    // If query is empty, return only wildcard if applicable
+    if (empty($query)) {
+        header('Content-Type: application/json');
+        echo json_encode(['boards' => $boards]);
+        exit;
+    }
+
+    // Fetch boards matching the query
+    $all_boards = listBoards();
+    $query = strtolower($query);
+
+    foreach ($all_boards as $board) {
+        $uri = strtolower($board['uri']);
+        $title = strtolower($board['title']);
+        $abbreviation = strtolower(sprintf($config['board_abbreviation'], $board['uri']));
+        if (strpos($uri, $query) !== false || strpos($title, $query) !== false || strpos($abbreviation, $query) !== false) {
+            $boards[] = [
+                'uri' => $board['uri'],
+                'title' => $board['title'],
+                'abbreviation' => sprintf($config['board_abbreviation'], $board['uri'])
+            ];
+        }
+    }
+
+    // Return JSON response
+    header('Content-Type: application/json');
+    echo json_encode(['boards' => $boards]);
+    exit;
 }
 
 function mod_reports(Context $ctx, $page_no = 1) {
@@ -3304,158 +3810,189 @@ function mod_recent_posts(Context $ctx, $lim) {
 }
 
 function mod_config(Context $ctx, $board_config = false) {
-	global $mod, $board;
-	$config = $ctx->get('config');
+    global $mod, $board;
+    $config = $ctx->get('config');
 
-	if ($board_config && !openBoard($board_config))
-		error($config['error']['noboard']);
+    // Sanitize and validate board URI
+    $board_uri = $board_config ? basename($board_config) : false;
 
-	else {
-		include $board_config . '/config.php';
-	}
+    // Fetch board info from DB if a board is specified
+    $board_info = false;
+    if ($board_uri) {
+        $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $board_uri);
+        $query->execute() or error(db_error($query));
+        $board_info = $query->fetch(PDO::FETCH_ASSOC);
+        if (!$board_info || !openBoard($board_uri)) {
+            error($config['error']['noboard']);
+        }
+    }
 
-	if (!hasPermission($config['mod']['edit_config'], $board_config))
-		error($config['error']['noaccess']);
+    // Check if user is board owner with infinity permission
+    $is_board_owner = $board_uri && isset($board_info['owner_id']) && $mod['id'] == $board_info['owner_id'] && hasPermission($config['mod']['infinity']);
 
-	$config_file = $board_config ? $board['dir'] . 'config.php' : 'inc/secrets.php';
+    // Permission check: edit_config permission or board owner with infinity permission
+    if (
+        !hasPermission($config['mod']['edit_config'], $board_uri) &&
+        !($board_uri && $is_board_owner)
+    ) {
+        error($config['error']['noaccess']);
+    }
 
-	if ($config['mod']['config_editor_php']) {
-		$readonly = !(is_file($config_file) ? is_writable($config_file) : is_writable(dirname($config_file)));
+    // Load board-specific config if specified
+    if ($board_uri) {
+        include $board_info['dir'] . 'config.php';
+    }
 
-		if (!$readonly && isset($_POST['code'])) {
-			$code = $_POST['code'];
-			// Save previous instance_config if php_check_syntax fails
-			$old_code = file_get_contents($config_file);
-			file_put_contents($config_file, $code);
-			$resp = shell_exec_error('php -l ' . $config_file);
-			if (preg_match('/No syntax errors detected/', $resp)) {
-				header('Location: ?/config' . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
-				return;
-			}
-			else {
-				file_put_contents($config_file, $old_code);
-				error($config['error']['badsyntax'] . $resp);
-			}
-		}
+    // Fetch boards list (only for board owners without edit_config permission)
+    if ($is_board_owner && !hasPermission($config['mod']['edit_config']) && isset($mod['id'])) {
+        $query = prepare('SELECT * FROM ``boards`` WHERE `owner_id` = :owner_id');
+        $query->bindValue(':owner_id', $mod['id']);
+        $query->execute() or error(db_error($query));
+        $all_boards = $query->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $all_boards = []; // No need to preload boards for template
+    }
 
-		$instance_config = @file_get_contents($config_file);
-		if ($instance_config === false) {
-			$instance_config = "<?php\n\n// This file does not exist yet. You are creating it.";
-		}
-		$instance_config = str_replace("\n", '&#010;', utf8tohtml($instance_config));
+    $config_file = $board_config ? $board['dir'] . 'config.php' : 'inc/secrets.php';
 
-		mod_page(
-			_('Config editor'),
-			$config['file_mod_config_editor_php'],
-			[
-				'php' => $instance_config,
-				'readonly' => $readonly,
-				'boards' => listBoards(),
-				'board' => $board_config,
-				'file' => $config_file,
-				'token' => make_secure_link_token('config' . ($board_config ? '/' . $board_config : ''))
-			],
-			$mod
-		);
-		return;
-	}
+    if ($config['mod']['config_editor_php']) {
+        $readonly = !(is_file($config_file) ? is_writable($config_file) : is_writable(dirname($config_file)));
 
-	require_once 'inc/mod/config-editor.php';
+        if (!$readonly && isset($_POST['code'])) {
+            $code = $_POST['code'];
+            $old_code = file_get_contents($config_file);
+            file_put_contents($config_file, $code);
+            $resp = shell_exec_error('php -l ' . $config_file);
+            if (preg_match('/No syntax errors detected/', $resp)) {
+                header('Location: ?/config/channel' . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
+                return;
+            } else {
+                file_put_contents($config_file, $old_code);
+                error($config['error']['badsyntax'] . $resp);
+            }
+        }
 
-	$conf = config_vars();
+        $instance_config = @file_get_contents($config_file);
+        if ($instance_config === false) {
+            $instance_config = "<?php\n\n// This file does not exist yet. You are creating it.";
+        }
+        $instance_config = str_replace("\n", '&#010;', utf8tohtml($instance_config));
 
-	foreach ($conf as &$var) {
-		if (is_array($var['name'])) {
-			$c = &$config;
-			foreach ($var['name'] as $n)
-				$c = &$c[$n];
-		} else {
-			$c = @$config[$var['name']];
-		}
+        mod_page(
+            _('Config editor'),
+            $config['file_mod_config_editor_php'],
+            [
+                'php' => $instance_config,
+                'readonly' => $readonly,
+                'board' => $board_config,
+                'file' => $config_file,
+                'token' => make_secure_link_token('config' . ($board_config ? '/' . $board_config : '')),
+                'is_board_owner' => $is_board_owner
+            ],
+            $mod
+        );
+        return;
+    }
 
-		$var['value'] = $c;
-	}
-	unset($var);
+    require_once 'inc/mod/config-editor.php';
 
-	if (isset($_POST['save'])) {
-		$config_append = '';
+    $conf = config_vars();
 
-		foreach ($conf as $var) {
-			$field_name = 'cf_' . (is_array($var['name']) ? implode('/', $var['name']) : $var['name']);
+    // Restrict board owners to whitelisted config variables
+    if ($is_board_owner && !hasPermission($config['mod']['edit_config']) && isset($config['mod']['board_owner_config_whitelist'])) {
+        $whitelist = $config['mod']['board_owner_config_whitelist'];
+        $conf = array_filter($conf, function($var) use ($whitelist) {
+            return is_array($var['name']) ? in_array($var['name'][0], $whitelist) : in_array($var['name'], $whitelist);
+        });
+    }
 
-			if ($var['type'] == 'boolean')
-				$value = isset($_POST[$field_name]);
-			elseif (isset($_POST[$field_name]))
-				$value = $_POST[$field_name];
-			else
-				continue; // ???
+    foreach ($conf as &$var) {
+        if (is_array($var['name'])) {
+            $c = &$config;
+            foreach ($var['name'] as $n)
+                $c = &$c[$n];
+        } else {
+            $c = @$config[$var['name']];
+        }
 
-			if (!settype($value, $var['type']))
-				continue; // invalid
+        $var['value'] = $c;
+    }
+    unset($var);
 
-			if ($value != $var['value']) {
-				// This value has been changed.
+    if (isset($_POST['save'])) {
+        $config_append = '';
 
-				$config_append .= '$config';
+        foreach ($conf as $var) {
+            $field_name = 'cf_' . (is_array($var['name']) ? implode('/', $var['name']) : $var['name']);
 
-				if (is_array($var['name'])) {
-					foreach ($var['name'] as $name)
-						$config_append .= '[' . var_export($name, true) . ']';
-				} else {
-					$config_append .= '[' . var_export($var['name'], true) . ']';
-				}
+            if ($var['type'] == 'boolean')
+                $value = isset($_POST[$field_name]);
+            elseif (isset($_POST[$field_name]))
+                $value = $_POST[$field_name];
+            else
+                continue;
 
+            if (!settype($value, $var['type']))
+                continue;
 
-				$config_append .= ' = ';
-				if (@$var['permissions'] && isset($config['mod']['groups'][$value])) {
-					$config_append .= $config['mod']['groups'][$value];
-				} else {
-					$config_append .= var_export($value, true);
-				}
-				$config_append .= ";\n";
-			}
-		}
+            if ($value != $var['value']) {
+                $config_append .= '$config';
+                if (is_array($var['name'])) {
+                    foreach ($var['name'] as $name)
+                        $config_append .= '[' . var_export($name, true) . ']';
+                } else {
+                    $config_append .= '[' . var_export($var['name'], true) . ']';
+                }
 
-		if (!empty($config_append)) {
-			$config_append = "\n// Changes made via web editor by \"" . $mod['username'] . "\" @ " . date('r') . ":\n" . $config_append . "\n";
-			if (!is_file($config_file))
-				$config_append = "<?php\n\n$config_append";
-			if (!@file_put_contents($config_file, $config_append, FILE_APPEND)) {
-				$config_append = htmlentities($config_append);
+                $config_append .= ' = ';
+                if (@$var['permissions'] && isset($config['mod']['groups'][$value])) {
+                    $config_append .= $config['mod']['groups'][$value];
+                } else {
+                    $config_append .= var_export($value, true);
+                }
+                $config_append .= ";\n";
+            }
+        }
 
-				if ($config['minify_html'])
-					$config_append = str_replace("\n", '&#010;', $config_append);
-				$page = [];
-				$page['title'] = 'Cannot write to file!';
-				$page['config'] = $config;
-				$page['body'] = '
-					<p style="text-align:center">Tinyboard could not write to <strong>' . $config_file . '</strong> with the ammended configuration, probably due to a permissions error.</p>
-					<p style="text-align:center">You may proceed with these changes manually by copying and pasting the following code to the end of <strong>' . $config_file . '</strong>:</p>
-					<textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black" readonly>' . $config_append . '</textarea>
-				';
-				$page['pm'] = create_pm_header();
-				echo Element($config['file_page_template'], $page);
-				exit;
-			}
-		}
+        if (!empty($config_append)) {
+            $config_append = "\n// Changes made via web editor by \"" . $mod['username'] . "\" @ " . date('r') . ":\n" . $config_append . "\n";
+            if (!is_file($config_file))
+                $config_append = "<?php\n\n$config_append";
+            if (!@file_put_contents($config_file, $config_append, FILE_APPEND)) {
+                $config_append = htmlentities($config_append);
+                if ($config['minify_html'])
+                    $config_append = str_replace("\n", '&#010;', $config_append);
+                $page = [];
+                $page['title'] = 'Cannot write to file!';
+                $page['config'] = $config;
+                $page['body'] = '
+                    <p style="text-align:center">Tinyboard could not write to <strong>' . $config_file . '</strong> with the ammended configuration, probably due to a permissions error.</p>
+                    <p style="text-align:center">You may proceed with these changes manually by copying and pasting the following code to the end of <strong>' . $config_file . '</strong>:</p>
+                    <textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black" readonly>' . $config_append . '</textarea>
+                ';
+                $page['pm'] = create_pm_header();
+                echo Element($config['file_page_template'], $page);
+                exit;
+            }
+        }
 
-		header('Location: ?/config' . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
+        header('Location: ?/config/channel' . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
+        exit;
+    }
 
-		exit;
-	}
-
-	mod_page(
-		_('Config editor') . ($board_config ? ': ' . sprintf($config['board_abbreviation'], $board_config) : ''),
-		$config['file_mod_config_editor'],
-		[
-			'boards' => listBoards(),
-			'board' => $board_config,
-			'conf' => $conf,
-			'file' => $config_file,
-			'token' => make_secure_link_token('config' . ($board_config ? '/' . $board_config : ''))
-		],
-		$mod
-	);
+    mod_page(
+        _('Config editor') . ($board_config ? ': ' . sprintf($config['board_abbreviation'], $board_config) : ''),
+        $config['file_mod_config_editor'],
+        [
+            'board' => $board_config,
+            'conf' => $conf,
+            'file' => $config_file,
+            'token' => make_secure_link_token('config/channel' . ($board_config ? '/' . $board_config : '')),
+            'is_board_owner' => $is_board_owner,
+        ],
+        $mod
+    );
 }
 
 function mod_themes_list(Context $ctx) {
@@ -3633,190 +4170,221 @@ function mod_theme_rebuild(Context $ctx, $theme_name) {
 
 // This needs to be done for `secure` CSRF prevention compatibility, otherwise the $board will be read in as the token if editing global pages.
 function delete_page_base(Context $ctx, $page = '', $board = false) {
-	global $config, $mod;
+    global $config, $mod;
 
-	if (empty($board))
-		$board = false;
+    if (empty($board))
+        $board = false;
 
-	if (!$board && $mod['boards'][0] !== '*')
-		error($config['error']['noaccess']);
+    // Board owner can manage their own board's pages
+    $is_owner = false;
+    if ($board) {
+        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $board);
+        $query->execute() or error(db_error($query));
+        $owner_id = $query->fetchColumn();
+        $is_owner = ($owner_id && $mod['id'] == $owner_id);
+    }
 
-	if (!hasPermission($config['mod']['edit_pages'], $board))
-		error($config['error']['noaccess']);
+    if (
+        (!$board && $mod['boards'][0] !== '*') && // global page, not admin
+        !$is_owner
+    )
+        error($config['error']['noaccess']);
 
-	if ($board !== FALSE && !openBoard($board))
-		error($config['error']['noboard']);
+    if (!hasPermission($config['mod']['edit_pages'], $board) && !$is_owner)
+        error($config['error']['noaccess']);
 
-	if ($board) {
-		$query = prepare('DELETE FROM ``pages`` WHERE `board` = :board AND `name` = :name');
-		$query->bindValue(':board', ($board ? $board : NULL));
-	} else {
-		$query = prepare('DELETE FROM ``pages`` WHERE `board` IS NULL AND `name` = :name');
-	}
-	$query->bindValue(':name', $page);
-	$query->execute() or error(db_error($query));
+    if ($board !== FALSE && !openBoard($board))
+        error($config['error']['noboard']);
 
-	header('Location: ?/edit_pages' . ($board ? ('/' . $board) : ''), true, $config['redirect_http']);
-}
+    if ($board) {
+        $query = prepare('DELETE FROM ``pages`` WHERE `board` = :board AND `name` = :name');
+        $query->bindValue(':board', $board);
+    } else {
+        $query = prepare('DELETE FROM ``pages`` WHERE `board` IS NULL AND `name` = :name');
+    }
+    $query->bindValue(':name', $page);
+    $query->execute() or error(db_error($query));
 
-function mod_delete_page(Context $ctx, $page = '') {
-	delete_page_base($ctx, $page);
-}
-
-function mod_delete_page_board(Context $ctx, $page = '', $board = false) {
-	delete_page_base($ctx, $page, $board);
+    header('Location: ?/edit_pages' . ($board ? ('/' . $board) : ''), true, $config['redirect_http']);
 }
 
 function mod_edit_page(Context $ctx, $id) {
-	global $mod, $board;
-	$config = $ctx->get('config');
+    global $mod, $board;
+    $config = $ctx->get('config');
 
-	$query = prepare('SELECT * FROM ``pages`` WHERE `id` = :id');
-	$query->bindValue(':id', $id);
-	$query->execute() or error(db_error($query));
-	$page = $query->fetch();
+    $query = prepare('SELECT * FROM ``pages`` WHERE `id` = :id');
+    $query->bindValue(':id', $id);
+    $query->execute() or error(db_error($query));
+    $page = $query->fetch();
 
-	if (!$page)
-		error(_('Could not find the page you are trying to edit.'));
+    if (!$page)
+        error(_('Could not find the page you are trying to edit.'));
 
-	if (!$page['board'] && $mod['boards'][0] !== '*')
-		error($config['error']['noaccess']);
+    // Board owner can manage their own board's pages
+    $is_owner = false;
+    if ($page['board']) {
+        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $page['board']);
+        $query->execute() or error(db_error($query));
+        $owner_id = $query->fetchColumn();
+        $is_owner = ($owner_id && $mod['id'] == $owner_id);
+    }
 
-	if (!hasPermission($config['mod']['edit_pages'], $page['board']))
-		error($config['error']['noaccess']);
+    if (
+        (!$page['board'] && $mod['boards'][0] !== '*') && // global page, not admin
+        !$is_owner
+    )
+        error($config['error']['noaccess']);
 
-	if ($page['board'] && !openBoard($page['board']))
-		error($config['error']['noboard']);
+    if (!hasPermission($config['mod']['edit_pages'], $page['board']) && !$is_owner)
+        error($config['error']['noaccess']);
 
-	if (isset($_POST['method'], $_POST['content'])) {
-		$content = $_POST['content'];
-		$method = $_POST['method'];
-		$page['type'] = $method;
+    if ($page['board'] && !openBoard($page['board']))
+        error($config['error']['noboard']);
 
-		if (!in_array($method, array('markdown', 'html', 'infinity')))
-			error(_('Unrecognized page markup method.'));
+    if (isset($_POST['method'], $_POST['content'])) {
+        $content = $_POST['content'];
+        $method = $_POST['method'];
+        $page['type'] = $method;
 
-		switch ($method) {
-			case 'markdown':
-				$write = markdown($content);
-				break;
-			case 'html':
-				if (hasPermission($config['mod']['rawhtml'])) {
-					$write = $content;
-				} else {
-					$write = purify_html($content);
-				}
-				break;
-			case 'infinity':
-				$c = $content;
-				markup($content);
-				$write = $content;
-				$content = $c;
-		}
+        if (!in_array($method, array('markdown', 'html', 'infinity')))
+            error(_('Unrecognized page markup method.'));
 
-		if (!isset($write) or !$write)
-			error(_('Failed to mark up your input for some reason...'));
+        switch ($method) {
+            case 'markdown':
+                $write = markdown($content);
+                break;
+            case 'html':
+                if (hasPermission($config['mod']['rawhtml']) || $is_owner) {
+                    $write = $content;
+                } else {
+                    $write = purify_html($content);
+                }
+                break;
+            case 'infinity':
+                $c = $content;
+                markup($content);
+                $write = $content;
+                $content = $c;
+        }
 
-		$query = prepare('UPDATE ``pages`` SET `type` = :method, `content` = :content WHERE `id` = :id');
-		$query->bindValue(':method', $method);
-		$query->bindValue(':content', $content);
-		$query->bindValue(':id', $id);
-		$query->execute() or error(db_error($query));
+        if (!isset($write) or !$write)
+            error(_('Failed to mark up your input for some reason...'));
 
-		$fn = (isset($board['uri']) ? ($board['uri'] . '/') : '') . $page['name'] . '.html';
-		$body = "<div class='ban'>$write</div>";
-		$html = Element($config['file_page_template'], [
-			'config' => $config,
-			'boardlist' => createBoardlist(),
-			'body' => $body,
-			'title' => utf8tohtml($page['title']),
-			'pm' => create_pm_header()
-		]);
-		file_write($fn, $html);
-	}
+        $query = prepare('UPDATE ``pages`` SET `type` = :method, `content` = :content WHERE `id` = :id');
+        $query->bindValue(':method', $method);
+        $query->bindValue(':content', $content);
+        $query->bindValue(':id', $id);
+        $query->execute() or error(db_error($query));
 
-	if (!isset($content)) {
-		$query = prepare('SELECT `content` FROM ``pages`` WHERE `id` = :id');
-		$query->bindValue(':id', $id);
-		$query->execute() or error(db_error($query));
-		$content = $query->fetchColumn();
-	}
+        $fn = ($page['board'] ? ($page['board'] . '/') : '') . $page['name'] . '.html';
+        $body = "<div class='ban'>$write</div>";
+        $html = Element($config['file_page_template'], [
+            'config' => $config,
+            'boardlist' => createBoardlist(),
+            'body' => $body,
+            'title' => utf8tohtml($page['title']),
+            'pm' => create_pm_header()
+        ]);
+        file_write($fn, $html);
+    }
 
-	mod_page(
-		sprintf(_('Editing static page: %s'), $page['name']),
-		$config['file_mod_edit_page'],
-		[
-			'page' => $page,
-			'token' => make_secure_link_token("edit_page/$id"),
-			'content' => prettify_textarea($content),
-			'board' => $board
-		],
-		$mod
-	);
+    if (!isset($content)) {
+        $query = prepare('SELECT `content` FROM ``pages`` WHERE `id` = :id');
+        $query->bindValue(':id', $id);
+        $query->execute() or error(db_error($query));
+        $content = $query->fetchColumn();
+    }
+
+    mod_page(
+        sprintf(_('Editing static page: %s'), $page['name']),
+        $config['file_mod_edit_page'],
+        [
+            'page' => $page,
+            'token' => make_secure_link_token("edit_page/$id"),
+            'content' => prettify_textarea($content),
+            'board' => $board
+        ],
+        $mod
+    );
 }
 
 function mod_pages(Context $ctx, $board = false) {
-	global $mod, $pdo;
-	$config = $ctx->get('config');
+    global $mod, $pdo;
+    $config = $ctx->get('config');
 
-	if (empty($board))
-		$board = false;
+    if (empty($board))
+        $board = false;
 
-	if (!$board && $mod['boards'][0] !== '*')
-		error($config['error']['noaccess']);
+    // Board owner can manage their own board's pages
+    $is_owner = false;
+    if ($board) {
+        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $board);
+        $query->execute() or error(db_error($query));
+        $owner_id = $query->fetchColumn();
+        $is_owner = ($owner_id && $mod['id'] == $owner_id);
+    }
 
-	if (!hasPermission($config['mod']['edit_pages'], $board))
-		error($config['error']['noaccess']);
+    if (
+        (!$board && $mod['boards'][0] !== '*') && // global page, not admin
+        !$is_owner
+    )
+        error($config['error']['noaccess']);
 
-	if ($board !== FALSE && !openBoard($board))
-		error($config['error']['noboard']);
+    if (!hasPermission($config['mod']['edit_pages'], $board) && !$is_owner)
+        error($config['error']['noaccess']);
 
-	if ($board) {
-		$query = prepare('SELECT * FROM ``pages`` WHERE `board` = :board');
-		$query->bindValue(':board', $board);
-	} else {
-		$query = query('SELECT * FROM ``pages`` WHERE `board` IS NULL');
-	}
-	$query->execute() or error(db_error($query));
-	$pages = $query->fetchAll(PDO::FETCH_ASSOC);
+    if ($board !== FALSE && !openBoard($board))
+        error($config['error']['noboard']);
 
-	if (isset($_POST['page'])) {
-		if ($board and sizeof($pages) > $config['pages_max'])
-			error(sprintf(_('Sorry, this site only allows %d pages per board.'), $config['pages_max']));
+    if ($board) {
+        $query = prepare('SELECT * FROM ``pages`` WHERE `board` = :board');
+        $query->bindValue(':board', $board);
+    } else {
+        $query = query('SELECT * FROM ``pages`` WHERE `board` IS NULL');
+    }
+    $query->execute() or error(db_error($query));
+    $pages = $query->fetchAll(PDO::FETCH_ASSOC);
 
-		if (!preg_match('/^[a-z0-9]{1,255}$/', $_POST['page']))
-			error(_('Page names must be < 255 chars and may only contain lowercase letters A-Z and digits 1-9.'));
+    if (isset($_POST['page'])) {
+        if ($board and sizeof($pages) > $config['pages_max'])
+            error(sprintf(_('Sorry, this site only allows %d pages per board.'), $config['pages_max']));
 
-		foreach ($pages as $i => $p) {
-			if ($_POST['page'] === $p['name'])
-				error(_('Refusing to create a new page with the same name as an existing one.'));
-		}
+        if (!preg_match('/^[a-z0-9]{1,255}$/', $_POST['page']))
+            error(_('Page names must be < 255 chars and may only contain lowercase letters A-Z and digits 1-9.'));
 
-		$title = ($_POST['title'] ? $_POST['title'] : NULL);
+        foreach ($pages as $i => $p) {
+            if ($_POST['page'] === $p['name'])
+                error(_('Refusing to create a new page with the same name as an existing one.'));
+        }
 
-		$query = prepare('INSERT INTO ``pages``(board, title, name) VALUES(:board, :title, :name)');
-		$query->bindValue(':board', ($board ? $board : NULL));
-		$query->bindValue(':title', $title);
-		$query->bindValue(':name', $_POST['page']);
-		$query->execute() or error(db_error($query));
+        $title = ($_POST['title'] ? $_POST['title'] : NULL);
 
-		$pages[] = array('id' => $pdo->lastInsertId(), 'name' => $_POST['page'], 'board' => $board, 'title' => $title);
-	}
+        $query = prepare('INSERT INTO ``pages``(board, title, name) VALUES(:board, :title, :name)');
+        $query->bindValue(':board', ($board ? $board : NULL));
+        $query->bindValue(':title', $title);
+        $query->bindValue(':name', $_POST['page']);
+        $query->execute() or error(db_error($query));
 
-	foreach ($pages as $i => &$p) {
-		$p['delete_token'] = make_secure_link_token('edit_pages/delete/' . $p['name'] . ($board ? ('/' . $board) : ''));
-	}
+        $pages[] = array('id' => $pdo->lastInsertId(), 'name' => $_POST['page'], 'board' => $board, 'title' => $title);
+    }
 
-	mod_page(
-		_('Pages'),
-		$config['file_mod_pages'],
-		[
-			'pages' => $pages,
-			'token' => make_secure_link_token('edit_pages' . ($board ? ('/' . $board) : '')),
-			'board' => $board
-		],
-		$mod
-	);
+    foreach ($pages as $i => &$p) {
+        $p['delete_token'] = make_secure_link_token('edit_pages/delete/' . $p['name'] . ($board ? ('/' . $board) : ''));
+    }
+
+    mod_page(
+        _('Pages'),
+        $config['file_mod_pages'],
+        [
+            'pages' => $pages,
+            'token' => make_secure_link_token('edit_pages' . ($board ? ('/' . $board) : '')),
+            'board' => $board
+        ],
+        $mod
+    );
 }
 
 function mod_debug_antispam(Context $ctx) {
@@ -4041,15 +4609,101 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
 }
 
 function mod_archive_thread(Context $ctx, $board_path_segment, $post_id) {
-    global $config, $board;
+    global $config, $mod; // Add $mod to globals
 
     $board_uri = basename($board_path_segment);
 
-    if (!openBoard($board_uri)) error($config['error']['noboard']);
-    if (!hasPermission($config['mod']['send_threads_to_archive'], $board['uri'])) error($config['error']['noaccess']);
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
+
+    // Check if user has permission OR is the board owner
+    if (
+        !hasPermission($config['mod']['send_threads_to_archive'], $board_uri) &&
+        (!isset($board_info['owner_id']) || $mod['id'] != $board_info['owner_id'])
+    ) {
+        error($config['error']['noaccess']);
+    }
 
     Archive::archiveThread($post_id);
     mod_delete($ctx, $board_uri, $post_id);
 
-    header('Location: ?/' . sprintf($config['board_path'], $board['uri']) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect using $board_uri
+    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+}
+
+//ads or removes mods in a board
+function mod_manage_mods(Context $ctx, $board_uri) {
+    global $mod, $config;
+
+    // Fetch board info and check ownership
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board = $query->fetch(PDO::FETCH_ASSOC);
+
+    if (!$board)
+        error($config['error']['noboard']);
+
+    // Only owner or admin can manage mods
+    if ($mod['id'] != $board['owner_id'] && $mod['type'] < ADMIN)
+        error($config['error']['noaccess']);
+
+    // Handle add/remove mod actions
+    if (isset($_POST['add_user_id'])) {
+        $user_id = (int)$_POST['add_user_id'];
+        $query = prepare('SELECT boards FROM ``mods`` WHERE `id` = :id');
+        $query->bindValue(':id', $user_id);
+        $query->execute() or error(db_error($query));
+        $user = $query->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $boards = $user['boards'] ? explode(',', $user['boards']) : [];
+            if (!in_array($board_uri, $boards)) {
+                $boards[] = $board_uri;
+                $query = prepare('UPDATE ``mods`` SET `boards` = :boards WHERE `id` = :id');
+                $query->bindValue(':boards', implode(',', $boards));
+                $query->bindValue(':id', $user_id);
+                $query->execute() or error(db_error($query));
+            }
+        }
+    }
+    if (isset($_POST['remove_user_id'])) {
+        $user_id = (int)$_POST['remove_user_id'];
+        $query = prepare('SELECT boards FROM ``mods`` WHERE `id` = :id');
+        $query->bindValue(':id', $user_id);
+        $query->execute() or error(db_error($query));
+        $user = $query->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $boards = $user['boards'] ? explode(',', $user['boards']) : [];
+            $boards = array_diff($boards, [$board_uri]);
+            $query = prepare('UPDATE ``mods`` SET `boards` = :boards WHERE `id` = :id');
+            $query->bindValue(':boards', implode(',', $boards));
+            $query->bindValue(':id', $user_id);
+            $query->execute() or error(db_error($query));
+        }
+    }
+
+    // List all users and which are mods for this board
+    $query = query('SELECT * FROM ``mods``');
+    $users = $query->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($users as &$user) {
+        $user['is_mod'] = in_array($board_uri, explode(',', $user['boards']));
+    }
+
+    mod_page(
+        sprintf(_('Manage moderators for %s'), $board_uri),
+        'mod/manage_mods.html',
+        [
+            'board' => $board,
+            'users' => $users,
+            'token' => make_secure_link_token('manage_mods/' . $board_uri)
+        ],
+        $mod
+    );
 }

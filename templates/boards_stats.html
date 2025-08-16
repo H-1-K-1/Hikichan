@@ -1,20 +1,27 @@
 <div class="boardlist-container">
     <h2>Boards</h2>
+
+    <form method="get" action="">
+        <input type="text" name="q" value="{{ search }}" placeholder="Search boards...">
+        <button type="submit">Search</button>
+    </form>
+
     <table class="boardlist-table">
         <thead>
             <tr>
-                <th>Board</th>
-                <th>Title</th>
-                <th>Posts</th>
-                <th>Threads</th>
-                <th>Posters</th>
-                <th>PPH</th>
+                {% set newdir = dir == 'asc' ? 'desc' : 'asc' %}
+                <th><a href="?q={{ search }}&sort=uri&dir={{ newdir }}">Board</a></th>
+                <th><a href="?q={{ search }}&sort=title&dir={{ newdir }}">Title</a></th>
+                <th><a href="?q={{ search }}&sort=posts&dir={{ newdir }}">Posts</a></th>
+                <th><a href="?q={{ search }}&sort=threads&dir={{ newdir }}">Threads</a></th>
+                <th><a href="?q={{ search }}&sort=posters&dir={{ newdir }}">Posters</a></th>
+                <th><a href="?q={{ search }}&sort=ppm&dir={{ newdir }}">PPM</a></th>
             </tr>
         </thead>
         <tbody>
             {% for board in boards %}
                 <tr>
-                    <td class="board-uri"><a href="{{ config.root}}{{ board.uri }}">/{{ board.uri }}/</a></td>
+                    <td class="board-uri"><a href="{{ config.root }}{{ board.uri }}">/{{ board.uri }}/</a></td>
                     <td class="board-title">
                         {{ board.title }}
                         {% if board.subtitle %}
@@ -24,9 +31,23 @@
                     <td class="board-posts">{{ board.posts }}</td>
                     <td class="board-threads">{{ board.threads }}</td>
                     <td class="board-posters">{{ board.posters }}</td>
-                    <td class="board-pph">{{ board.pph }}</td>
+                    <td class="board-ppm">{{ board.ppm }}</td>
                 </tr>
+            {% else %}
+                <tr><td colspan="6">No boards found.</td></tr>
             {% endfor %}
         </tbody>
     </table>
+
+    {% if total_pages > 1 %}
+        <div class="pagination">
+            {% for p in 1..total_pages %}
+                {% if p == page %}
+                    <strong>{{ p }}</strong>
+                {% else %}
+                    <a href="?q={{ search }}&sort={{ sort }}&dir={{ dir }}&page={{ p }}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
 </div>

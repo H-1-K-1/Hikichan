@@ -20,12 +20,14 @@ $query = isset($_SERVER['QUERY_STRING']) ? rawurldecode($_SERVER['QUERY_STRING']
 $pages = [
 	''					=> ':?/',			// redirect to dashboard
 	'/'					=> 'dashboard',			// dashboard
-	'/dashboard/(\d+)'	=> 'dashboard',			// dashboard paginated
+	'/dashboard/(\d+)'	=> 'dashboard',			// dashboard paginated\
+	'/dashboard/(\d+)/own/(\d+)' => 'dashboard',
 	'/search_boards' => 'search_boards',
 	'/confirm/(.+)'				=> 'confirm',			// confirm action (if javascript didn't work)
 	'/logout'				=> 'secure logout',		// logout
 
 	'/users'				=> 'users',			// manage users
+	'mode=users' => 'secure_POST users',
 	'/users/(\d+)/(promote|demote)'		=> 'secure user_promote',	// prmote/demote user
 	'/users/(\d+)'				=> 'secure_POST user',		// edit user
 	'/users/new'				=> 'secure_POST user_new',	// create a new user
@@ -81,6 +83,7 @@ $pages = [
 	'/search/(posts|IP_notes|bans|log)/(.+)/(\d+)'	=> 'search',		// search
 	'/search/(posts|IP_notes|bans|log)/(.+)'	=> 'search',		// search
 	
+	
 	'/(\%b)/archive/'                => 'secure_POST view_archive',
     //'/(\%b)/archive/(\d+)\.html'       => 'secure_POST view_archive',
 	// Page 1 (index)
@@ -93,6 +96,7 @@ $pages = [
     '/(\%b)/mod_archive/(\d+)'       => 'secure_POST view_archive_mod_archive',
     '/(\%b)/featured/'               => 'secure_POST view_archive_featured',
     '/(\%b)/featured/(\d+)'          => 'secure_POST view_archive_featured',
+	'/manage_mods/([a-z0-9_]+)/?' => 'secure_POST manage_mods',
 
 
 	'/(\%b)/ban(&delete)?/(\d+)'		=> 'secure_POST ban_post', 	// ban poster
@@ -114,8 +118,10 @@ $pages = [
 	'/themes/(\w+)/rebuild'			=> 'secure theme_rebuild',		// rebuild theme
 	'/themes/(\w+)/uninstall'		=> 'secure theme_uninstall',		// uninstall theme
 
-	'/config'				=> 'secure_POST config',	// config editor
+	'/config/channel'				=> 'secure_POST config',	// config editor
 	'/config/(\%b)'				=> 'secure_POST config',	// config editor
+	'/config/channel/(\%b)'				=> 'secure_POST config',	// config editor
+	'/board_suggestions' => 'secure_POST board_suggestions',
 
 	// these pages aren't listed in the dashboard without $config['debug']
 	//'/debug/antispam'			=> 'debug_antispam',
