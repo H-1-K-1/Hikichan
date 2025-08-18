@@ -5,17 +5,11 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Prevent rewriting /channel/, /search, or /mod URLs
-RewriteRule ^(channel|search|mod)/ - [L]
+# Pass missing files through smart_build.php
+ErrorDocument 404 /hikitest/smart_build.php
 
-# Clean URLs for boards: /b/ or /b/res/123.html → channel/b/
-RewriteRule ^([a-z0-9_]+)/?$ channel/$1/ [L,QSA]
+# Pass forbidden files and folders through smart_build.php
+ErrorDocument 403 /hikitest/smart_build.php
 
-# Clean URLs for board content: /b/anything → channel/b/anything
-RewriteRule ^([a-z0-9_]+)/(.*)$ channel/$1/$2 [L,QSA]
-
-# Clean URL for /search
-RewriteRule ^search/?$ search.php [L,QSA]
-
-# Clean URL for mod panel
-RewriteRule ^mod/?$ mod.php [L,QSA]
+# Disable directory listing
+Options -Indexes

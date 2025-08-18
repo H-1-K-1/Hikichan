@@ -941,7 +941,7 @@ function mod_view_catalog(Context $ctx, $boardName) {
 	echo $catalog->build($settings, $boardName, true);
 }
 
-function mod_view_board(Context $ctx, $boardName, $folder = null, $page_no = 1) {
+function mod_view_board(Context $ctx, $channel, $boardName, $folder = null, $page_no = 1) {
 	global $mod;
 	$config = $ctx->get('config');
 
@@ -4543,38 +4543,43 @@ function mod_debug_sql(Context $ctx) {
 	mod_page(_('Debug: SQL'), $config['file_mod_debug_sql'], $args, $mod);
 }
 
-function mod_view_archive(Context $ctx, $channel, $boardName, $page_no = 1) {
+function mod_view_archive(Context $ctx, $channel, $boardName, $pagination_group = 1, $page_no = 1) {
     global $board, $config, $mod;
 
     if (!$config['archive']['threads']) return;
     if (!openBoard($boardName)) error($config['error']['noboard']);
 
-    // Ensure $page_no is always an integer >= 1
+    // Ensure $pagination_group and $page_no are integers >= 1
+    $pagination_group = (is_numeric($pagination_group) && $pagination_group > 0) ? (int)$pagination_group : 1;
     $page_no = (is_numeric($page_no) && $page_no > 0) ? (int)$page_no : 1;
 
+    // Debug parameters
+    error_log("Channel: $channel, Board: $boardName, Pagination Group: $pagination_group, Page: $page_no");
+
     // --- Handle POST actions ---
-    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/archive/')) {
+    $token_path = "channel/{$channel}/{$board['uri']}/archive/";
+    if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $token_path)) {
         $redirect_page = isset($_POST['current_page']) && is_numeric($_POST['current_page']) ? (int)$_POST['current_page'] : 1;
         if (isset($_POST['feature'], $_POST['id'])) {
             if (!hasPermission($config['mod']['feature_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::featureThread($_POST['id'], $board['uri']);
-            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/' . $pagination_group . '/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
             exit;
         } elseif (isset($_POST['mod_archive'], $_POST['id'])) {
             if (!hasPermission($config['mod']['add_to_mod_archive'], $board['uri'])) error($config['error']['noaccess']);
             Archive::featureThread($_POST['id'], $board['uri'], true);
-            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/' . $pagination_group . '/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
             exit;
         } elseif (isset($_POST['delete'], $_POST['id'])) {
             if (!hasPermission($config['mod']['delete_archived_threads'], $board['uri'])) error($config['error']['noaccess']);
             Archive::deleteArchived($_POST['id'], $board['uri']);
-            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/1/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
+            header('Location: ?/' . $board['dir'] . $config['dir']['archive'] . ($redirect_page > 1 ? 'pagination/' . $pagination_group . '/' . $redirect_page . '.html' : ''), true, $config['redirect_http']);
             exit;
         }
     }
 
     $threads_per_page = isset($config['archive']['threads_per_page']) ? $config['archive']['threads_per_page'] : 5;
-    $archive_items = Archive::getArchiveListPaginated($board['uri'], $page_no, $threads_per_page);
+    $archive_items = Archive::getArchiveListPaginated($board['uri'], $page_no, $threads_per_page, $pagination_group);
     $total_threads = Archive::getArchiveCount($board['uri']);
     $total_pages = ceil($total_threads / $threads_per_page);
 
@@ -4596,7 +4601,8 @@ function mod_view_archive(Context $ctx, $channel, $boardName, $page_no = 1) {
             'current_page' => $page_no,
             'total_pages' => $total_pages,
             'mod' => $mod,
-            'token' => make_secure_link_token($board['prefix'] . $board['uri'] . '/archive/')
+            'token' => make_secure_link_token($token_path),
+            'pagination_group' => $pagination_group
         ],
         true
     );

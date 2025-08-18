@@ -85,16 +85,17 @@ $pages = [
     '/search/(posts|IP_notes|bans|log)/(.+)' => 'search', // search
 
     // Archive listing (page 1 and paginated)
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/archive/?' => 'secure_POST view_archive',
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/archive/(\d+)' => 'secure_POST view_archive',
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/archive/?' => 'secure_POST view_archive',
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/archive/(\d+)' => 'secure_POST view_archive',
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/archive/pagination/(\d+)/(\d+)\.html' => 'secure_POST view_archive',
 
-// Mod archive (page 1 and paginated)
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/mod_archive/?' => 'secure_POST view_archive_mod_archive',
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/mod_archive/(\d+)' => 'secure_POST view_archive_mod_archive',
+    // Mod archive (page 1 and paginated)
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/mod_archive/?' => 'secure_POST view_archive_mod_archive',
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/mod_archive/(\d+)' => 'secure_POST view_archive_mod_archive',
 
-// Featured archive (page 1 and paginated)
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/featured/?' => 'secure_POST view_archive_featured',
-'/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/featured/(\d+)' => 'secure_POST view_archive_featured',
+    // Featured archive (page 1 and paginated)
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/featured/?' => 'secure_POST view_archive_featured',
+    '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/featured/(\d+)' => 'secure_POST view_archive_featured',
     '/manage_mods/([a-z0-9_]+)/?' => 'secure_POST manage_mods',
 
     '/channel/(\d+)/([a-zA-Z0-9$_\\x{0080}-\\x{10FFFF}]+)/ban(&delete)?/(\d+)' => 'secure_POST ban_post', // ban poster
@@ -211,9 +212,9 @@ foreach ($pages as $uri => $handler) {
         }
 
         // Handle view_board specifically to ensure correct parameter order
-        if ($handler === 'view_board' && isset($matches['board'])) {
-            // Call mod_view_board with explicit parameters
-            mod_view_board($ctx, $matches['board'], null, 1);
+        if ($handler === 'view_board' && isset($matches[1], $matches[2], $matches[3], $matches[4])) {
+            // $matches[1] = channel, $matches[2] = board, $matches[3] = folder, $matches[4] = page_no
+            mod_view_board($ctx, $matches[1], $matches[2], $matches[3], $matches[4]);
         } else {
             // For other handlers, pass matches as an indexed array
             $matches = array_values($matches);

@@ -77,7 +77,11 @@ class Archive {
                 $thread_file_content = str_replace('Posting mode: Reply', 'Archived thread', $thread_file_content);
                 $thread_file_content = preg_replace("/<form name=\"post\"(.*?)<\/form>/i", "", $thread_file_content);
 
-                $thread_file_content = str_replace(sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['archive'], $board['uri']), sprintf('href="/' . $config['board_path'] . $config['dir']['archive'], $board['uri']), $thread_file_content);
+                $thread_file_content = str_replace(
+                    sprintf($config['board_path'] . $config['dir']['archive'] . $config['dir']['archive'], $board['channel'], $board['uri']),
+                    sprintf('href="/' . $config['board_path'] . $config['dir']['archive'], $board['channel'], $board['uri']),
+                    $thread_file_content
+                );
 
                 $thread_file_content = preg_replace("/<form(.*?)>/i", "", $thread_file_content);
                 $thread_file_content = preg_replace("/<\/form>/i", "", $thread_file_content);
@@ -229,13 +233,13 @@ class Archive {
         $thread_file_content = @file_get_contents($board['dir'] . $config['dir']['archive'] . $config['dir']['res'] . $thread['path'] . '/' . sprintf($config['file_page'], $original_thread_id));
 
         $thread_file_content = str_replace(
-            sprintf('src="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board_uri),
-            sprintf('src="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board_uri),
+            sprintf('src="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board['channel'], $board_uri),
+            sprintf('src="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board['channel'], $board_uri),
             $thread_file_content
         );
         $thread_file_content = str_replace(
-            sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board_uri),
-            sprintf('href="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board_uri),
+            sprintf('href="/' . $config['board_path'] . $config['dir']['archive'] . $config['dir']['res'], $board['channel'], $board_uri),
+            sprintf('href="/' . $config['board_path'] . ($mod_archive?$config['dir']['mod_archive']:$config['dir']['featured']) . $config['dir']['res'], $board['channel'], $board_uri),
             $thread_file_content
         );
         $thread_file_content = str_replace('Archived thread', 'Featured thread', $thread_file_content);

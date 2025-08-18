@@ -28,15 +28,15 @@ else {
 }
 
 function die_404() { global $config;
-  if (!$config['page_404']) {
-    header("HTTP/1.1 404 Not Found");
-    header("Status: 404 Not Found");
-    echo "<h1>404 Not Found</h1><p>Page doesn't exist<hr><address>vichan</address>";
-  }
-  else {
-    header("Location: ".$config['page_404']);
-  }
+  header("HTTP/1.1 404 Not Found");
+  header("Status: 404 Not Found");
   header("X-Accel-Expires: 120");
+  if (!$config['page_404']) {
+    echo "<h1>404 Not Found</h1><p>Page doesn't exist<hr><address>vichan</address>";
+  } else {
+    // Directly include the 404 page, do not redirect
+    include $_SERVER['DOCUMENT_ROOT'] . $config['page_404'];
+  }
   die();
 }
 
