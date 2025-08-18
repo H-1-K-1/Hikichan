@@ -5,22 +5,28 @@ Hikichan - A lightweight and full featured PHP imageboard derived from Vichan an
 
 As of 29 August 2022 it supports PHP8.1.
 
+INFINITY NEXT!
+------------
+There is now an infinity config option that allows your users to create their own boards like 8chan.
+
 HIKICHAN IMPORTANT ALPHA STATEMENT
 ------------
 I intent to make a lot of changes to the code of tinyboard and vichan. We are in alpha as long the feature below isn't correctly implemented.
-
-~~Hikichan plans to turn the post_b etc... tables into one unified table in the future for all boards called posts. this is a significant change and will mess up everything. This is not set in stone yet and I'm seeing if it is feasable. I first plan to make it so that most bugs are gone and all features that I want are implemented. I will first try and see if separate board tables is feasable since I plan to have 50+ boards in hikichan in the long term.~~
-
-Unified posts table has been implemented.~~, now we test until everything works.~~
-
 I tested everything and all the core mechanics seems to work, there are probably still a lot of bugs but those will be fixed in time.
 No more extra features will be added, we just focus on improving the code, fixing bugs, and updating twig etc... to make it future proof.
 
 ### Update
 ~~unified table for archive works~~
+
 ~~unified tabled for posts works~~
+
 ~~deletion of items in posts table works~~
+
 ~~deletion of threads works~~
+
+~~infinity next has been implmented~~
+
+place boards in a channel/board_channel/board folder so that 1000 boards maximum get placed in a folder channel/1/b etc... this is the last major overhaul that i will do.
 
 
 About
