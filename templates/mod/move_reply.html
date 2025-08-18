@@ -1,4 +1,4 @@
-{% set board_path = config.board_path|replace({'%s': board})|trim('/') %}
+{% set board_path = config.board_path|replace({'%d': channel, '%s': board})|trim('/') %}
 <form action="?/{{ board_path }}/move_reply/{{ post }}" method="post" onsubmit="btnSubmit.disabled = true; return true;">
 	<input type="hidden" name="token" value="{{ token }}">
 	<table>

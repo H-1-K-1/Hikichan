@@ -1,5 +1,5 @@
-<form action="?/{{ config.board_path|replace({'%s': board})|trim('/') }}/move/{{ post }}" method="post" onsubmit="btnSubmit.disabled = true; return true;">
-	<input type="hidden" name="token" value="{{ token }}">
+<form action="?/{{ config.board_path|replace({'%d': channel, '%s': board})|trim('/') }}/move/{{ post }}" method="post" onsubmit="btnSubmit.disabled = true; return true;">
+    <input type="hidden" name="token" value="{{ token }}">
 	<table>
 		<tr>
 			<th>

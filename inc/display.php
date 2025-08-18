@@ -31,11 +31,14 @@ function doBoardListPart($list, $root, &$boards) {
 				$body .= ' <a href="' . $board . '">' . $key . '</a> /';
 			} else {
 				$title = '';
-				if (isset ($boards[$board])) {
-					$title = ' title="'.$boards[$board].'"';
+				$channel = '';
+				if (isset($boards[$board])) {
+					$title = ' title="' . htmlspecialchars($boards[$board]['title']) . '"';
+					$channel = ' data-channel="' . (int)$boards[$board]['channel'] . '"';
 				}
 
-				$body .= ' <a href="' . $root . $board . '/' . $config['file_index'] . '"'.$title.'>' . $board . '</a> /';
+				$body .= ' <a href="' . $root . $board . '/' . $config['file_index'] . '"' 
+					   . $title . $channel . '>' . $board . '</a> /';
 			}
 		}
 	}
@@ -55,7 +58,7 @@ function createBoardlist($mod = false) {
 	$xboards = listBoards();
 	$boards = array();
 	foreach ($xboards as $val) {
-		$boards[$val['uri']] = $val['title'];
+		$boards[$val['uri']] = $val; // includes title, channel, etc.
 	}
 
 	// Build the boardlist HTML
@@ -432,11 +435,11 @@ class Post {
 			// Fix internal links
 			// Very complicated regex
 			$this->body = preg_replace(
-				'/<a((([a-zA-Z]+="[^"]+")|[a-zA-Z]+=[a-zA-Z]+|\s)*)href="' . preg_quote($config['root'], '/') . '(' . sprintf(preg_quote($config['board_path'], '/'), $config['board_regex']) . ')/u',
+				'/<a((([a-zA-Z]+="[^"]+")|[a-zA-Z]+=[a-zA-Z]+|\s)*)href="' . preg_quote($config['root'], '/') . '(' . sprintf(preg_quote($config['board_path'], '/'), $config['board_regex'], $config['board_regex']) . ')/u',
 				'<a $1href="?/$4',
 				$this->body
 			);
-	}
+		}
 	public function link($pre = '', $page = false) {
 		global $config, $board;
 		$live_date_path = isset($this->live_date_path) && $this->live_date_path !== '' ? $this->live_date_path . '/' : '';
@@ -464,128 +467,136 @@ class Post {
 };
 
 class Thread {
+    public $id;
+    public $board_id;
+    public $board;
+    public $thread;
+    public $subject;
+    public $email;
+    public $name;
+    public $trip;
+    public $capcode;
+    public $body;
+    public $body_nomarkup;
+    public $time;
+    public $bump;
+    public $live_date_path;
+    public $files;
+    public $num_files;
+    public $filehash;
+    public $password;
+    public $ip;
+    public $sticky;
+    public $locked;
+    public $cycle;
+    public $sage;
+    public $embed;
+    public $slug;
+    public $modifiers;
+    public $mod;
+    public $root;
+    public $spoiler;
+    public $country;
+    public $country_name;
+    public $user_flag;
+    public $user_flag_alt;
+    public $has_file;
+    public $op;
+    public $raw;
+    public $tracked_cites;
+    public $hr;
+    public $posts;
+    public $omitted;
+    public $omitted_images;
+    public $images;
+    public $replies;
 
-	public $id;
-	public $board_id;
-	public $board;
-	public $thread;
-	public $subject;
-	public $email;
-	public $name;
-	public $trip;
-	public $capcode;
-	public $body;
-	public $body_nomarkup;
-	public $time;
-	public $bump;
-	public $live_date_path;
-	public $files;
-	public $num_files;
-	public $filehash;
-	public $password;
-	public $ip;
-	public $sticky;
-	public $locked;
-	public $cycle;
-	public $sage;
-	public $embed;
-	public $slug;
-	public $modifiers;
-	public $mod;
-	public $root;
-	public $spoiler;
-	public $country;
-	public $country_name;
-	public $user_flag;
-	public $user_flag_alt;
-	public $has_file;
-	public $op;
-	public $raw;
-	public $tracked_cites;
-	public $hr;
-	public $posts;
-	public $omitted;
-	public $omitted_images;
-	public $images;
-	public $replies;
+    public function __construct($post, $root = null, $mod = false, $hr = true) {
+        global $config, $board;
+        if (!isset($root))
+            $root = &$config['root'];
 
-	public function __construct($post, $root = null, $mod = false, $hr = true) {
-		global $config;
-		if (!isset($root))
-			$root = &$config['root'];
+        foreach ($post as $key => $value) {
+            $this->{$key} = $value;
+        }
 
-		foreach ($post as $key => $value) {
-			$this->{$key} = $value;
-		}
+        if (isset($this->files))
+            $this->files = is_string($this->files) ? json_decode($this->files) : $this->files;
 
-		if (isset($this->files))
-			$this->files = is_string($this->files) ? json_decode($this->files) : $this->files;
+        $this->subject = utf8tohtml($this->subject);
+        $this->name = utf8tohtml($this->name);
+        $this->mod = $mod;
+        $this->root = $root;
+        $this->hr = $hr;
 
-		$this->subject = utf8tohtml($this->subject);
-		$this->name = utf8tohtml($this->name);
-		$this->mod = $mod;
-		$this->root = $root;
-		$this->hr = $hr;
+        $this->posts = array();
+        $this->omitted = 0;
+        $this->omitted_images = 0;
 
-		$this->posts = array();
-		$this->omitted = 0;
-		$this->omitted_images = 0;
+        if ($this->embed)
+            $this->embed = embed_html($this->embed);
 
-		if ($this->embed)
-			$this->embed = embed_html($this->embed);
+        $this->modifiers = extract_modifiers($this->body_nomarkup);
 
-		$this->modifiers = extract_modifiers($this->body_nomarkup);
+        if ($config['always_regenerate_markup']) {
+            $this->body = $this->body_nomarkup;
+            markup($this->body);
+        }
 
-		if ($config['always_regenerate_markup']) {
-			$this->body = $this->body_nomarkup;
-			markup($this->body);
-		}
+        if ($this->mod) {
+            // Fix internal links
+            if (!isset($board['channel']) || !isset($board['uri'])) {
+                error_log("Thread constructor: Missing board channel or uri: " . print_r($board, true));
+                $board_path = $board['dir'];
+            } else {
+                $board_path = sprintf($config['board_path'], $board['channel'], $board['uri']);
+            }
+            $this->body = preg_replace(
+                '/<a((([a-zA-Z]+="[^"]+")|[a-zA-Z]+=[a-zA-Z]+|\s)*)href="' . preg_quote($config['root'], '/') . preg_quote($board_path, '/') . '/u',
+                '<a $1href="?/' . $board['uri'] . '/',
+                $this->body
+            );
+        }
+    }
 
-		if ($this->mod)
-			// Fix internal links
-			// Very complicated regex
-			$this->body = preg_replace(
-				'/<a((([a-zA-Z]+="[^"]+")|[a-zA-Z]+=[a-zA-Z]+|\s)*)href="' . preg_quote($config['root'], '/') . '(' . sprintf(preg_quote($config['board_path'], '/'), $config['board_regex']) . ')/u',
-				'<a $1href="?/$4',
-				$this->body
-			);
-	}
-	public function link($pre = '', $page = false) {
-		global $config, $board;
-		$live_date_path = isset($this->live_date_path) && $this->live_date_path !== '' ? $this->live_date_path . '/' : '';
-		// Only append $this->id if $pre is not a full hash (e.g., not starting with 'q')
-		$hash = $pre && strpos($pre, 'q') === 0 ? $pre : $pre . $this->id;
-		return $this->root . $board['dir'] . $config['dir']['res'] . $live_date_path . link_for((array)$this, $page == '50') . '#' . $hash;
-	}
-	public function add(Post $post) {
-		$this->posts[] = $post;
-	}
-	public function postCount() {
-		   return count($this->posts) + $this->omitted;
-	}
-	public function build($index=false, $isnoko50=false) {
-		global $board, $config, $debug;
+    public function link($pre = '', $page = false) {
+        global $config, $board;
+        $live_date_path = isset($this->live_date_path) && $this->live_date_path !== '' ? $this->live_date_path . '/' : '';
+        $hash = $pre && strpos($pre, 'q') === 0 ? $pre : $pre . $this->id;
+        return $this->root . $board['dir'] . $config['dir']['res'] . $live_date_path . link_for((array)$this, $page == '50') . '#' . $hash;
+    }
 
-		$hasnoko50 = $this->postCount() >= $config['noko50_min'];
+    public function add(Post $post) {
+        $this->posts[] = $post;
+    }
 
-		event('show-thread', $this);
+    public function postCount() {
+        return count($this->posts) + $this->omitted;
+    }
 
-		$options = [
-			'config' => $config,
-			'board' => $board,
-			'post' => &$this,
-			'index' => $index,
-			'hasnoko50' => $hasnoko50,
-			'isnoko50' => $isnoko50,
-			'mod' => $this->mod
-		];
-		if ($this->mod) {
-			$options['pm'] = create_pm_header();
-		}
+    public function build($index = false, $isnoko50 = false) {
+        global $board, $config, $debug;
 
-		$file = ($index && $config['file_board']) ? $config['file_post_thread_fileboard'] : $config['file_post_thread'];
-		$built = Element($file, $options);
+        $hasnoko50 = $this->postCount() >= $config['noko50_min'];
 
-		return $built;
-	}
-};
+        event('show-thread', $this);
+
+        $options = [
+            'config' => $config,
+            'board' => $board,
+            'post' => &$this,
+            'index' => $index,
+            'hasnoko50' => $hasnoko50,
+            'isnoko50' => $isnoko50,
+            'mod' => $this->mod
+        ];
+        if ($this->mod) {
+            $options['pm'] = create_pm_header();
+        }
+
+        $file = ($index && $config['file_board']) ? $config['file_post_thread_fileboard'] : $config['file_post_thread'];
+        $built = Element($file, $options);
+
+        return $built;
+    }
+}

@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS `boards` (
   `title` tinytext NOT NULL,
   `subtitle` tinytext,
   `owner_id` int DEFAULT NULL,
+  `channel` int NOT NULL DEFAULT 1,
   -- `indexed` boolean default true,
   PRIMARY KEY (`uri`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

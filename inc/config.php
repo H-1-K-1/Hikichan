@@ -1072,6 +1072,7 @@
 		"Linkage" => array('a', "Offsite board name" => '//int.vichan.net/s/'),
 		"d_Boardlist" => array("Boardlist" => "/hikichan/boards.php"),
 		"d_Mod" => array("mod" => "/hikichan/mod?/"),
+		"d_Register" => array("register" => "/hikichan/mod.php?register"),
 		"fa_search" => array("Search" => "/hikichan/search.php"),# would refer to a search 
 														# font-awesome icon
 	   );
@@ -1426,7 +1427,9 @@
 	$config['file_mod_debug_sql'] = 'mod/debug/sql.html';
 
 	// Board directory, followed by a forward-slash (/).
-	$config['board_path'] = 'channel/%s/';
+	$config['board_path'] = 'channel/%d/%s/';
+	// Maximum number of boards per channel folder
+	$config['boards_per_channel'] = 1000;
 	// Misc directories.
 	$config['dir']['img'] = 'src/';
 	$config['dir']['thumb'] = 'thumb/';

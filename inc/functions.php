@@ -407,87 +407,93 @@ function mb_substr_replace($string, $replacement, $start, $length) {
 function setupBoard($array) {
     global $board, $config;
 
-    // Copy all fields from $array (the board row) into $board
+    // Copy all fields from $array into $board
     $board = $array;
 
-    // older versions
+    // Older versions compatibility
     $board['name'] = &$board['title'];
 
-    $board['dir'] = sprintf($config['board_path'], $board['uri']);
+    // Calculate channel number (already set in $board['channel'] from getBoardInfo or mod_new_board)
+    $channel = isset($board['channel']) ? $board['channel'] : ceil($board['id'] / $config['boards_per_channel']);
+
+    // Set board directory with channel number
+    $board['dir'] = sprintf($config['board_path'], $channel, $board['uri']);
     $board['url'] = sprintf($config['board_abbreviation'], $board['uri']);
-    $board['dir_no_slash'] = rtrim(sprintf($config['board_path'], $board['uri']), '/');
-    $board['prefix'] = rtrim(dirname($config['board_path']), '/') . '/'; // Result: 'channel/'
+    $board['dir_no_slash'] = rtrim(sprintf($config['board_path'], $channel, $board['uri']), '/');
+    $board['prefix'] = rtrim(dirname(sprintf($config['board_path'], $channel, '')), '/') . '/'; // Result: 'channel/N/'
 
     loadConfig();
 
-    if (!file_exists($board['dir']))
-        @mkdir($board['dir'], 0777) or error("Couldn't create " . $board['dir'] . ". Check permissions.", true);
-    if (!file_exists($board['dir'] . $config['dir']['img']))
-        @mkdir($board['dir'] . $config['dir']['img'], 0777)
-            or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
-    if (!file_exists($board['dir'] . $config['dir']['thumb']))
-        @mkdir($board['dir'] . $config['dir']['thumb'], 0777)
-            or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
-    if (!file_exists($board['dir'] . $config['dir']['res']))
-        @mkdir($board['dir'] . $config['dir']['res'], 0777)
-            or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
+    // Create channel directory if it doesn't exist
+    $channel_dir = rtrim(dirname($board['dir']), '/');
+    if (!file_exists($channel_dir)) {
+        @mkdir($channel_dir, 0777, true) or error("Couldn't create $channel_dir. Check permissions.", true);
+    }
 
-    // Create Archive Folder
-    if (!file_exists($board['dir'] . $config['dir']['archive']))
-        @mkdir($board['dir'] . $config['dir']['archive'], 0777)
-            or error("Couldn't create " . $board['dir'] . $config['dir']['archive'] . ". Check permissions.", true);
-    // Create Featured threads Folder
-    if (!file_exists($board['dir'] . $config['dir']['featured']))
-        @mkdir($board['dir'] . $config['dir']['featured'], 0777)
-            or error("Couldn't create " . $board['dir'] . $config['dir']['featured'] . ". Check permissions.", true);
-    // Create Mod Archive threads Folder
-    if (!file_exists($board['dir'] . $config['dir']['mod_archive']))
-        @mkdir($board['dir'] . $config['dir']['mod_archive'], 0777)
-            or $file_errors .= "Couldn't create " . $board['dir'] . $config['dir']['mod_archive'] . ". Check permissions.<br/>";
+    // Create board directory
+    if (!file_exists($board['dir'])) {
+        @mkdir($board['dir'], 0777) or error("Couldn't create {$board['dir']}. Check permissions.", true);
+    }
+
+    // Create subdirectories (img, thumb, res, archive, featured, mod_archive)
+    foreach (['img', 'thumb', 'res', 'archive', 'featured', 'mod_archive'] as $dir) {
+        if (!file_exists($board['dir'] . $config['dir'][$dir])) {
+            @mkdir($board['dir'] . $config['dir'][$dir], 0777)
+                or error("Couldn't create {$board['dir']}{$config['dir'][$dir]}. Check permissions.", true);
+        }
+    }
 }
 
 function openBoard($uri) {
-	global $config, $build_pages, $board;
+    global $config, $build_pages, $board;
 
-	if ($config['try_smarter'])
-		$build_pages = array();
+    if ($config['try_smarter']) {
+        $build_pages = array();
+    }
 
-	// And what if we don't really need to change a board we have opened?
-	if (isset ($board) && isset ($board['uri']) && $board['uri'] == $uri) {
-		return true;
-	}
+    if (isset($board) && isset($board['uri']) && $board['uri'] == $uri) {
+        return true;
+    }
 
-	$b = getBoardInfo($uri);
-	if ($b) {
-		setupBoard($b);
-
-		if (function_exists('after_open_board')) {
-			after_open_board();
-		}
-
-		return true;
-	}
-	return false;
+    $b = getBoardInfo($uri);
+    if ($b) {
+        setupBoard($b);
+        if (function_exists('after_open_board')) {
+            after_open_board();
+        }
+        return true;
+    }
+    error_log("Failed to open board: $uri");
+    return false;
 }
 
 function getBoardInfo($uri) {
-	global $config;
+    global $config;
 
-	if ($config['cache']['enabled'] && ($board = cache::get('board_' . $uri))) {
-		return $board;
-	}
+    if ($config['cache']['enabled'] && ($board = cache::get('board_' . $uri))) {
+        return $board;
+    }
 
-	$query = prepare("SELECT * FROM ``boards`` WHERE `uri` = :uri LIMIT 1");
-	$query->bindValue(':uri', $uri);
-	$query->execute() or error(db_error($query));
+    $query = prepare("SELECT * FROM ``boards`` WHERE `uri` = :uri LIMIT 1");
+    $query->bindValue(':uri', $uri);
+    $query->execute() or error(db_error($query));
 
-	if ($board = $query->fetch(PDO::FETCH_ASSOC)) {
-		if ($config['cache']['enabled'])
-			cache::set('board_' . $uri, $board);
-		return $board;
-	}
+    if ($board = $query->fetch(PDO::FETCH_ASSOC)) {
+        if (!isset($board['channel']) || $board['channel'] <= 0) {
+            $board['channel'] = max(1, ceil($board['id'] / $config['boards_per_channel']));
+            $update_query = prepare("UPDATE ``boards`` SET `channel` = :channel WHERE `uri` = :uri");
+            $update_query->bindValue(':channel', $board['channel'], PDO::PARAM_INT);
+            $update_query->bindValue(':uri', $uri);
+            $update_query->execute() or error(db_error($update_query));
+        }
+        if ($config['cache']['enabled']) {
+            cache::set('board_' . $uri, $board);
+        }
+        error_log("Retrieved board $uri from database: " . print_r($board, true));
+        return $board;
+    }
 
-	return false;
+    return false;
 }
 
 function boardTitle($uri) {
@@ -2354,7 +2360,7 @@ function buildThread($id, $return = false, $mod = false) {
             'hasnoko50' => $hasnoko50,
             'isnoko50' => false,
             'boardlist' => createBoardlist($mod),
-            'return' => ($mod ? '?/' . sprintf($config['board_path'], $board['uri']) . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
+            'return' => ($mod ? '?/' . sprintf($config['board_path'], $board['channel'], $board['uri']) . $config['file_index'] : $config['root'] . $board['dir'] . $config['file_index'])
         ];
 
         if ($mod) {

@@ -41,7 +41,8 @@ do_boardlist = function () {
             var board = {
                 name: $(this).prop('title'),
                 uri: $(this).html(),
-                href: $(this).prop('href')
+                href: $(this).prop('href'),
+                channel: $(this).data('channel')
             };
             cat.boards.push(board);
         });
@@ -99,7 +100,7 @@ do_boardlist = function () {
                             var href, label, uriDisplay;
 
                             if (board.name) {
-                                href = configRoot + boardFolder + board.uri + "/index.html";
+                                href = configRoot + (inMod ? "mod.php?/" : "") + boardFolder + board.channel + "/" + board.uri + "/index.html";
                                 label = board.name || board.uri;
                                 uriDisplay = "/" + board.uri + "/";
                             } else {
@@ -206,7 +207,7 @@ do_boardlist = function () {
                                 var href, label, uriDisplay;
 
                                 if (board.name) {
-                                    href = configRoot + boardFolder + board.uri + "/index.html";
+                                    href = configRoot + (inMod ? "mod.php?/" : "") + boardFolder + board.channel + "/" + board.uri + "/index.html";
                                     label = board.name || board.uri;
                                     uriDisplay = "/" + board.uri + "/";
                                 } else {

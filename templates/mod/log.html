@@ -36,14 +36,17 @@
 				<span title="{{ log.time|date(config.post_date) }}">{{ log.time|ago }}</span>
 			</td>
 			<td class="minimal">
-				{% if log.board %}
-					<a href="?/{{ config.board_path|sprintf(log.board) }}{{ config.file_index }}">{{ config.board_abbreviation|sprintf(log.board) }}</a>
+				{% if log.board and log.channel is defined %}
+					<a href="?/{{ config.board_path|sprintf(log.channel, log.board) }}{{ config.file_index }}">
+						{{ config.board_abbreviation|sprintf(log.board) }}
+					</a>
+				{% elseif log.board %}
+					<a href="?/{{ config.board_path|sprintf(1, log.board) }}{{ config.file_index }}">
+						{{ config.board_abbreviation|sprintf(log.board) }}
+					</a>
 				{% else %}
 					-
 				{% endif %}
-			</td>
-			<td>
-				{{ log.text }}
 			</td>
 		</tr>
 	{% endfor %}

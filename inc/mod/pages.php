@@ -544,7 +544,7 @@ function mod_search(Context $ctx, $type, $search_query_escaped, $page_no = 1) {
 	);
 }
 
-function mod_edit_board(Context $ctx, $boardName) {
+function mod_edit_board(Context $ctx, $channel, $boardName) {
     global $board, $config, $mod;
 
     $cache = $ctx->get(CacheDriver::class);
@@ -599,7 +599,7 @@ function mod_edit_board(Context $ctx, $boardName) {
         }
         $args = [
             'board' => array_merge($board, ['owner_username' => $owner_username]),
-            'token' => make_secure_link_token('edit/' . $board['dir_no_slash']),
+            'token' => make_secure_link_token('edit/channel/' . $board['channel'] . '/' . $board['uri']),
             'new' => false,
             'config' => $config,
             'mod' => $mod,
@@ -609,39 +609,53 @@ function mod_edit_board(Context $ctx, $boardName) {
 }
 
 function mod_new_board(Context $ctx) {
-    global $board, $mod;
-    $config = $ctx->get('config');
+    global $board, $mod, $config, $pdo;
 
-    if (!hasPermission($config['mod']['newboard']) && !hasPermission($config['mod']['infinity']))
+    if (!hasPermission($config['mod']['newboard']) && !hasPermission($config['mod']['infinity'])) {
         error($config['error']['noaccess']);
+    }
 
     if (isset($_POST['uri'], $_POST['title'], $_POST['subtitle'])) {
         $uri = strtolower(trim($_POST['uri']));
-        if (!preg_match('/^' . $config['board_regex'] . '$/u', $uri))
+        if (!preg_match('/^' . $config['board_regex'] . '$/u', $uri)) {
             error(sprintf($config['error']['invalidfield'], 'URI'));
+        }
 
         // Check if board already exists
         $query = prepare('SELECT COUNT(*) FROM ``boards`` WHERE `uri` = :uri');
         $query->bindValue(':uri', $uri);
         $query->execute() or error(db_error($query));
-        if ($query->fetchColumn() > 0)
+        if ($query->fetchColumn() > 0) {
             error(sprintf($config['error']['boardexists'], $uri));
+        }
+
+        // Get total number of boards to determine channel
+        $query = prepare('SELECT COUNT(*) FROM ``boards``');
+        $query->execute() or error(db_error($query));
+        $board_count = $query->fetchColumn();
+        $channel = max(1, ceil(($board_count + 1) / $config['boards_per_channel'])); // Ensure channel is at least 1
 
         $cache = $ctx->get(CacheDriver::class);
 
-        // Insert owner_id as the creator
-        $query = prepare('INSERT INTO ``boards`` (`uri`, `title`, `subtitle`, `owner_id`) VALUES (:uri, :title, :subtitle, :owner_id)');
+        // Insert board with owner_id
+        $query = prepare('INSERT INTO ``boards`` (`uri`, `title`, `subtitle`, `owner_id`, `channel`) VALUES (:uri, :title, :subtitle, :owner_id, :channel)');
         $query->bindValue(':uri', $uri);
         $query->bindValue(':title', $_POST['title']);
         $query->bindValue(':subtitle', $_POST['subtitle']);
         $query->bindValue(':owner_id', $mod['id']);
+        $query->bindValue(':channel', $channel, PDO::PARAM_INT);
         $query->execute() or error(db_error($query));
+
+        // Get the last inserted ID
+        $last_id = $pdo->lastInsertId();
 
         // Setup board directory and config
         setupBoard([
             'uri' => $uri,
             'title' => $_POST['title'],
             'subtitle' => $_POST['subtitle'],
+            'channel' => $channel,
+            'id' => $last_id,
         ]);
 
         $cache->delete('all_boards');
@@ -960,28 +974,26 @@ function mod_view_board(Context $ctx, $boardName, $folder = null, $page_no = 1) 
 	echo Element($config['file_board_index'], $page);
 }
 
-function mod_view_thread(Context $ctx, $boardName, $live_date_path, $thread) {
-	global $mod;
-	$config = $ctx->get('config');
+function mod_view_thread(Context $ctx, $channel, $boardName, $live_date_path, $thread) {
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!openBoard($boardName))
-		error($config['error']['noboard']);
+    if (!openBoard($boardName))
+        error($config['error']['noboard']);
 
-	// Only pass the thread ID to buildThread
-	$page = buildThread($thread, true, $mod);
-	echo $page;
+    $page = buildThread($thread, true, $mod);
+    echo $page;
 }
 
-function mod_view_thread50(Context $ctx, $boardName, $live_date_path, $thread) {
-	global $mod;
-	$config = $ctx->get('config');
+function mod_view_thread50(Context $ctx, $channel, $boardName, $live_date_path, $thread) {
+    global $mod;
+    $config = $ctx->get('config');
 
-	if (!openBoard($boardName))
-		error($config['error']['noboard']);
+    if (!openBoard($boardName))
+        error($config['error']['noboard']);
 
-	// Only pass the thread ID to buildThread50
-	$page = buildThread50($thread, true, $mod);
-	echo $page;
+    $page = buildThread50($thread, true, $mod);
+    echo $page;
 }
 
 function mod_ip_remove_note(Context $ctx, $cloaked_ip, $id) {
@@ -1130,6 +1142,7 @@ function mod_edit_ban(Context $ctx, $ban_id) {
     // Fetch board info for the ban
     $current_board = isset($args['bans'][0]['board']) ? $args['bans'][0]['board'] : false;
     $is_board_owner = false;
+    $board_info = false;
     if ($current_board) {
         $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
         $query->bindValue(':uri', $current_board);
@@ -1177,6 +1190,7 @@ function mod_edit_ban(Context $ctx, $ban_id) {
     if (isset($_POST['new_ban'])) {
         // Validate new board
         $new_board = isset($_POST['board']) ? basename($_POST['board']) : $current_board;
+        $new_board_info = false;
         if ($new_board !== '*' && $new_board !== $current_board) {
             $board_exists = false;
             foreach ($all_boards as $b) {
@@ -1222,7 +1236,13 @@ function mod_edit_ban(Context $ctx, $ban_id) {
             Bans::delete($ban_id);
         }
 
-        header('Location: ?/', true, $config['redirect_http']);
+        // Redirect to the board index if possible, otherwise dashboard
+        if ($new_ban['board'] && ($new_board_info || $board_info)) {
+            $info = $new_board_info ? $new_board_info : $board_info;
+            header('Location: ?/' . sprintf($config['board_path'], $info['channel'], $info['uri']) . $config['file_index'], true, $config['redirect_http']);
+        } else {
+            header('Location: ?/', true, $config['redirect_http']);
+        }
         return;
     }
 
@@ -1346,10 +1366,14 @@ function mod_ban(Context $ctx) {
         Bans::new_ban($_POST['ip'], $_POST['reason'], $_POST['length'], $ban_board);
     }
 
-    if (isset($_POST['redirect']))
+    // Redirect to the board index if possible, otherwise dashboard
+    if ($board_uri !== '*' && $board_info) {
+        header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    } elseif (isset($_POST['redirect'])) {
         header('Location: ' . $_POST['redirect'], true, $config['redirect_http']);
-    else
+    } else {
         header('Location: ?/', true, $config['redirect_http']);
+    }
 }
 
 function mod_bans(Context $ctx) {
@@ -1432,7 +1456,7 @@ function mod_bans(Context $ctx) {
             'total_pages' => $total_pages,
             'items_per_page' => $items_per_page
         ],
-        $mod // Added the $mod parameter
+        $mod
     );
 }
 
@@ -1590,12 +1614,9 @@ function mod_ban_appeals(Context $ctx) {
     );
 }
 
-function mod_lock(Context $ctx, $board, $unlock, $post) {
+function mod_lock(Context $ctx, $channel, $board_uri, $unlock, $post) {
     global $mod;
     $config = $ctx->get('config');
-
-    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
-    $board_uri = basename($board);
 
     // Fetch board info from DB
     $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
@@ -1641,8 +1662,8 @@ function mod_lock(Context $ctx, $board, $unlock, $post) {
         $query->execute() or error(db_error($query));
     }
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 
     if ($unlock) {
         event('unlock', $post);
@@ -1651,12 +1672,9 @@ function mod_lock(Context $ctx, $board, $unlock, $post) {
     }
 }
 
-function mod_sticky(Context $ctx, $board, $unsticky, $post) {
+function mod_sticky(Context $ctx, $channel, $board_uri, $unsticky, $post) {
     global $mod;
     $config = $ctx->get('config');
-
-    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
-    $board_uri = basename($board);
 
     // Fetch board info from DB
     $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
@@ -1695,16 +1713,13 @@ function mod_sticky(Context $ctx, $board, $unsticky, $post) {
         buildIndex();
     }
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_cycle(Context $ctx, $board, $uncycle, $post) {
+function mod_cycle(Context $ctx, $channel, $board_uri, $uncycle, $post) {
     global $mod;
     $config = $ctx->get('config');
-
-    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
-    $board_uri = basename($board);
 
     // Fetch board info from DB
     $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
@@ -1743,16 +1758,13 @@ function mod_cycle(Context $ctx, $board, $uncycle, $post) {
         buildIndex();
     }
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_bumplock(Context $ctx, $board, $unbumplock, $post) {
+function mod_bumplock(Context $ctx, $channel, $board_uri, $unbumplock, $post) {
     global $mod;
     $config = $ctx->get('config');
-
-    // Extract the board URI (e.g., "b") from the full board path (e.g., "channel/b")
-    $board_uri = basename($board);
 
     // Fetch board info from DB
     $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
@@ -1791,27 +1803,33 @@ function mod_bumplock(Context $ctx, $board, $unbumplock, $post) {
         buildIndex();
     }
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_move_reply(Context $ctx, $originBoard, $postID) {
+function mod_move_reply(Context $ctx, $channel, $board_uri, $postID) {
     global $board, $config, $mod;
 
-    // Extract the board URI (e.g., "3e") from the full board path (e.g., "channel/3e")
-    $originBoardURI = basename($originBoard);
-
-    if (!openBoard($originBoardURI)) {
+    // Fetch board info from DB
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $board_uri);
+    $query->execute() or error(db_error($query));
+    $board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$board_info) {
         error($config['error']['noboard']);
     }
 
-    if (!hasPermission($config['mod']['move'], $originBoardURI)) {
+    if (!openBoard($board_uri)) {
+        error($config['error']['noboard']);
+    }
+
+    if (!hasPermission($config['mod']['move'], $board_uri)) {
         error($config['error']['noaccess']);
     }
 
     // Fetch the post, including live_date_path
     $query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-    $query->bindValue(':board', $originBoardURI);
+    $query->bindValue(':board', $board_uri);
     $query->bindValue(':id', $postID);
     $query->execute() or error(db_error($query));
     if (!$post = $query->fetch(PDO::FETCH_ASSOC)) {
@@ -1840,9 +1858,9 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                $file['file_path'] = sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['dir']['img'] . $file['file'];
                 if (isset($file['thumb']) && $file['thumb'] && $file['thumb'] !== 'deleted') {
-                    $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                    $file['thumb_path'] = sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['dir']['thumb'] . $file['thumb'];
                 }
             }
         } else {
@@ -1872,10 +1890,10 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file'];
+                $target_img_path = sprintf($config['board_path'], $board_info['channel'], $targetBoard) . $config['dir']['img'] . $file['file'];
                 @rename($file['file_path'], $target_img_path);
                 if (isset($file['thumb']) && $file['thumb'] && $file['thumb'] !== 'deleted' && $file['thumb'] !== 'spoiler') {
-                    $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
+                    $target_thumb_path = sprintf($config['board_path'], $board_info['channel'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
                     @rename($file['thumb_path'], $target_thumb_path);
                 }
             }
@@ -1889,10 +1907,10 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
         Vichan\Functions\Theme\rebuild_themes('post', $targetBoard);
 
         // Log the action
-        modLog("Moved post #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoardURI);
+        modLog("Moved post #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $board_uri);
 
         // Return to the original board
-        openBoard($originBoardURI);
+        openBoard($board_uri);
 
         // Delete the original post
         deletePost($postID);
@@ -1902,36 +1920,36 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
         openBoard($targetBoard);
 
         // Find the new reply's thread and its live_date_path
-		$query = prepare('SELECT thread FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-		$query->bindValue(':board', $targetBoard);
-		$query->bindValue(':id', $newID);
-		$query->execute() or error(db_error($query));
-		$thread_id = $query->fetchColumn();
+        $query = prepare('SELECT thread FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+        $query->bindValue(':board', $targetBoard);
+        $query->bindValue(':id', $newID);
+        $query->execute() or error(db_error($query));
+        $thread_id = $query->fetchColumn();
 
-		// If this is a reply, fetch the OP post for the thread
-		if ($thread_id) {
-			$query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-			$query->bindValue(':board', $targetBoard);
-			$query->bindValue(':id', $thread_id);
-			$query->execute() or error(db_error($query));
-			$thread_post = $query->fetch(PDO::FETCH_ASSOC);
+        // If this is a reply, fetch the OP post for the thread
+        if ($thread_id) {
+            $query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+            $query->bindValue(':board', $targetBoard);
+            $query->bindValue(':id', $thread_id);
+            $query->execute() or error(db_error($query));
+            $thread_post = $query->fetch(PDO::FETCH_ASSOC);
 
-			// Redirect to the thread, anchored to the reply
-			header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
-		} else {
-			// If this is a new thread, redirect to it
-			$query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
-			$query->bindValue(':board', $targetBoard);
-			$query->bindValue(':id', $newID);
-			$query->execute() or error(db_error($query));
-			$thread_post = $query->fetch(PDO::FETCH_ASSOC);
+            // Redirect to the thread, anchored to the reply
+            header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
+        } else {
+            // If this is a new thread, redirect to it
+            $query = prepare('SELECT * FROM ``posts`` WHERE `board` = :board AND `id` = :id');
+            $query->bindValue(':board', $targetBoard);
+            $query->bindValue(':id', $newID);
+            $query->execute() or error(db_error($query));
+            $thread_post = $query->fetch(PDO::FETCH_ASSOC);
 
-			header('Location: ?/' . sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
-		}
+            header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $targetBoard) . $config['dir']['res'] . $thread_post['live_date_path'] . '/' . link_for($thread_post) . '#' . $newID, true, $config['redirect_http']);
+        }
     } else {
         $boards = listBoards();
 
-        $board_path = rtrim(sprintf($config['board_path'], $originBoardURI), '/');
+        $board_path = rtrim(sprintf($config['board_path'], $board_info['channel'], $board_uri), '/');
         $security_token = make_secure_link_token("{$board_path}/move_reply/{$postID}");
 
         mod_page(
@@ -1939,19 +1957,30 @@ function mod_move_reply(Context $ctx, $originBoard, $postID) {
             $config['file_mod_move_reply'],
             [
                 'post' => $postID,
-                'board' => $originBoardURI,
+                'board' => $board_uri,
                 'boards' => $boards,
-                'token' => $security_token
+                'token' => $security_token,
+                'channel' => $board_info['channel'] // <-- pass channel to template
             ],
             $mod
         );
     }
 }
 
-function mod_move(Context $ctx, $originBoard, $postID) {
+function mod_move(Context $ctx, $channel, $originBoard, $postID) {
     global $board, $config, $pdo, $mod;
 
     $originBoardURI = basename($originBoard);
+
+    // Fetch origin board info for channel
+    $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $originBoardURI);
+    $query->execute() or error(db_error($query));
+    $origin_board_info = $query->fetch(PDO::FETCH_ASSOC);
+    if (!$origin_board_info) {
+        error($config['error']['noboard']);
+    }
+
     error_log("mod_move: Starting with originBoardURI=$originBoardURI, postID=$postID");
 
     if (!openBoard($originBoardURI)) {
@@ -1974,6 +2003,16 @@ function mod_move(Context $ctx, $originBoard, $postID) {
 
     if (isset($_POST['board'])) {
         $targetBoard = basename($_POST['board']);
+
+        // Fetch target board info for channel
+        $query = prepare('SELECT * FROM ``boards`` WHERE `uri` = :uri');
+        $query->bindValue(':uri', $targetBoard);
+        $query->execute() or error(db_error($query));
+        $target_board_info = $query->fetch(PDO::FETCH_ASSOC);
+        if (!$target_board_info) {
+            error($config['error']['noboard']);
+        }
+
         $shadow = isset($_POST['shadow']);
         error_log("mod_move: Target board=$targetBoard, shadow=" . ($shadow ? 'true' : 'false'));
 
@@ -1992,8 +2031,8 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                 if ($file['file'] === 'deleted') {
                     continue;
                 }
-                $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
-                $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                $file['file_path'] = sprintf($config['board_path'], $origin_board_info['channel'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                $file['thumb_path'] = sprintf($config['board_path'], $origin_board_info['channel'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
                 error_log("mod_move: OP file path={$file['file_path']}, thumb path={$file['thumb_path']}");
             }
         } else {
@@ -2024,7 +2063,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         if ($post['has_file']) {
             foreach ($post['files'] as $i => &$file) {
                 if ($file['file'] !== 'deleted') {
-                    $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $file['file'];
+                    $target_img_path = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['img'] . $file['file'];
                     $target_img_dir = dirname($target_img_path);
                     if (!is_dir($target_img_dir)) {
                         mkdir($target_img_dir, 0775, true);
@@ -2033,7 +2072,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                         error_log("mod_move: Failed to move/copy image: {$file['file_path']} -> $target_img_path");
                     }
                     if (isset($file['thumb']) && !in_array($file['thumb'], ['spoiler', 'deleted', 'file'])) {
-                        $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
+                        $target_thumb_path = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['thumb'] . $file['thumb'];
                         $target_thumb_dir = dirname($target_thumb_path);
                         if (!is_dir($target_thumb_dir)) {
                             mkdir($target_thumb_dir, 0775, true);
@@ -2064,9 +2103,9 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                 $reply['files'] = json_decode($reply['files'], true);
                 $reply['has_file'] = true;
                 foreach ($reply['files'] as $i => &$file) {
-                    $file['file_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['img'] . $file['file'];
+                    $file['file_path'] = sprintf($config['board_path'], $origin_board_info['channel'], $originBoardURI) . $config['dir']['img'] . $file['file'];
                     if (isset($file['thumb'])) {
-                        $file['thumb_path'] = sprintf($config['board_path'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
+                        $file['thumb_path'] = sprintf($config['board_path'], $origin_board_info['channel'], $originBoardURI) . $config['dir']['thumb'] . $file['thumb'];
                     }
                     error_log("mod_move: Reply file path={$file['file_path']}, thumb path=" . (isset($file['thumb_path']) ? $file['thumb_path'] : 'none'));
                 }
@@ -2083,12 +2122,12 @@ function mod_move(Context $ctx, $originBoard, $postID) {
 
         foreach ($replies as &$reply) {
             $reply['op'] = false;
-            $reply['tracked_cites'] = markup($reply['body'], true);
+            //$reply['tracked_cites'] = markup($reply['body'], true);
 
             if ($reply['has_file']) {
                 foreach ($reply['files'] as $i => &$file) {
                     if ($file['file'] !== 'deleted') {
-                        $target_img_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $reply['live_date_path'] . '/' . $file['file'];
+                        $target_img_path = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['img'] . $reply['live_date_path'] . '/' . $file['file'];
                         $target_img_dir = dirname($target_img_path);
                         if (!is_dir($target_img_dir)) {
                             mkdir($target_img_dir, 0775, true);
@@ -2097,7 +2136,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
                             error_log("mod_move: Failed to move/copy reply image: {$file['file_path']} -> $target_img_path");
                         }
                         if (isset($file['thumb']) && !in_array($file['thumb'], ['spoiler', 'deleted', 'file'])) {
-                            $target_thumb_path = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $reply['live_date_path'] . '/' . $file['thumb'];
+                            $target_thumb_path = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['thumb'] . $reply['live_date_path'] . '/' . $file['thumb'];
                             $target_thumb_dir = dirname($target_thumb_path);
                             if (!is_dir($target_thumb_dir)) {
                                 mkdir($target_thumb_dir, 0775, true);
@@ -2116,19 +2155,19 @@ function mod_move(Context $ctx, $originBoard, $postID) {
 
         modLog("Moved thread #{$postID} to " . sprintf($config['board_abbreviation'], $targetBoard) . " (#{$newID})", $originBoardURI);
 
-        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['res'] . $op['live_date_path'];
+        $target_dir = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['res'] . $op['live_date_path'];
         if (!is_dir($target_dir)) {
             mkdir($target_dir, 0775, true);
             error_log("mod_move: Created directory $target_dir");
         }
 
-        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['img'] . $op['live_date_path'];
+        $target_dir = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['img'] . $op['live_date_path'];
         if (!is_dir($target_dir)) {
             mkdir($target_dir, 0775, true);
             error_log("mod_move: Created directory $target_dir");
         }
 
-        $target_dir = sprintf($config['board_path'], $targetBoard) . $config['dir']['thumb'] . $op['live_date_path'];
+        $target_dir = sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . $config['dir']['thumb'] . $op['live_date_path'];
         if (!is_dir($target_dir)) {
             mkdir($target_dir, 0775, true);
             error_log("mod_move: Created directory $target_dir");
@@ -2157,10 +2196,10 @@ function mod_move(Context $ctx, $originBoard, $postID) {
             error_log("mod_move: Deleted original thread ID=$postID on $originBoardURI");
         }
 
-        // Construct and log redirect URL
+        // Construct and log redirect URL using channel and board_uri
         openBoard($targetBoard);
         $newboard = $board; // Ensure $newboard reflects target board
-        $board_path = rtrim(sprintf($config['board_path'], $targetBoard), '/');
+        $board_path = rtrim(sprintf($config['board_path'], $target_board_info['channel'], $targetBoard), '/');
         $res_dir = rtrim($config['dir']['res'], '/');
         $live_date_path = trim($op['live_date_path'], '/');
         $link = link_for($op, false, $newboard);
@@ -2168,7 +2207,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         if (isset($config['root'])) {
             $redirect_url = rtrim($config['root'], '/') . $redirect_url;
         }
-        error_log("mod_move: Config board_path=" . sprintf($config['board_path'], $targetBoard) . ", res_dir={$config['dir']['res']}");
+        error_log("mod_move: Config board_path=" . sprintf($config['board_path'], $target_board_info['channel'], $targetBoard) . ", res_dir={$config['dir']['res']}");
         error_log("mod_move: Redirect URL components: board_path=$board_path, res_dir=$res_dir, live_date_path=$live_date_path, link=$link");
         error_log("mod_move: Final redirect URL: $redirect_url");
 
@@ -2182,7 +2221,7 @@ function mod_move(Context $ctx, $originBoard, $postID) {
         error(_('Impossible to move thread; there is only one board.'));
     }
 
-    $board_path = rtrim(sprintf($config['board_path'], $originBoardURI), '/');
+    $board_path = rtrim(sprintf($config['board_path'], $origin_board_info['channel'], $originBoardURI), '/');
     $security_token = make_secure_link_token("{$board_path}/move/{$postID}");
     error_log("mod_move: Displaying move thread page for postID=$postID, originBoardURI=$originBoardURI");
 
@@ -2193,13 +2232,14 @@ function mod_move(Context $ctx, $originBoard, $postID) {
             'post' => $postID,
             'board' => $originBoardURI,
             'boards' => $boards,
-            'token' => $security_token
+            'token' => $security_token,
+            'channel' => $origin_board_info['channel'] // <-- add this line
         ],
         $mod
     );
 }
 
-function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
+function mod_ban_post(Context $ctx, $channel, $board, $delete, $post, $token = false) {
     global $mod;
     $config = $ctx->get('config');
 
@@ -2230,7 +2270,7 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
         error($config['error']['noaccess']);
     }
 
-    $board_prefix = rtrim(dirname(sprintf($config['board_path'], $board_uri)), '/') . '/';
+    $board_prefix = rtrim(dirname(sprintf($config['board_path'], $board_info['channel'], $board_uri)), '/') . '/';
     $security_token = make_secure_link_token($board_prefix . $board_uri . '/ban/' . (int)$post);
 
     $query = prepare('SELECT ' . ($config['ban_show_post'] ? '*' : '`ip`, `thread`') .
@@ -2320,7 +2360,8 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
             Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
         }
 
-        header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+        // Redirect to the board index using the correct channel
+        header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
         return;
     }
 
@@ -2343,7 +2384,7 @@ function mod_ban_post(Context $ctx, $board, $delete, $post, $token = false) {
 }
 
 
-function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
+function mod_edit_post(Context $ctx, $channel, $board, $edit_raw_html, $postID) {
     global $mod;
     $config = $ctx->get('config');
 
@@ -2379,7 +2420,7 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
     }
 
     // Generate the security token
-    $board_path = rtrim(sprintf($config['board_path'], $board_uri), '/');
+    $board_path = rtrim(sprintf($config['board_path'], $board_info['channel'], $board_uri), '/');
     $security_token = make_secure_link_token("{$board_path}/edit" . ($edit_raw_html ? '_raw' : '') . "/" . (int)$postID);
 
     $query = prepare('SELECT *, live_date_path FROM ``posts`` WHERE `board` = :board AND `id` = :id');
@@ -2424,7 +2465,7 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
         buildIndex();
         Vichan\Functions\Theme\rebuild_themes('post', $board_uri);
 
-        header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . '#' . $postID, true, $config['redirect_http']);
+        header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['dir']['res'] . $post['live_date_path'] . '/' . link_for($post) . '#' . $postID, true, $config['redirect_http']);
     } else {
         // Remove modifiers
         $post['body_nomarkup'] = remove_modifiers($post['body_nomarkup']);
@@ -2445,7 +2486,7 @@ function mod_edit_post(Context $ctx, $board, $edit_raw_html, $postID) {
     }
 }
 
-function mod_delete(Context $ctx, $board, $post) {
+function mod_delete(Context $ctx, $channel, $board, $post) {
     global $mod;
     $config = $ctx->get('config');
 
@@ -2482,11 +2523,11 @@ function mod_delete(Context $ctx, $board, $post) {
     buildIndex();
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_deletefile(Context $ctx, $board, $post, $file) {
+function mod_deletefile(Context $ctx, $channel, $board, $post, $file) {
     global $mod;
     $config = $ctx->get('config');
 
@@ -2523,11 +2564,11 @@ function mod_deletefile(Context $ctx, $board, $post, $file) {
     buildIndex();
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
-    // Redirect to the board index
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_spoiler_image(Context $ctx, $board, $post, $file) {
+function mod_spoiler_image(Context $ctx, $channel, $board, $post, $file) {
     global $mod;
     $config = $ctx->get('config');
 
@@ -2590,11 +2631,11 @@ function mod_spoiler_image(Context $ctx, $board, $post, $file) {
     buildIndex();
     Vichan\Functions\Theme\rebuild_themes('post-delete', $board_uri);
 
-    // Redirect
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
-function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
+function mod_deletebyip(Context $ctx, $channel, $boardName, $post, $global = false) {
     global $board, $mod;
     $config = $ctx->get('config');
 
@@ -2687,7 +2728,8 @@ function mod_deletebyip(Context $ctx, $boardName, $post, $global = false) {
 
     $cip = cloak_ip($ip);
     modLog("Deleted all posts by IP address: <a href=\"?/IP/$cip\">$cip</a>");
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect to the board index using the correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 function mod_user(Context $ctx, $uid) {
@@ -3809,11 +3851,11 @@ function mod_recent_posts(Context $ctx, $lim) {
 	);
 }
 
-function mod_config(Context $ctx, $board_config = false) {
+function mod_config(Context $ctx, $channel = null, $board_config = false) {
     global $mod, $board;
     $config = $ctx->get('config');
 
-    // Sanitize and validate board URI
+    // Use only the board URI for DB queries
     $board_uri = $board_config ? basename($board_config) : false;
 
     // Fetch board info from DB if a board is specified
@@ -3887,7 +3929,7 @@ function mod_config(Context $ctx, $board_config = false) {
                 'readonly' => $readonly,
                 'board' => $board_config,
                 'file' => $config_file,
-                'token' => make_secure_link_token('config' . ($board_config ? '/' . $board_config : '')),
+                'token' => make_secure_link_token('config/channel' . ($board_config ? '/' . $board_config : '')),
                 'is_board_owner' => $is_board_owner
             ],
             $mod
@@ -3977,7 +4019,7 @@ function mod_config(Context $ctx, $board_config = false) {
             }
         }
 
-        header('Location: ?/config/channel' . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
+        header('Location: ?/config/channel' . ($channel ? '/' . $channel : '') . ($board_config ? '/' . $board_config : ''), true, $config['redirect_http']);
         exit;
     }
 
@@ -3988,7 +4030,7 @@ function mod_config(Context $ctx, $board_config = false) {
             'board' => $board_config,
             'conf' => $conf,
             'file' => $config_file,
-            'token' => make_secure_link_token('config/channel' . ($board_config ? '/' . $board_config : '')),
+            'token' => make_secure_link_token('config/channel' . ($channel ? '/' . $channel : '') . ($board_config ? '/' . $board_config : '')),
             'is_board_owner' => $is_board_owner,
         ],
         $mod
@@ -4168,7 +4210,6 @@ function mod_theme_rebuild(Context $ctx, $theme_name) {
 	);
 }
 
-// This needs to be done for `secure` CSRF prevention compatibility, otherwise the $board will be read in as the token if editing global pages.
 function delete_page_base(Context $ctx, $page = '', $board = false) {
     global $config, $mod;
 
@@ -4177,11 +4218,14 @@ function delete_page_base(Context $ctx, $page = '', $board = false) {
 
     // Board owner can manage their own board's pages
     $is_owner = false;
+    $channel = null;
     if ($board) {
-        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query = prepare('SELECT owner_id, channel FROM ``boards`` WHERE `uri` = :uri');
         $query->bindValue(':uri', $board);
         $query->execute() or error(db_error($query));
-        $owner_id = $query->fetchColumn();
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        $owner_id = $row ? $row['owner_id'] : null;
+        $channel = $row ? $row['channel'] : null;
         $is_owner = ($owner_id && $mod['id'] == $owner_id);
     }
 
@@ -4206,7 +4250,12 @@ function delete_page_base(Context $ctx, $page = '', $board = false) {
     $query->bindValue(':name', $page);
     $query->execute() or error(db_error($query));
 
-    header('Location: ?/edit_pages' . ($board ? ('/' . $board) : ''), true, $config['redirect_http']);
+    // Redirect to the correct channel-aware edit_pages
+    if ($board && $channel) {
+        header('Location: ?/edit_pages/channel/' . $channel . '/' . $board, true, $config['redirect_http']);
+    } else {
+        header('Location: ?/edit_pages', true, $config['redirect_http']);
+    }
 }
 
 function mod_edit_page(Context $ctx, $id) {
@@ -4223,11 +4272,14 @@ function mod_edit_page(Context $ctx, $id) {
 
     // Board owner can manage their own board's pages
     $is_owner = false;
+    $channel = null;
     if ($page['board']) {
-        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query = prepare('SELECT owner_id, channel FROM ``boards`` WHERE `uri` = :uri');
         $query->bindValue(':uri', $page['board']);
         $query->execute() or error(db_error($query));
-        $owner_id = $query->fetchColumn();
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        $owner_id = $row ? $row['owner_id'] : null;
+        $channel = $row ? $row['channel'] : null;
         $is_owner = ($owner_id && $mod['id'] == $owner_id);
     }
 
@@ -4278,7 +4330,12 @@ function mod_edit_page(Context $ctx, $id) {
         $query->bindValue(':id', $id);
         $query->execute() or error(db_error($query));
 
-        $fn = ($page['board'] ? ($page['board'] . '/') : '') . $page['name'] . '.html';
+        // Write file to the correct channel/board directory
+        if ($page['board'] && $channel) {
+            $fn = sprintf($config['board_path'], $channel, $page['board']) . $page['name'] . '.html';
+        } else {
+            $fn = $page['name'] . '.html';
+        }
         $body = "<div class='ban'>$write</div>";
         $html = Element($config['file_page_template'], [
             'config' => $config,
@@ -4310,7 +4367,7 @@ function mod_edit_page(Context $ctx, $id) {
     );
 }
 
-function mod_pages(Context $ctx, $board = false) {
+function mod_pages(Context $ctx, $channel = null, $board = false) {
     global $mod, $pdo;
     $config = $ctx->get('config');
 
@@ -4319,11 +4376,14 @@ function mod_pages(Context $ctx, $board = false) {
 
     // Board owner can manage their own board's pages
     $is_owner = false;
+    $channel = null;
     if ($board) {
-        $query = prepare('SELECT owner_id FROM ``boards`` WHERE `uri` = :uri');
+        $query = prepare('SELECT owner_id, channel FROM ``boards`` WHERE `uri` = :uri');
         $query->bindValue(':uri', $board);
         $query->execute() or error(db_error($query));
-        $owner_id = $query->fetchColumn();
+        $row = $query->fetch(PDO::FETCH_ASSOC);
+        $owner_id = $row ? $row['owner_id'] : null;
+        $channel = $row ? $row['channel'] : null;
         $is_owner = ($owner_id && $mod['id'] == $owner_id);
     }
 
@@ -4372,7 +4432,11 @@ function mod_pages(Context $ctx, $board = false) {
     }
 
     foreach ($pages as $i => &$p) {
-        $p['delete_token'] = make_secure_link_token('edit_pages/delete/' . $p['name'] . ($board ? ('/' . $board) : ''));
+        // Add channel to each page for template use if needed
+        if ($board && $channel) {
+            $p['channel'] = $channel;
+        }
+        $p['delete_token'] = make_secure_link_token('edit_pages/delete/' . $p['name'] . ($board ? ('/channel/' . $channel . '/' . $board) : ''));
     }
 
     mod_page(
@@ -4380,8 +4444,9 @@ function mod_pages(Context $ctx, $board = false) {
         $config['file_mod_pages'],
         [
             'pages' => $pages,
-            'token' => make_secure_link_token('edit_pages' . ($board ? ('/' . $board) : '')),
-            'board' => $board
+            'token' => make_secure_link_token('edit_pages' . ($board ? ('/channel/' . $channel . '/' . $board) : '')),
+            'board' => $board,
+            'channel' => $channel
         ],
         $mod
     );
@@ -4478,11 +4543,14 @@ function mod_debug_sql(Context $ctx) {
 	mod_page(_('Debug: SQL'), $config['file_mod_debug_sql'], $args, $mod);
 }
 
-function mod_view_archive(Context $context, $boardName, $page_no = 1) {
+function mod_view_archive(Context $ctx, $channel, $boardName, $page_no = 1) {
     global $board, $config, $mod;
 
     if (!$config['archive']['threads']) return;
     if (!openBoard($boardName)) error($config['error']['noboard']);
+
+    // Ensure $page_no is always an integer >= 1
+    $page_no = (is_numeric($page_no) && $page_no > 0) ? (int)$page_no : 1;
 
     // --- Handle POST actions ---
     if (isset($_POST['token']) && make_secure_link_token($_POST['token'], $board['prefix'] . $board['uri'] . '/archive/')) {
@@ -4534,7 +4602,7 @@ function mod_view_archive(Context $context, $boardName, $page_no = 1) {
     );
 }
 
-function mod_view_archive_featured(Context $context, $boardName) {
+function mod_view_archive_featured(Context $context, $channel, $boardName) {
     global $board, $config, $mod;
 
     if (!$config['feature']['threads']) return;
@@ -4570,7 +4638,7 @@ function mod_view_archive_featured(Context $context, $boardName) {
     );
 }
 
-function mod_view_archive_mod_archive(Context $context, $boardName) {
+function mod_view_archive_mod_archive(Context $context, $channel, $boardName) {
     global $board, $config, $mod;
 
     if (!$config['mod_archive']['threads']) return;
@@ -4608,8 +4676,8 @@ function mod_view_archive_mod_archive(Context $context, $boardName) {
     );
 }
 
-function mod_archive_thread(Context $ctx, $board_path_segment, $post_id) {
-    global $config, $mod; // Add $mod to globals
+function mod_archive_thread(Context $ctx, $channel, $board_path_segment, $post_id) {
+    global $config, $mod;
 
     $board_uri = basename($board_path_segment);
 
@@ -4632,10 +4700,10 @@ function mod_archive_thread(Context $ctx, $board_path_segment, $post_id) {
     }
 
     Archive::archiveThread($post_id);
-    mod_delete($ctx, $board_uri, $post_id);
+    mod_delete($ctx, $channel, $board_uri, $post_id);
 
-    // Redirect using $board_uri
-    header('Location: ?/' . sprintf($config['board_path'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
+    // Redirect using $board_uri and correct channel
+    header('Location: ?/' . sprintf($config['board_path'], $board_info['channel'], $board_uri) . $config['file_index'], true, $config['redirect_http']);
 }
 
 //ads or removes mods in a board
