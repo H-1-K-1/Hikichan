@@ -1554,7 +1554,7 @@
 	// 1. chmod 0777 directories: tmp/locks/ and tmp/queue/.
 	// 2. serve 403 and 404 requests to go thru smart_build.php
 	//    for nginx, this blog post contains config snippets: https://engine.vichan.net/blog/res/2.html
-	//	  for Apache, you can use the provided .htaccess file or add this to your Apache config: ErrorDocument 404 /hikitest/smart_build.php
+	//	  for Apache, you can use the provided .htaccess file or add this to your Apache config: ErrorDocument 404 /hikichan/smart_build.php
 	// 3. disable indexes in your webserver
 	// 4. launch any number of daemons (eg. twice your number of threads?) using the command:
 	//    $ tools/worker.php
@@ -1588,7 +1588,7 @@
 	$config['smart_build_helper'] = true;
 
 	// smart_build.php: when a file doesn't exist, where should we redirect?
-	$config['page_404'] = '/hikitest/404.php';
+	$config['page_404'] = '/hikichan/404.php';
 
 	// Extra controller entrypoints. Controller is used only by smart_build and advanced build.
 	$config['controller_entrypoints'] = [];
