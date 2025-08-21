@@ -2869,7 +2869,8 @@ function mod_user(Context $ctx, $uid) {
         [
             'user' => $user,
             'logs' => $log,
-            'token' => make_secure_link_token('users/' . $user['id'])
+            'token' => make_secure_link_token('users/' . $user['id']),
+            'suggestions_token' => make_secure_link_token('board_suggestions')
         ],
         $mod
     );
@@ -3311,7 +3312,9 @@ function mod_rebuild(Context $ctx) {
         if (!empty($_POST['rebuild_archive']) && !empty($config['archive']['threads'])) {
             $query = query("SELECT DISTINCT `board_uri` FROM `archive_threads`");
             while ($row = $query->fetch(PDO::FETCH_ASSOC)) {
-                $_SESSION['rebuild_progress']['archive_boards'][] = $row['board_uri'];
+                if (in_array($row['board_uri'], $selected_boards)) {
+                    $_SESSION['rebuild_progress']['archive_boards'][] = $row['board_uri'];
+                }
             }
         }
 
@@ -3581,22 +3584,16 @@ function mod_rebuild(Context $ctx) {
     // Initial rebuild form
     mod_page(_('Rebuild'), $config['file_mod_rebuild'], [
         'boards' => listBoards(),
-        'token' => $token
+        'token' => $token,
+        'suggestions_token' => make_secure_link_token('board_suggestions')
     ], $mod);
 }
 
 function mod_board_suggestions(Context $ctx) {
     global $config, $mod;
 
-    // Check permissions
-    if (!hasPermission($config['mod']['editusers'])) {
-        header('Content-Type: application/json');
-        echo json_encode(['error' => $config['error']['noaccess']]);
-        exit;
-    }
-
     // Validate CSRF token
-    if (empty($_POST['token']) || !check_secure_link_token($_POST['token'], 'users/suggestions')) {
+    if (empty($_POST['token']) || !make_secure_link_token($_POST['token'], 'board_suggestions')) {
         header('Content-Type: application/json');
         echo json_encode(['error' => $config['error']['invalidtoken']]);
         exit;
@@ -3609,11 +3606,12 @@ function mod_board_suggestions(Context $ctx) {
     $boards = [];
 
     // Handle wildcard
-    if ($query === '*' || stripos('*', $query) === 0) {
+    if ($query === '*') {
         $boards[] = [
             'uri' => '*',
             'title' => 'All Boards',
-            'abbreviation' => '*'
+            'abbreviation' => '*',
+            'channel' => null // Optional, since wildcard isn't a real board
         ];
     }
 
@@ -3624,19 +3622,33 @@ function mod_board_suggestions(Context $ctx) {
         exit;
     }
 
-    // Fetch boards matching the query
-    $all_boards = listBoards();
+    // Fetch all boards
+    try {
+        $all_boards = listBoards();
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Failed to fetch boards: ' . $e->getMessage()]);
+        exit;
+    }
+
     $query = strtolower($query);
+    $max_suggestions = 10; // Limit suggestions for performance
 
     foreach ($all_boards as $board) {
+        if (count($boards) >= $max_suggestions) {
+            break; // Stop after reaching max suggestions
+        }
+
         $uri = strtolower($board['uri']);
         $title = strtolower($board['title']);
         $abbreviation = strtolower(sprintf($config['board_abbreviation'], $board['uri']));
+
         if (strpos($uri, $query) !== false || strpos($title, $query) !== false || strpos($abbreviation, $query) !== false) {
             $boards[] = [
                 'uri' => $board['uri'],
                 'title' => $board['title'],
-                'abbreviation' => sprintf($config['board_abbreviation'], $board['uri'])
+                'abbreviation' => sprintf($config['board_abbreviation'], $board['uri']),
+                'channel' => isset($board['channel']) ? $board['channel'] : null // Handle missing channel
             ];
         }
     }
@@ -3646,6 +3658,7 @@ function mod_board_suggestions(Context $ctx) {
     echo json_encode(['boards' => $boards]);
     exit;
 }
+
 
 function mod_reports(Context $ctx, $page_no = 1) {
 	global $mod;
@@ -3930,7 +3943,8 @@ function mod_config(Context $ctx, $channel = null, $board_config = false) {
                 'board' => $board_config,
                 'file' => $config_file,
                 'token' => make_secure_link_token('config/channel' . ($board_config ? '/' . $board_config : '')),
-                'is_board_owner' => $is_board_owner
+                'is_board_owner' => $is_board_owner,
+                'suggestions_token' => make_secure_link_token('board_suggestions')
             ],
             $mod
         );
@@ -4032,6 +4046,7 @@ function mod_config(Context $ctx, $channel = null, $board_config = false) {
             'file' => $config_file,
             'token' => make_secure_link_token('config/channel' . ($channel ? '/' . $channel : '') . ($board_config ? '/' . $board_config : '')),
             'is_board_owner' => $is_board_owner,
+            'suggestions_token' => make_secure_link_token('board_suggestions')
         ],
         $mod
     );

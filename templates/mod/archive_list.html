@@ -66,6 +66,8 @@
                     <input type="hidden" name="board" value="{{ board.uri }}" />
                     <input type="hidden" name="thread_id" value="{{ thread.original_thread_id }}">
                     <input type="hidden" name="archive_vote" value="1">
+                    <input type="hidden" name="current_page" value="{{ current_page }}">
+                    <input type="hidden" name="pagination_group" value="{{ pagination_group }}">
                     <a href="#" onclick="confirm('Press OK to vote for this thread to be added to featured archive.')?this.parentNode.submit():false;">[+]</a>
                 </form>
                 {% else %}

@@ -167,74 +167,71 @@ foreach ($pages as $key => $callback) {
 $pages = $new_pages;
 
 foreach ($pages as $uri => $handler) {
-    if (preg_match($uri, $query, $matches)) {
-        $matches[0] = $ctx; // Replace the text captured by the full pattern with a reference to the context.
+    if (!preg_match($uri, $query, $matches)) {
+        continue;
+    }
 
-        // Handle board URI from channel/{n}/{uri}/ routes
-        if (isset($matches[2])) {
-            $matches['board'] = $matches[2]; // Capture board URI
-        }
+    // Debug: Log the matches and handler
+    if ($config['debug']) {
+        error_log("Matched URI: $uri, Handler: $handler, Matches: " . print_r($matches, true));
+    }
 
-        // Debug: Log the matches and handler
-        if ($config['debug']) {
-            error_log("Matched URI: $uri, Handler: $handler, Matches: " . print_r($matches, true));
-        }
-
-        if (is_string($handler) && preg_match('/^secure(_POST)? /', $handler, $m)) {
-            $secure_post_only = isset($m[1]);
-            if (!$secure_post_only || $_SERVER['REQUEST_METHOD'] == 'POST') {
-                $token = isset($matches['token']) ? $matches['token'] : (isset($_POST['token']) ? $_POST['token'] : false);
-
-                if ($token === false) {
-                    if ($secure_post_only)
-                        error($config['error']['csrf']);
-                    else {
-                        mod_confirm($ctx, substr($query, 1));
-                        exit;
-                    }
-                }
-
-                $actual_query = preg_replace('!/([a-f0-9]{8})$!', '', $query);
-                if ($token != make_secure_link_token(substr($actual_query, 1))) {
+    // CSRF/secure handler check
+    if (is_string($handler) && preg_match('/^secure(_POST)? /', $handler, $m)) {
+        $secure_post_only = isset($m[1]);
+        if (!$secure_post_only || $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $token = $matches['token'] ?? ($_POST['token'] ?? false);
+            if ($token === false) {
+                if ($secure_post_only) {
                     error($config['error']['csrf']);
-                }
-            }
-            $handler = preg_replace('/^secure(_POST)? /', '', $handler);
-        }
-
-        if ($config['debug']) {
-            $debug['mod_page'] = [
-                'req' => $query,
-                'match' => $uri,
-                'handler' => $handler,
-            ];
-            $debug['time']['parse_mod_req'] = '~' . round((microtime(true) - $parse_start_time) * 1000, 2) . 'ms';
-        }
-
-        // Handle view_board specifically to ensure correct parameter order
-        if ($handler === 'view_board' && isset($matches[1], $matches[2], $matches[3], $matches[4])) {
-            // $matches[1] = channel, $matches[2] = board, $matches[3] = folder, $matches[4] = page_no
-            mod_view_board($ctx, $matches[1], $matches[2], $matches[3], $matches[4]);
-        } else {
-            // For other handlers, pass matches as an indexed array
-            $matches = array_values($matches);
-            if (is_string($handler)) {
-                if ($handler[0] == ':') {
-                    header('Location: ' . substr($handler, 1), true, $config['redirect_http']);
-                } elseif (is_callable("mod_$handler")) {
-                    call_user_func_array("mod_$handler", $matches);
                 } else {
-                    error("Mod page '$handler' not found!");
+                    mod_confirm($ctx, ltrim($query, '/'));
+                    exit;
                 }
-            } elseif (is_callable($handler)) {
-                call_user_func_array($handler, $matches);
-            } else {
-                error("Mod page '$handler' not a string, and not callable!");
+            }
+            $actual_query = preg_replace('!/([a-f0-9]{8})$!', '', $query);
+            if ($token != make_secure_link_token(ltrim($actual_query, '/'))) {
+                error($config['error']['csrf']);
             }
         }
+        $handler = preg_replace('/^secure(_POST)? /', '', $handler);
+    }
 
+    // Debug: Store handler info
+    if ($config['debug']) {
+        $debug['mod_page'] = [
+            'req' => $query,
+            'match' => $uri,
+            'handler' => $handler,
+        ];
+        $debug['time']['parse_mod_req'] = '~' . round((microtime(true) - $parse_start_time) * 1000, 2) . 'ms';
+    }
+
+    // Prepare arguments: always pass $ctx as first argument
+    $args = array_values($matches);
+    $args[0] = $ctx;
+
+    // Special case: view_board with 4+ params (for pagination)
+    if ($handler === 'view_board' && count($args) >= 5) {
+        mod_view_board($ctx, $args[1], $args[2], $args[3], $args[4]);
         exit;
     }
+
+    // Handler dispatch
+    if (is_string($handler)) {
+        if ($handler[0] === ':') {
+            header('Location: ' . substr($handler, 1), true, $config['redirect_http']);
+        } elseif (is_callable("mod_$handler")) {
+            call_user_func_array("mod_$handler", $args);
+        } else {
+            error("Mod page '$handler' not found!");
+        }
+    } elseif (is_callable($handler)) {
+        call_user_func_array($handler, $args);
+    } else {
+        error("Mod page '$handler' not a string, and not callable!");
+    }
+    exit;
 }
 
 error($config['error']['404']);

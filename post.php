@@ -1582,11 +1582,31 @@ if (isset($_POST['delete'])) {
 	if (!openBoard($_POST['board']))
 		error($config['error']['noboard']);
 
-	// Add Vote
-	Archive::addVote($_POST['board'], $_POST['thread_id']);
+    // Fetch channel for the board
+    $query = prepare('SELECT `channel` FROM `boards` WHERE `uri` = :uri');
+    $query->bindValue(':uri', $_POST['board']);
+    $query->execute() or error(db_error($query));
+    $channel = $query->fetchColumn();
 
-	// Return user to archive
-	header('Location: ' . $config['root'] . sprintf($config['board_path'], $_POST['board']) . $config['dir']['archive'], true, $config['redirect_http']);
+    if ($channel === false) {
+        error($config['error']['noboard']);
+    }
+
+	// Add Vote
+    Archive::addVote($_POST['board'], $_POST['thread_id']);
+
+    // Determine page and pagination group
+    $page = isset($_POST['current_page']) && is_numeric($_POST['current_page']) ? (int)$_POST['current_page'] : 1;
+    $pagination_group = isset($_POST['pagination_group']) && is_numeric($_POST['pagination_group']) ? (int)$_POST['pagination_group'] : 1;
+
+    // Build archive URL for the correct page
+    if ($page > 1) {
+        $archive_url = $config['root'] . sprintf($config['board_path'], $channel, $_POST['board']) . $config['dir']['archive'] . 'pagination/' . $pagination_group . '/' . $page . '.html';
+    } else {
+        $archive_url = $config['root'] . sprintf($config['board_path'], $channel, $_POST['board']) . $config['dir']['archive'];
+    }
+
+    header('Location: ' . $archive_url, true, $config['redirect_http']);
 
 } else {
 	if (!file_exists($config['has_installed'])) {

@@ -50,9 +50,11 @@
     <hr>
 
     <div style="margin-bottom:8px">
-        <label for="boards_input"><strong>{% trans 'Boards (comma-separated, * for all)' %}</strong></label><br>
-        <input type="text" name="boards_input" id="boards_input" list="board_suggestions" placeholder="e.g. a,b,c or * for all boards" style="width:280px;">
-        <datalist id="board_suggestions"></datalist> <!-- Empty datalist, populated dynamically -->
+        <label for="rebuildBoardInput"><strong>{% trans 'Boards (comma-separated, * for all)' %}</strong></label><br>
+        <input type="text" id="rebuildBoardInput" placeholder="Enter board URI, title, or * for all boards" style="width:280px;">
+        <ul id="rebuildBoardSuggestions" style="list-style:none; padding:0; margin:0; border:1px solid #ccc; max-height:120px; overflow:auto; display:none; position:absolute; background:white; z-index:10;"></ul>
+        <div id="rebuildSelectedBoards" style="margin-top:5px;"></div>
+        <input type="hidden" name="boards_input" id="rebuildBoardsHidden">
     </div>
 
     <p style="text-align:center">
@@ -61,42 +63,105 @@
 </form>
 
 <script>
-    document.getElementById('boards_input').addEventListener('input', function(e) {
-        var input = e.target.value.toLowerCase().trim();
-        var datalist = document.getElementById('board_suggestions');
-        
-        // Clear previous suggestions
-        datalist.innerHTML = '';
+    const rebuildBoardInput = document.getElementById('rebuildBoardInput');
+    const rebuildSuggestions = document.getElementById('rebuildBoardSuggestions');
+    const rebuildSelectedBoardsDiv = document.getElementById('rebuildSelectedBoards');
+    const rebuildBoardsHidden = document.getElementById('rebuildBoardsHidden');
+    const rebuildCsrfToken = '{{ suggestions_token|default(token) }}';
 
-        // Only fetch suggestions if input is not empty and not just '*'
-        if (input === '' || input === '*') {
-            return;
+    function updateRebuildHiddenField() {
+        const boardTags = Array.from(rebuildSelectedBoardsDiv.querySelectorAll('.board-tag'))
+            .map(tag => tag.getAttribute('data-board'));
+        rebuildBoardsHidden.value = boardTags.join(',');
+    }
+
+    function removeRebuildBoard(uri) {
+        const el = rebuildSelectedBoardsDiv.querySelector(`[data-board="${uri}"]`);
+        if (el) el.remove();
+        updateRebuildHiddenField();
+    }
+
+    function addRebuildBoard(uri) {
+        if (!uri) return;
+        if (!rebuildSelectedBoardsDiv.querySelector(`[data-board="${uri}"]`)) {
+            const span = document.createElement('span');
+            span.className = 'board-tag';
+            span.setAttribute('data-board', uri);
+            span.style.marginRight = '4px';
+            span.innerHTML = `${uri} <button type="button" onclick="removeRebuildBoard('${uri}')">×</button>`;
+            rebuildSelectedBoardsDiv.appendChild(span);
+            updateRebuildHiddenField();
         }
+    }
 
-        // Make AJAX request to fetch board suggestions
-        fetch('?/board_suggestions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: 'query=' + encodeURIComponent(input) + '&token=' + encodeURIComponent('{{ token }}')
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error('Error:', data.error);
+    let rebuildDebounceTimeout;
+    rebuildBoardInput.addEventListener('input', () => {
+        clearTimeout(rebuildDebounceTimeout);
+        rebuildDebounceTimeout = setTimeout(async () => {
+            const val = rebuildBoardInput.value.trim().toLowerCase();
+            rebuildSuggestions.innerHTML = '';
+            if (!val) {
+                rebuildSuggestions.style.display = 'none';
                 return;
             }
-            // Populate datalist with new suggestions
-            data.boards.forEach(board => {
-                var option = document.createElement('option');
-                option.value = board.uri;
-                option.text = board.abbreviation + ' - ' + board.title;
-                datalist.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-        });
+
+            try {
+                const response = await fetch('?/board_suggestions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `query=${encodeURIComponent(val)}&token=${encodeURIComponent(rebuildCsrfToken)}`
+                });
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    rebuildSuggestions.style.display = 'none';
+                    return;
+                }
+
+                if (data.boards.length) {
+                    rebuildSuggestions.style.display = 'block';
+                    data.boards.forEach(board => {
+                        const li = document.createElement('li');
+                        li.style.cursor = 'pointer';
+                        li.style.padding = '2px 5px';
+                        li.innerHTML = `<strong>${board.uri}</strong> (${board.title})`;
+                        li.onclick = () => {
+                            addRebuildBoard(board.uri);
+                            rebuildBoardInput.value = '';
+                            rebuildSuggestions.style.display = 'none';
+                        };
+                        rebuildSuggestions.appendChild(li);
+                    });
+                } else {
+                    rebuildSuggestions.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error fetching board suggestions:', error);
+                rebuildSuggestions.style.display = 'none';
+            }
+        }, 300);
+    });
+
+    rebuildBoardInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = rebuildBoardInput.value.trim().toLowerCase();
+            if (val) {
+                addRebuildBoard(val);
+                rebuildBoardInput.value = '';
+                rebuildSuggestions.style.display = 'none';
+            }
+        }
+    });
+
+    // Allow clicking outside to close suggestions
+    document.addEventListener('click', function(e) {
+        if (!rebuildSuggestions.contains(e.target) && e.target !== rebuildBoardInput) {
+            rebuildSuggestions.style.display = 'none';
+        }
     });
 </script>
